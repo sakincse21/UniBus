@@ -17,6 +17,7 @@ const register = tryCatch(async (req: Request, res: Response, next: NextFunction
 const login = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
   console.log(req.body);
+  console.log('login korbe ekhon: ', email)
   const data = await AuthService.login(email, password);
 
   setCookie(res, data.token);
@@ -28,8 +29,15 @@ const login = tryCatch(async (req: Request, res: Response, next: NextFunction) =
   });
 });
 
+const getSocketToken = (req: Request, res: Response) => {
+  res.json({
+    token: req.cookies.token,
+  });
+};
+
 
 export const AuthController={
     register,
     login,
+    getSocketToken,
 }
