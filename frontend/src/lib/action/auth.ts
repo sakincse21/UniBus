@@ -4,6 +4,44 @@ import {parse} from "cookie";
 import { cookies } from "next/headers";
 import { configs } from "../config.env";
 
+
+export async function registerAction(_currentState: any, formData: FormData): Promise<any> {
+    try {
+        const name = formData.get("name") as string;
+        const email = formData.get("email") as string;
+        const password = formData.get("password") as string;
+
+        const res = await fetch(`${configs.BACKEND_BASE_URL}/api/v1/auth/register`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name, email, password }),
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json();
+            return { 
+                success: false, 
+                message: errorData.message || "Registration failed" 
+            };
+        }
+
+        const data = await res.json();
+        return { 
+            success: true, 
+            message: data.message || "Registration successful",
+            data: data.data 
+        };
+    } catch (error) {
+        console.error("Registration error:", error);
+        return { 
+            success: false, 
+            message: "An error occurred during registration" 
+        };
+    }
+}
+
 export async function loginAction(_currentState:any, formData: FormData): Promise<any> {
     try {
         const email = formData.get("email") as string;
@@ -13,15 +51,17 @@ export async function loginAction(_currentState:any, formData: FormData): Promis
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
           body: JSON.stringify({ email, password }),
         });
+
+        console.log(res)
 
         if (!res.ok) {
           return { message: "Login failed" };
         }
 
-
-        const setCookieHeaders = res.headers.getSetCookie();
+        const setCookieHeaders = res.headers.get("set-cookie")?.split(",");
 
         const  cookieStore = await cookies();
 

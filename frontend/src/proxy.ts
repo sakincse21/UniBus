@@ -21,6 +21,7 @@ const userProtectedRoutes: RouteConfig = {
 
 const adminProtectedRoutes: RouteConfig = {
   exact: ["/profile"],
+  // patterns: [/^\/dashboard(\/.*)?$/],
   patterns: [/^\/dashboard(\/.*)?$/],
 };
 
@@ -68,7 +69,6 @@ const getDefaultDashboard = (role: UserRole): string => {
   }
 };
 
-// This function can be marked `async` if using `await` inside
 export function proxy(request: NextRequest) {
   const pathName = request.nextUrl.pathname;
   const token = request.cookies.get("token")?.value || null;
@@ -102,6 +102,7 @@ export function proxy(request: NextRequest) {
   }
 
   const routeOwner = getRouteOwner(pathName);
+  console.log(routeOwner)
 
   if (!token) {
     if( routeOwner === "public" || routeOwner === "auth") {
