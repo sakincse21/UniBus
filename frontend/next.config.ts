@@ -1,8 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["http://localhost:3000","http://localhost:5000","http://192.168.10.108:3000", "http://192.168.10.108:5000"],
-  /* config options here */
+  async rewrites() {
+    return [
+      {
+        // ✅ Match any request starting with /api/v1
+        source: "/api/v1/:path*",
+        // ✅ Proxy it to your actual backend URL
+        // Make sure NEXT_PUBLIC_API_URL is set in your .env (e.g., https://paisa-hi-paisa-backend.vercel.app/api/v1)
+        destination: `http://localhost:5000/api/v1/:path*`, 
+      },
+    ];
+  },
 };
 
 export default nextConfig;

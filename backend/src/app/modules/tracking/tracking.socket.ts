@@ -4,7 +4,33 @@ import { EstimatedBusLocation } from "./estimatedBusLocation.entity";
 
 export const registerTrackingSockets = (io: any) => {
   io.on("connection", (socket: any) => {
-    socket.on("accept_tracking", async ({ busId }) => {
+    /**
+     * ✅ NEW: Join user-specific room on connection
+     * This enables targeted notifications later
+     */
+    // const user = socket.user;
+    // if (user?.userId) {
+    //   socket.join(`user:${user.userId}`);
+    //   console.log(`Socket ${socket.id} joined room user:${user.userId}`);
+    // }
+
+    const user = socket.user;
+
+    if (user?.userId) {
+      socket.join(`user:${user.userId}`);
+      socket.join(`role:${user.role}`);
+
+      if (user.batchId) {
+        socket.join(`batch:${user.batchId}`);
+      }
+    }
+
+    
+
+    /**
+     * User accepts tracking request
+     */
+    socket.on("accept_tracking", async ({ busId }: { busId: number }) => {
       const user = socket.user;
       if (!user) return;
 
@@ -32,48 +58,66 @@ export const registerTrackingSockets = (io: any) => {
       socket.emit("tracking_started", { busId });
     });
 
-    socket.on("gps_update", async ({ busId, lat, lng }) => {
-      const user = socket.user;
-      if (!user) return;
+    /**
+     * GPS updates from the volunteer
+     */
+    socket.on(
+      "gps_update",
+      async ({
+        busId,
+        lat,
+        lng,
+      }: {
+        busId: number;
+        lat: number;
+        lng: number;
+      }) => {
+        const user = socket.user;
+        if (!user) return;
 
-      console.log(lat, lng)
+        const sessionRepo = AppDataSource.getRepository(LiveTrackingSession);
+        const session = await sessionRepo.findOne({
+          where: {
+            bus: { id: busId },
+            user: { user_id: user.userId },
+            active: true,
+          },
+        });
 
-      const sessionRepo = AppDataSource.getRepository(LiveTrackingSession);
-      const session = await sessionRepo.findOne({
-        where: {
-          bus: { id: busId },
-          user: { user_id: user.userId },
-          active: true,
-        },
-      });
+        if (!session) return; // ignore invalid GPS
 
-      if (!session) return; // silently ignore
+        const locRepo = AppDataSource.getRepository(EstimatedBusLocation);
 
-      const locRepo = AppDataSource.getRepository(EstimatedBusLocation);
+        let loc = await locRepo.findOne({
+          where: { bus: { id: busId } },
+        });
 
-      let loc = await locRepo.findOne({ where: { bus: { id: busId } } });
+        if (!loc) {
+          loc = locRepo.create({
+            bus: { id: busId },
+            lat,
+            lng,
+            confidence: 0.95,
+          });
+        } else {
+          loc.lat = lat;
+          loc.lng = lng;
+          loc.confidence = 0.95;
+        }
 
-      if (!loc) {
-        loc = locRepo.create({
-          bus: { id: busId },
+        await locRepo.save(loc);
+
+        /**
+         * ❗ CHANGED: still broadcast bus location to everyone
+         * (viewing the map is public)
+         */
+        io.emit("bus_location_update", {
+          busId,
           lat,
           lng,
           confidence: 0.95,
         });
-      } else {
-        loc.lat = lat;
-        loc.lng = lng;
-        loc.confidence = 0.95;
-      }
-
-      await locRepo.save(loc);
-
-      io.emit("bus_location_update", {
-        busId,
-        lat,
-        lng,
-        confidence: 0.95,
-      });
-    });
+      },
+    );
   });
 };

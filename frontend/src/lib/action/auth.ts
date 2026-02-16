@@ -13,8 +13,11 @@ export async function loginAction(_currentState:any, formData: FormData): Promis
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
           body: JSON.stringify({ email, password }),
         });
+
+        console.log(res)
 
         if (!res.ok) {
           return { message: "Login failed" };

@@ -4,8 +4,16 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
 } from "typeorm";
+import { Batch } from "../batch/batch.entity";
 
+export enum UserRole {
+  ADMIN = "admin",
+  TEACHER = "teacher",
+  STUDENT = "student",
+  CR = "cr",
+}
 @Entity("users")
 export class User {
   @PrimaryGeneratedColumn("uuid")
@@ -17,11 +25,18 @@ export class User {
   @Column({ select: false })
   password!: string;
 
-  @Column({ default: "user" , type: "enum", enum: ["user", "admin", "super_admin"] })
-  role!: "user" | "admin" | "super_admin";
+  @Column({
+    default: UserRole.STUDENT,
+    type: "enum",
+    enum: Object.values(UserRole),
+  })
+  role!: UserRole;
 
   @Column()
   name!: string;
+
+  @ManyToOne(() => Batch, { nullable: true })
+  batch?: Batch;
 
   @CreateDateColumn()
   createdAt!: Date;

@@ -1,17 +1,23 @@
 import { env } from "../../config/env";
+import { AppDataSource } from "../../db/data-source";
 import { AppError } from "../../errors/AppError";
-import { User } from "./user.entity";
+import { User, UserRole } from "./user.entity";
 import userRepo from "./user.repository";
 import bcrypt from "bcryptjs";
 
 const createUser = async (payload: Partial<User>) => {
-  const { name, email, password } = payload;
+  const { name, email, password, batch } = payload;
   const exists = await userRepo.findOne({ where: { email } });
   if (exists) {
     throw new AppError("User already exists", 409);
   }
+  const ifBatchExists = await AppDataSource.getRepository("Batch").findOne({ where: { name: batch } });
+  if (!ifBatchExists) {
+    throw new AppError("Batch does not exist", 404);
+  }
+  console.log(ifBatchExists)
   const hashed = bcrypt.hashSync(password as string, env.BCRYPT_SALT);
-  const user = userRepo.create({ name, email, password: hashed });
+  const user = userRepo.create({ name, email, password: hashed, batch: ifBatchExists.id });
   await userRepo.save(user);
   return user;
 };
@@ -46,7 +52,7 @@ const getUserById = async (userId: string) => {
 const getAllUsers = async () => {
   const users = await userRepo.find({
     where: {
-      role: "user",
+      role: UserRole.STUDENT,
     }
   });
   return users;
