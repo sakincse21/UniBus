@@ -25,7 +25,7 @@ export const registerTrackingSockets = (io: any) => {
       }
     }
 
-    
+    console.log(user)
 
     /**
      * User accepts tracking request

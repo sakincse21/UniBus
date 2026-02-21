@@ -13,12 +13,15 @@ import { getSocket } from "@/lib/socket";
 
 type BusLocation = {
   busId: number;
-  lng: number;
-  lat: number;
-  confidence: number;
+  points: any[];
+  estimate: {
+    lng: number;
+    lat: number;
+    confidence: number;
+  };
 };
 
-export default function BusMap() {
+export default function BusMap({ points }: { points: any[] }) {
   const [locations, setLocations] = useState<Record<number, BusLocation>>({});
 
   useEffect(() => {
@@ -28,9 +31,12 @@ export default function BusMap() {
         ...prev,
         [data.busId]: {
           busId: data.busId,
-          lat: data.lat,
-          lng: data.lng,
-          confidence: data.confidence,
+          points: [],
+          estimate: {
+            lat: data.lat,
+            lng: data.lng,
+            confidence: data.confidence,
+          },
         },
       }));
     };
@@ -51,6 +57,8 @@ export default function BusMap() {
             ...prev,
             [data.busId]: data,
           }));
+
+          console.log(locations)
         });
       } catch (error) {
         console.error("Failed to initialize socket:", error);
@@ -70,11 +78,11 @@ export default function BusMap() {
     <div className="w-full h-[600px] rounded border ">
       <Map center={[89.5, 22.9]} zoom={12}>
         {Object.values(locations).map((bus) => (
-          <MapMarker key={bus?.busId} latitude={bus?.lat} longitude={bus?.lng}>
+          <MapMarker key={bus?.busId} latitude={bus?.estimate.lat} longitude={bus?.estimate.lng}>
             <MarkerContent>
               <div
                 className={`size-4 rounded-full ${
-                  bus.confidence > 0.9 ? "bg-green-500" : "bg-yellow-500"
+                  bus.estimate.confidence > 0.9 ? "bg-green-500" : "bg-yellow-500"
                 } shadow-lg`}
               />
             </MarkerContent>
@@ -83,7 +91,31 @@ export default function BusMap() {
               <div className="space-y-1">
                 <p className="font-medium text-foreground">{bus.busId}</p>
                 <p className="text-xs text-muted-foreground">
-                  {bus?.lat.toFixed(4)}, {bus?.lng.toFixed(4)}
+                  {bus?.estimate.lat.toFixed(4)}, {bus?.estimate.lng.toFixed(4)}
+                </p>
+              </div>
+            </MarkerPopup>
+          </MapMarker>
+        ))}
+        {points?.map((point) => (
+          <MapMarker
+            key={point.sequence}
+            latitude={point.lat}
+            longitude={point.lng}
+          >
+            <MarkerContent>
+              <div
+                className={`size-4 rounded-full bg-blue-500 shadow-lg flex items-center justify-center text-white text-xs`}
+              >
+                {point.sequence}
+              </div>
+            </MarkerContent>
+            <MarkerTooltip>{point.busId}</MarkerTooltip>
+            <MarkerPopup>
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">{point.busId}</p>
+                <p className="text-xs text-muted-foreground">
+                  {point?.lat.toFixed(4)}, {point?.lng.toFixed(4)}
                 </p>
               </div>
             </MarkerPopup>

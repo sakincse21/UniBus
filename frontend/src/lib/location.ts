@@ -1,6 +1,5 @@
 "use client";
 
-import { configs } from "./config.env";
 
 let intervalId: number | null = null;
 
@@ -12,7 +11,7 @@ export function startLocationUpdates() {
   intervalId = window.setInterval(() => {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        await fetch(`${configs.BACKEND_BASE_URL}/location/update`, {
+        await fetch(`/api/v1/location/update`, {
           method: "POST",
           credentials: "include",
           headers: {

@@ -9,6 +9,7 @@ const updateLocation = tryCatch(async (req: Request, res: Response) => {
 
   const repo = AppDataSource.getRepository(UserLocation);
 
+  console.log('update location: ',req.user.email)
   let record = await repo.findOne({ where: { user: { user_id: userId } } });
 
   if (!record) {

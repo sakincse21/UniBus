@@ -1,6 +1,7 @@
 "use client";
 
 import { io, Socket } from "socket.io-client";
+import { configs } from "./config.env";
 
 let socketPromise: Promise<Socket> | null = null;
 
@@ -14,7 +15,7 @@ export function getSocket(): Promise<Socket> {
 
       const { token } = await res.json();
 
-      const socket = io("http://localhost:5000", {
+      const socket = io(configs.BACKEND_BASE_URL, {
         withCredentials: true,
         auth: { token },
       });

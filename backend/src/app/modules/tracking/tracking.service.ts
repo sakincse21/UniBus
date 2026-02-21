@@ -13,6 +13,7 @@ export async function estimateBusLocation(busId: number, now: Date) {
     where: { bus: { id: busId } },
     relations: ["route"],
   });
+  console.log(schedule)
   if (!schedule) throw new AppError("No schedule found", 404);
 
   const startMin = timeToMinutes(schedule.startTime);
@@ -34,6 +35,8 @@ export async function estimateBusLocation(busId: number, now: Date) {
     order: { sequence: "ASC" },
   });
 
+  console.log(points)
+
   // Find segment based on minuteOffset
   let p1 = points[0];
   let p2 = points[points.length - 1];
@@ -50,6 +53,7 @@ export async function estimateBusLocation(busId: number, now: Date) {
   const ratio = segmentDuration === 0 ? 0 : (elapsed - p1.minuteOffset) / segmentDuration;
 
   const { lat, lng } = interpolate(p1, p2, ratio);
-
+  
+  console.log(`lat ${lat}, lng ${lng}, ratio ${ratio}`)
   return { lat, lng, confidence: 0.6, mode: "estimated" };
 }
