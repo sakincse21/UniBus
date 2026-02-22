@@ -12,47 +12,55 @@ const getAuthHeaders = async () => {
   };
 };
 
-export const fetchBuses = async () => {
+export const fetchSchedules = async () => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/v1/bus`, {
+  const res = await fetch(`${API_BASE}/api/v1/schedule`, {
     cache: "no-store",
     headers,
   });
   return res.json();
 };
 
-export const fetchBusById = async (id: number) => {
+export const fetchScheduleById = async (id: number) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/v1/bus/${id}`, {
+  const res = await fetch(`${API_BASE}/api/v1/schedule/${id}`, {
     cache: "no-store",
     headers,
   });
   return res.json();
 };
 
-export const createBus = async (busNumber: string) => {
+export const createSchedule = async (data: {
+  busId: number;
+  routeId: number;
+  startTime: string;
+  endTime: string;
+}) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/v1/bus`, {
+  const res = await fetch(`${API_BASE}/api/v1/schedule`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ busNumber }),
+    body: JSON.stringify(data),
   });
   return res.json();
 };
 
-export const updateBus = async (id: number, busNumber: string) => {
+export const updateSchedule = async (
+  id: number,
+  data: { routeId?: number; startTime?: string; endTime?: string }
+) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/v1/bus/${id}`, {
+  const res = await fetch(`${API_BASE}/api/v1/schedule/${id}`, {
     method: "PATCH",
     headers,
-    body: JSON.stringify({ busNumber }),
+    body: JSON.stringify(data),
   });
   return res.json();
 };
 
-export const deleteBus = async (id: number) => {
+export const deleteSchedule = async (id: number) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/v1/bus/${id}`, {
+  const res = await fetch(`${API_BASE}/api/v1/schedule/${id}`, {
     method: "DELETE",
     headers,
   });

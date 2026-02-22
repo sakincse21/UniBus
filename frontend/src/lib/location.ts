@@ -1,31 +1,47 @@
 "use client";
 
-import { configs } from "./config.env";
+import { getSocket } from "./socket";
 
-let intervalId: number | null = null;
+let watchId: number | null = null;
 
-export function startLocationUpdates() {
+export async function startLocationUpdates() {
   if (!navigator.geolocation) return;
+  if (watchId !== null) return; // already running
 
-  if (intervalId) return; // already running
+  try {
+    const socket = await getSocket();
 
-  intervalId = window.setInterval(() => {
+    // Send an initial position immediately
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        await fetch(`${configs.BACKEND_BASE_URL}/location/update`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          }),
+      (pos) => {
+        socket.emit("location_update", {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
         });
       },
       () => {},
-      { enableHighAccuracy: false }
+      { enableHighAccuracy: false, timeout: 10000 }
     );
-  }, 5000); // every 20 seconds
+
+    // Then watch for continuous changes
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        socket.emit("location_update", {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+      },
+      () => {},
+      { enableHighAccuracy: false, maximumAge: 15000 }
+    );
+  } catch {
+    // Socket not available yet — ignore silently
+  }
+}
+
+export function stopLocationUpdates() {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
 }

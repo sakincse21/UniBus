@@ -14,7 +14,8 @@ export class BusSchedule {
   route!: Route;
 
   @Column()
-  startTime!: string; // "07:30:00"
+  startTime!: string; 
+  // looks like "07:30:00"
 
   @Column()
   endTime!: string;

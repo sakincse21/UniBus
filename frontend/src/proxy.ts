@@ -273,7 +273,7 @@ const getDefaultDashboard = (role: UserRole): string => {
     case "teacher":
       return "/notice";
     case "cr":
-      return "/notice";
+      return "/buses";
     default:
       return "/";
   }

@@ -10,6 +10,7 @@ import { RoutePoint } from "../modules/route/routePoint.entity";
 import { Route } from "../modules/route/route.entity";
 import { Batch } from "../modules/batch/batch.entity";
 import { Notice } from "../modules/notice/notice.entity";
+import { UserLocation } from "../modules/location/userLocation.entity";
 
 export const AppDataSource = new DataSource({
   type: "mysql",
@@ -23,5 +24,5 @@ export const AppDataSource = new DataSource({
   entities: [User, Bus, LiveTrackingSession, EstimatedBusLocation,
   Route,
   RoutePoint,
-  BusSchedule, Batch, Notice],
+  BusSchedule, Batch, Notice, UserLocation],
 });

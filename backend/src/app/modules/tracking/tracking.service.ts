@@ -1,18 +1,18 @@
 import { AppDataSource } from "../../db/data-source";
 import { BusSchedule } from "../schedule/busSchedule.entity";
 import { RoutePoint } from "../route/routePoint.entity";
-import { timeToMinutes, interpolate } from "./estimate.util";
+import { timeToMinutes, interpolate } from "../../utils/estimate.util";
 import { AppError } from "../../errors/AppError";
 
 export async function estimateBusLocation(busId: number, now: Date) {
   const scheduleRepo = AppDataSource.getRepository(BusSchedule);
   const rpRepo = AppDataSource.getRepository(RoutePoint);
 
-  // MVP: pick first schedule only (extend later for day schedules)
   const schedule = await scheduleRepo.findOne({
     where: { bus: { id: busId } },
     relations: ["route"],
   });
+
   if (!schedule) throw new AppError("No schedule found", 404);
 
   const startMin = timeToMinutes(schedule.startTime);
@@ -23,10 +23,10 @@ export async function estimateBusLocation(busId: number, now: Date) {
   const total = endMin - startMin;
 
   if (elapsed < 0) {
-    return { mode: "not_started", confidence: 0.4 };
+    return { mode: "not_started", confidence: 0.4, startTime: schedule.startTime, endTime: schedule.endTime };
   }
   if (elapsed > total) {
-    return { mode: "ended", confidence: 0.4 };
+    return { mode: "ended", confidence: 0.4, startTime: schedule.startTime, endTime: schedule.endTime };
   }
 
   const points = await rpRepo.find({
@@ -34,7 +34,11 @@ export async function estimateBusLocation(busId: number, now: Date) {
     order: { sequence: "ASC" },
   });
 
-  // Find segment based on minuteOffset
+  if (!points || points.length === 0) {
+    throw new AppError("No route points defined for this route", 404);
+  }
+
+  // Find the segment the bus is currently on based on minuteOffset
   let p1 = points[0];
   let p2 = points[points.length - 1];
 
@@ -51,5 +55,32 @@ export async function estimateBusLocation(busId: number, now: Date) {
 
   const { lat, lng } = interpolate(p1, p2, ratio);
 
-  return { lat, lng, confidence: 0.6, mode: "estimated" };
+  return {
+    lat,
+    lng,
+    confidence: 0.6,
+    mode: "estimated",
+    startTime: schedule.startTime,
+    endTime: schedule.endTime,
+  };
+}
+
+export async function getScheduleEndTime(busId: number): Promise<Date> {
+  const scheduleRepo = AppDataSource.getRepository(BusSchedule);
+  const schedule = await scheduleRepo.findOne({
+    where: { bus: { id: busId } },
+  });
+
+  if (!schedule) throw new AppError("No schedule found", 404);
+
+  const [hh, mm] = schedule.endTime.split(":").map(Number);
+  const endDate = new Date();
+  endDate.setHours(hh, mm, 0, 0);
+
+  // If endTime is past, it's tomorrow's schedule end
+  if (endDate.getTime() < Date.now()) {
+    endDate.setDate(endDate.getDate() + 1);
+  }
+
+  return endDate;
 }
