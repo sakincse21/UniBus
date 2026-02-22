@@ -1,86 +1,3 @@
-// /* eslint-disable @typescript-eslint/no-explicit-any */
-// "use client";
-
-// import BusMap from "@/components/BusMap";
-// import { Button } from "@/components/ui/button";
-// import { fetchBuses } from "@/lib/action/bus";
-// import { useEffect, useState } from "react";
-// import { set } from "zod";
-
-// export default function BusesPage() {
-//   const [buses, setBuses] = useState<any[]>([]);
-//   const [points, setPoints] = useState<any[]>([]);
-
-//   useEffect(() => {
-//     fetchBuses().then((res) => setBuses(res.data));
-//     window.navigator.geolocation.getCurrentPosition(
-//       async (pos) => {
-//         const res = await fetch(`/api/v1/location/update`, {
-//           method: "POST",
-//           credentials: "include",
-//           headers: {
-//             "Content-Type": "application/json",
-//           },
-//           body: JSON.stringify({
-//             lat: pos.coords.latitude,
-//             lng: pos.coords.longitude,
-//           }),
-//         });
-//         console.log('location jacche: ',res.json())
-//       },
-//       () => {},
-//       { enableHighAccuracy: false },
-//     );
-//   }, []);
-
-//   // const requestTracking = async (busId: number) => {
-//   //   await fetch(`/api/v1/tracking/request/${busId}`, {
-//   //     method: "POST",
-//   //     credentials: "include",
-//   //   });
-//   // };
-
-//   const handleRequestTracking = async (busId: number) => {
-//     try {
-//       const res = await fetch(`/api/v1/tracking/request/${busId}`, {
-//         method: "POST",
-//         credentials: "include",
-//       });
-
-//       if (!res.ok) {
-//         throw new Error("Failed to request tracking");
-//       }
-
-//       console.log(res);
-
-//       // Optionally, you can handle the response here
-//       const data = await res.json();
-//       setPoints(data.points || []); // Clear previous points when requesting new tracking
-//       console.log("Tracking requested:", data);
-//     } catch (error) {
-//       console.error("Error requesting tracking:", error);
-//     }
-//   };
-
-//   return (
-//     <div className="w-full max-w-6xl h-full flex flex-col gap-6">
-//       <h1 className="text-2xl font-bold">Live Bus Tracking</h1>
-
-//       <div className="flex gap-3 flex-wrap">
-//         {buses?.map((bus) => (
-//           <Button key={bus.id} onClick={() => handleRequestTracking(bus.id)}>
-//             Track Bus {bus.busNumber}
-//           </Button>
-//         ))}
-//       </div>
-
-//       <div className="h-full">
-//         <BusMap points={points} />
-//       </div>
-//     </div>
-//   );
-// }
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -88,19 +5,20 @@ import BusMap from "@/components/BusMap";
 import { Button } from "@/components/ui/button";
 import { fetchBuses } from "@/lib/action/bus";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 type LocationState = "idle" | "requesting" | "granted" | "denied" | "error" | "skipped";
 
 export default function BusesPage() {
   const [buses, setBuses] = useState<any[]>([]);
   const [points, setPoints] = useState<any[]>([]);
+  const [scheduleStartTime, setScheduleStartTime] = useState<string | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationState>("idle");
   const [locationError, setLocationError] = useState<string>("");
   const [isLocationSkipped, setIsLocationSkipped] = useState(false);
 
-  // 🎯 Force location on mount - but allow skip
   useEffect(() => {
-    if (isLocationSkipped) return; // Don't request if user skipped
+    if (isLocationSkipped) return; 
     
     let cancelled = false;
 
@@ -129,7 +47,6 @@ export default function BusesPage() {
             });
             setLocationStatus("granted");
             
-            // ✅ Fetch buses AFTER location is sent
             const res = await fetchBuses();
             if (!cancelled) setBuses(res.data);
           } catch (err) {
@@ -171,7 +88,6 @@ export default function BusesPage() {
     return () => { cancelled = true; };
   }, [isLocationSkipped]);
 
-  // 🔄 Retry location permission
   const handleRetryLocation = () => {
     setLocationStatus("idle");
     setLocationError("");
@@ -180,7 +96,6 @@ export default function BusesPage() {
     setLocationStatus("requesting");
   };
 
-  // ⏭️ Skip location and load buses anyway
   const handleSkipLocation = async () => {
     setIsLocationSkipped(true);
     setLocationStatus("skipped");
@@ -194,7 +109,7 @@ export default function BusesPage() {
     }
   };
 
-  // 🚫 Render blocking UI while requesting (but not if skipped)
+  // Render blocking UI while requesting (but not if skipped)
   if (locationStatus === "requesting") {
     return (
       <div className="w-full max-w-6xl h-full flex flex-col items-center justify-center gap-4">
@@ -261,7 +176,7 @@ export default function BusesPage() {
     );
   }
 
-  // ✅ Main content - renders after location granted OR skipped
+  // Main content - renders after location granted OR skipped
   if (locationStatus !== "granted" && locationStatus !== "skipped") {
     return null; // Fallback
   }
@@ -321,13 +236,11 @@ export default function BusesPage() {
       </div>
 
       <div className="h-full min-h-[400px]">
-        <BusMap points={points} />
+        <BusMap points={points} startTime={scheduleStartTime} />
       </div>
     </div>
   );
 
-  // ─────────────────────────────────────────
-  // Helper function (kept inside component for closure access)
   async function handleRequestTracking(busId: number) {
     try {
       const res = await fetch(`/api/v1/tracking/request/${busId}`, {
@@ -335,13 +248,44 @@ export default function BusesPage() {
         credentials: "include",
       });
 
-      if (!res.ok) throw new Error("Failed to request tracking");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData.message || "Failed to request tracking");
+        return;
+      }
 
       const data = await res.json();
+
+      // Show feedback based on estimate mode
+      if (data.estimate?.mode === "not_started") {
+        toast.info(`Bus hasn't started yet. Scheduled: ${data.estimate.startTime} – ${data.estimate.endTime}`);
+      } else if (data.estimate?.mode === "ended") {
+        toast.info(`Bus route has ended for today (${data.estimate.startTime} – ${data.estimate.endTime}).`);
+      } else if (data.isLive) {
+        toast.success("Live tracking active — showing real-time location.");
+      } else if (data.estimate?.mode === "estimated") {
+        toast.success(`Estimated bus location shown. Notified ${data.notifiedUsers} nearby user(s).`);
+      }
+
+      // Show bus marker on map for ALL cases with lat/lng (live OR estimated)
+      if (data.estimate?.lat != null && data.estimate?.lng != null) {
+        window.dispatchEvent(
+          new CustomEvent("BUS_ESTIMATE_UPDATE", {
+            detail: {
+              busId,
+              lat: data.estimate.lat,
+              lng: data.estimate.lng,
+              confidence: data.estimate.confidence || 0.5,
+            },
+          }),
+        );
+      }
+
       setPoints(data.points || []);
-      console.log("Tracking requested:", data);
+      setScheduleStartTime(data.startTime || null);
     } catch (error) {
       console.error("Error requesting tracking:", error);
+      toast.error("Failed to request bus tracking. Please try again.");
     }
   }
 }

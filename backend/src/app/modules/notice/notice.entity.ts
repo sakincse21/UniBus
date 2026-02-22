@@ -35,7 +35,6 @@ export class Notice {
   })
   status!: NoticeStatus;
 
-  // Targeting
   @Column({ default: false })
   forAll!: boolean;
 

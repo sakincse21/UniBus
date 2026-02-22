@@ -17,7 +17,8 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
   const repo = AppDataSource.getRepository(Notice);
 
   const targetBatch = await AppDataSource.getRepository("Batch").findOne({ where: { name: targetBatchId } });
-  // 🔒 CR restrictions
+
+  //restrictions for CR role
   if (user.role === UserRole.CR) {
     console.log(user);
     if (!user.batch.id) {
@@ -38,23 +39,22 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     }
   }
 
-  // 🔒 Student cannot create notice
+  //preventing students from creating notices
   if (user.role === UserRole.STUDENT) {
     return res.status(403).json({
       message: "Students cannot create notices",
     });
   }
 
-  const targetCount =
-    (forAll ? 1 : 0) + (forTeachers ? 1 : 0) + (targetBatchId ? 1 : 0);
+  // const targetCount =
+  //   (forAll ? 1 : 0) + (forTeachers ? 1 : 0) + (targetBatchId ? 1 : 0);
 
-  if (targetCount !== 1) {
+  if (forAll && (forTeachers || targetBatchId)) {
     return res.status(400).json({
-      message: "Notice must target exactly one audience",
+      message: "Notice cannot be for all and also have specific audience",
     });
   }
 
-  console.log('teacher ashena')
 
   const notice = repo.create({
     title,
@@ -92,16 +92,8 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
     return res.status(404).json({ message: "Notice not found" });
   }
 
-  // notice.status = NoticeStatus.APPROVED;
-  // await repo.save(notice);
-
-  // const io = req.app.get("io");
-
   notice.status = NoticeStatus.APPROVED;
   await repo.save(notice);
-
-  // 🔔 Broadcast after approval
-  // io.emit("notice_published", notice);
 
   const io = req.app.get("io");
 

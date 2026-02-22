@@ -1,14 +1,24 @@
 import { Router } from "express";
 import { authValidate } from "../../middlewares/authValidate";
 import { RouteController } from "./route.controller";
+import { roleValidate } from "../../middlewares/roleValidate";
 
 const router = Router();
 
-// 👇 THIS is the route your frontend is calling
-router.get(
-  "/request/:busId",
-  authValidate,
-  RouteController.getRoute
-);
+// Public/authenticated routes
+router.get("/", authValidate, RouteController.getAllRoutes);
+router.get("/:id", authValidate, RouteController.getRouteById);
+router.get("/bus/:busId", authValidate, RouteController.getRouteByBus);
+
+// Admin-only routes
+router.post("/", authValidate, roleValidate(["admin"]), RouteController.createRoute);
+router.patch("/:id", authValidate, roleValidate(["admin"]), RouteController.updateRoute);
+router.delete("/:id", authValidate, roleValidate(["admin"]), RouteController.deleteRoute);
+
+// Route points management (admin-only)
+router.put("/:id/points", authValidate, roleValidate(["admin"]), RouteController.setRoutePoints);
+router.post("/:id/points", authValidate, roleValidate(["admin"]), RouteController.addRoutePoint);
+router.patch("/points/:pointId", authValidate, roleValidate(["admin"]), RouteController.updateRoutePoint);
+router.delete("/points/:pointId", authValidate, roleValidate(["admin"]), RouteController.deleteRoutePoint);
 
 export const RouteRouter = router;

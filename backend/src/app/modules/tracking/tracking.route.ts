@@ -4,11 +4,7 @@ import { authValidate } from "../../middlewares/authValidate";
 
 const router = Router();
 
-// 👇 THIS is the route your frontend is calling
-router.post(
-  "/request/:busId",
-  authValidate,
-  TrackingController.requestTracking
-);
+router.post("/request/:busId", authValidate, TrackingController.requestTracking);
+router.get("/active", authValidate, TrackingController.getActiveSessions);
 
 export const TrackingRouter = router;

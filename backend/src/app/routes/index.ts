@@ -5,6 +5,9 @@ import { BusRouter } from "../modules/bus/bus.route";
 import { TrackingRouter } from "../modules/tracking/tracking.route";
 import { LocationRouter } from "../modules/location/location.route";
 import { NoticeRouter } from "../modules/notice/notice.route";
+import { RouteRouter } from "../modules/route/route.route";
+import { ScheduleRouter } from "../modules/schedule/schedule.route";
+// import { ScheduleRouter } from "../modules/schedule/schedule.route";
 
 const router = Router();
 
@@ -14,5 +17,7 @@ router.use('/user', UserRouter);
 router.use("/bus", BusRouter);
 router.use("/location", LocationRouter);
 router.use("/tracking", TrackingRouter);
+router.use("/route", RouteRouter);
+router.use("/schedule", ScheduleRouter);
 
 export default router;

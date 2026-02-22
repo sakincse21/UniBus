@@ -34,8 +34,8 @@ const data = {
           url: "/dashboard/routes",
         },
         {
-          title: "History",
-          url: "/dashboard/history",
+          title: "Schedules",
+          url: "/dashboard/schedules",
         },
       ],
     },
