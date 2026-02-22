@@ -32,5 +32,5 @@ export interface ICreateNotice {
   content: string;
   forAll?: boolean;
   forTeachers?: boolean;
-  targetBatchId?: number;
+  targetBatchId?: string;
 }

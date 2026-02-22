@@ -35,28 +35,16 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (email: string, password: string) =>
     api.post("/auth/login", { email, password }),
-
   register: (name: string, email: string, password: string) =>
     api.post("/auth/register", { name, email, password }),
 };
 
 export const noticeAPI = {
-  // Fetch all visible notices for the user
   getNotices: () => api.get("/notice"),
-
-  // Fetch pending notices (Admin only)
   getPendingNotices: () => api.get("/notice/pending"),
-
-  // Create a new notice
   createNotice: (data: any) => api.post("/notice", data),
-
-  // Approve a pending notice (Admin only)
-  approveNotice: (id: number) => api.patch(`/notice/${id}/approve`),
-
-  // Reject a pending notice (Admin only)
-  rejectNotice: (id: number) => api.patch(`/notice/${id}/reject`),
-
-  // Delete a notice (Admin only)
+  approveNotice: (id: number) => api.put(`/notice/${id}/approve`),
+  rejectNotice: (id: number) => api.put(`/notice/${id}/reject`),
   deleteNotice: (id: number) => api.delete(`/notice/${id}`),
 };
 

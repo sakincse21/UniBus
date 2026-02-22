@@ -48,6 +48,14 @@ export default function ProfileTab() {
                 {user?.role}
               </Text>
             </View>
+            {user?.batch?.name && (
+              <View className="flex-row justify-between py-2">
+                <Text className="text-gray-500">Batch</Text>
+                <Text className="text-gray-900 font-medium">
+                  {user.batch.name}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 

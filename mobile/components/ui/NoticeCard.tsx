@@ -21,7 +21,7 @@ export default function NoticeCard({ notice }: NoticeCardProps) {
   const getTargetLabel = () => {
     if (notice.forAll) return "For All";
     if (notice.forTeachers) return "For Teachers";
-    if (notice.targetBatch) return `Batch ${notice.targetBatch.name}`;
+    if (notice.targetBatch?.name) return `Batch ${notice.targetBatch.name}`;
     return "General";
   };
 

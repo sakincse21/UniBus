@@ -12,9 +12,6 @@ export default function BusTrackingTab() {
         <Text className="text-gray-500 text-center">
           This feature is coming soon!
         </Text>
-        <Text className="text-gray-400 text-center mt-2">
-          Real-time bus location tracking will be available here.
-        </Text>
       </View>
     </View>
   );

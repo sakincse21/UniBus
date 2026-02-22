@@ -32,7 +32,6 @@ export default function PendingNoticesScreen() {
   };
 
   useEffect(() => {
-    // Only admin can access this
     if (user?.role !== "admin") {
       Alert.alert("Access Denied", "Only admins can manage pending notices");
       router.replace("/(tabs)");
@@ -42,25 +41,21 @@ export default function PendingNoticesScreen() {
   }, []);
 
   const handleApprove = async (id: number) => {
-    Alert.alert(
-      "Approve Notice",
-      "Are you sure you want to approve this notice?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Approve",
-          onPress: async () => {
-            try {
-              await noticeAPI.approveNotice(id);
-              setNotices((prev) => prev.filter((n) => n.id !== id));
-              Alert.alert("Success", "Notice approved and published");
-            } catch (error) {
-              Alert.alert("Error", "Failed to approve notice");
-            }
-          },
-        },
-      ],
-    );
+    try {
+      console.log("Approving notice with ID:", id);
+      const response = await noticeAPI.approveNotice(id);
+      console.log("Response:", response?.data);
+
+      if (response?.data?.success) {
+        await fetchPendingNotices();
+        Alert.alert("Success", "Notice approved");
+      } else {
+        Alert.alert("Error", response?.data?.message || "Failed to approve");
+      }
+    } catch (error: any) {
+      console.error("Error:", error?.response?.data || error);
+      Alert.alert("Error", "Failed to approve notice");
+    }
   };
 
   const handleReject = async (id: number) => {
@@ -96,7 +91,6 @@ export default function PendingNoticesScreen() {
 
   return (
     <ScrollView className="flex-1 bg-white">
-      {/* Header */}
       <View className="px-4 py-4 bg-white border-b border-gray-200">
         <Text className="text-2xl font-bold text-gray-900">
           Pending Notices
@@ -106,15 +100,11 @@ export default function PendingNoticesScreen() {
         </Text>
       </View>
 
-      {/* Notice List */}
       <View className="p-4 gap-4">
         {notices.length === 0 ? (
           <View className="items-center py-10">
             <Text className="text-4xl mb-4">✅</Text>
             <Text className="text-gray-500 text-lg">All caught up!</Text>
-            <Text className="text-gray-400 text-sm mt-2">
-              No pending notices to review
-            </Text>
           </View>
         ) : (
           notices.map((notice) => (
@@ -146,7 +136,6 @@ export default function PendingNoticesScreen() {
                 </Text>
               </View>
 
-              {/* Action Buttons */}
               <View className="flex-row gap-2">
                 <TouchableOpacity
                   className="flex-1 bg-green-600 rounded-lg py-2"

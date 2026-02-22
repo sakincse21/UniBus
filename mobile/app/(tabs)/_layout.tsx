@@ -43,19 +43,16 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="bus-tracking"
         options={{
-          title: "Bus Tracking",
+          title: "Bus",
           tabBarIcon: ({ focused }) => <TabIcon name="Bus" focused={focused} />,
         }}
       />
-
-      {/* Show Pending Notices tab only for Admin */}
       {isAdmin && (
         <Tabs.Screen
-          name="pending-notices"
+          name="pending-notice"
           options={{
             title: "Pending",
             tabBarIcon: ({ focused }) => (
@@ -64,7 +61,6 @@ export default function TabsLayout() {
           }}
         />
       )}
-
       <Tabs.Screen
         name="profile"
         options={{

@@ -1,7 +1,7 @@
 "use server";
 import { cookies } from "next/headers";
 
-const API_BASE = process.env.BACKEND_BASE_URL || "http://192.168.10.108:5000";
+const API_BASE = process.env.BACKEND_BASE_URL || "http://localhost:5000";
 
 const getAuthHeaders = async () => {
   const cookieStore = await cookies();

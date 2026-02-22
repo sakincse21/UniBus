@@ -6,12 +6,34 @@ import { UserRole } from "../user/user.entity";
 
 const router = Router();
 
+// All authenticated users can create and view notices
 router.post("/", authValidate, NoticeController.createNotice);
 router.get("/", authValidate, NoticeController.getVisibleNotices);
 
-router.get("/pending", authValidate,roleValidate([UserRole.ADMIN]), NoticeController.getPendingNotices);
-router.patch("/:id/approve", authValidate, roleValidate([UserRole.ADMIN]),  NoticeController.approveNotice);
-router.patch("/:id/reject", authValidate, roleValidate([UserRole.ADMIN]), NoticeController.rejectNotice);
-router.delete("/:id", authValidate, roleValidate([UserRole.ADMIN]), NoticeController.deleteNotice);
+// Admin-only routes
+router.get(
+  "/pending",
+  authValidate,
+  roleValidate([UserRole.ADMIN]),
+  NoticeController.getPendingNotices,
+);
+router.put(
+  "/:id/approve",
+  authValidate,
+  roleValidate([UserRole.ADMIN]),
+  NoticeController.approveNotice,
+);
+router.put(
+  "/:id/reject",
+  authValidate,
+  roleValidate([UserRole.ADMIN]),
+  NoticeController.rejectNotice,
+);
+router.delete(
+  "/:id",
+  authValidate,
+  roleValidate([UserRole.ADMIN]),
+  NoticeController.deleteNotice,
+);
 
 export const NoticeRouter = router;

@@ -6,6 +6,7 @@ import { User, UserRole } from "../user/user.entity";
 
 const createNotice = tryCatch(async (req: Request, res: Response) => {
   const { title, content, forAll, forTeachers, targetBatchId } = req.body;
+
   const user = await AppDataSource.getRepository("User").findOne({
     where: { user_id: req.user.userId },
     relations: ["batch"],
@@ -14,24 +15,24 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   }
+
   const repo = AppDataSource.getRepository(Notice);
+  const targetBatch = targetBatchId
+    ? await AppDataSource.getRepository("Batch").findOne({
+        where: { name: targetBatchId },
+      })
+    : null;
 
-  const targetBatch = await AppDataSource.getRepository("Batch").findOne({ where: { name: targetBatchId } });
-
-  //restrictions for CR role
+  // CR restrictions
   if (user.role === UserRole.CR) {
-    console.log(user);
-    if (!user.batch.id) {
+    if (!user.batch?.id) {
       return res.status(400).json({ message: "CR must belong to a batch" });
     }
-
     if (forAll || forTeachers) {
       return res.status(403).json({
         message: "CR can only post for their own batch",
       });
     }
-
-
     if (!targetBatch || Number(targetBatch.id) !== user.batch.id) {
       return res.status(403).json({
         message: "CR can only post for their own batch",
@@ -39,22 +40,21 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     }
   }
 
-  //preventing students from creating notices
+  // Student cannot create notice
   if (user.role === UserRole.STUDENT) {
     return res.status(403).json({
       message: "Students cannot create notices",
     });
   }
 
-  // const targetCount =
-  //   (forAll ? 1 : 0) + (forTeachers ? 1 : 0) + (targetBatchId ? 1 : 0);
-
-  if (forAll && (forTeachers || targetBatchId)) {
+  // Validate targeting - exactly one must be selected
+  const targetCount =
+    (forAll ? 1 : 0) + (forTeachers ? 1 : 0) + (targetBatchId ? 1 : 0);
+  if (targetCount !== 1) {
     return res.status(400).json({
-      message: "Notice cannot be for all and also have specific audience",
+      message: "Notice must target exactly one audience",
     });
   }
-
 
   const notice = repo.create({
     title,
@@ -72,10 +72,15 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
   await repo.save(notice);
 
   const io = req.app.get("io");
-
-  // If admin-created (auto approved), broadcast immediately
+  // If admin/teacher-created (auto approved), broadcast immediately
   if (notice.status === NoticeStatus.APPROVED) {
-    io.emit("notice_published", notice);
+    if (notice.forAll) {
+      io.emit("notice_published", notice);
+    } else if (notice.forTeachers) {
+      io.to("role:teacher").emit("notice_published", notice);
+    } else if (notice.targetBatch) {
+      io.to(`batch:${notice.targetBatch.id}`).emit("notice_published", notice);
+    }
   }
 
   res.json({ success: true, data: notice });
@@ -83,10 +88,15 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
 
 const approveNotice = tryCatch(async (req: Request, res: Response) => {
   const { id } = req.params;
-
+  console.log("Approving notice with ID:", id);
+  
   const repo = AppDataSource.getRepository(Notice);
+  const notice = await repo.findOne({
+    where: { id: Number(id) },
+    relations: ["targetBatch"],
+  });
 
-  const notice = await repo.findOne({ where: { id: Number(id) } });
+  console.log("Approving notice:", notice);
 
   if (!notice) {
     return res.status(404).json({ message: "Notice not found" });
@@ -96,7 +106,7 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
   await repo.save(notice);
 
   const io = req.app.get("io");
-
+  // Broadcast after approval based on target audience
   if (notice.forAll) {
     io.emit("notice_published", notice);
   } else if (notice.forTeachers) {
@@ -110,32 +120,46 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
 
 const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
   const user = req.user;
+  const userRole = user.role as UserRole;
 
+  // Fetch user with batch relation (for students/CR)
   const ifUser = await AppDataSource.getRepository("User").findOne({
     where: { user_id: user.userId },
     relations: ["batch"],
   });
 
-  console.log("ifUser:", ifUser);
-
   const repo = AppDataSource.getRepository(Notice);
-
   const qb = repo
     .createQueryBuilder("notice")
     .leftJoinAndSelect("notice.targetBatch", "batch")
+    .leftJoinAndSelect("notice.createdBy", "creator")
     .where("notice.status = :status", { status: NoticeStatus.APPROVED });
 
-  qb.andWhere(
-    `
-    notice.forAll = true
-    OR (notice.forTeachers = true AND :role = 'teacher')
-    OR (batch.id = :batchId)
-  `,
-    {
-      role: user.role,
-      batchId: ifUser?.batch?.id ?? null,
-    },
-  );
+  //Role-based filtering logic
+  if (userRole === UserRole.ADMIN) {
+    // Admin sees ALL approved notices
+    // No additional WHERE conditions needed
+  } else if (userRole === UserRole.TEACHER) {
+    // Teacher sees: forAll + forTeachers notices (no batch check)
+    qb.andWhere(
+      `(notice.forAll = :forAll OR notice.forTeachers = :forTeachers)`,
+      { forAll: true, forTeachers: true },
+    );
+  } else {
+    // Student/CR sees: forAll + their specific batch notices
+    const batchId = ifUser?.batch?.id ?? null;
+
+    if (batchId) {
+      // User has a batch - show forAll + their batch notices
+      qb.andWhere(`(notice.forAll = :forAll OR batch.id = :batchId)`, {
+        forAll: true,
+        batchId,
+      });
+    } else {
+      // User has NO batch (edge case) - only show forAll notices
+      qb.andWhere(`notice.forAll = :forAll`, { forAll: true });
+    }
+  }
 
   const notices = await qb.orderBy("notice.createdAt", "DESC").getMany();
 
@@ -148,7 +172,6 @@ const getPendingNotices = tryCatch(async (req: Request, res: Response) => {
   }
 
   const repo = AppDataSource.getRepository(Notice);
-
   const notices = await repo.find({
     where: { status: NoticeStatus.PENDING },
     relations: ["createdBy", "targetBatch"],
@@ -164,9 +187,7 @@ const rejectNotice = tryCatch(async (req: Request, res: Response) => {
   }
 
   const { id } = req.params;
-
   const repo = AppDataSource.getRepository(Notice);
-
   const notice = await repo.findOne({ where: { id: Number(id) } });
 
   if (!notice) {
@@ -185,9 +206,7 @@ const deleteNotice = tryCatch(async (req: Request, res: Response) => {
   }
 
   const { id } = req.params;
-
   const repo = AppDataSource.getRepository(Notice);
-
   await repo.delete(Number(id));
 
   res.json({ success: true });

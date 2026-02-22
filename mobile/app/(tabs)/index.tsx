@@ -25,6 +25,7 @@ export default function NoticesTab() {
     try {
       const response = await noticeAPI.getNotices();
       if (response.data.success) {
+        // Backend already filters by role, so just display what we get
         setNotices(response.data.data || []);
       }
     } catch (error) {
@@ -43,6 +44,7 @@ export default function NoticesTab() {
     const setupSocket = async () => {
       socket = await getSocket();
       socket.on("notice_published", (notice: INotice) => {
+        // Backend already ensures only relevant notices are sent to each user's room
         setNotices((prev) => [notice, ...prev]);
       });
     };
@@ -81,7 +83,13 @@ export default function NoticesTab() {
           <View>
             <Text className="text-2xl font-bold text-gray-900">Notices</Text>
             <Text className="text-gray-500 text-sm mt-1">
-              Latest updates from university
+              {user?.role === "admin"
+                ? "All notices"
+                : user?.role === "teacher"
+                  ? "Teacher & general notices"
+                  : user?.batch
+                    ? `Batch ${user.batch.name} & general notices`
+                    : "General notices"}
             </Text>
           </View>
           {canCreateNotice && (

@@ -19,15 +19,15 @@ export const getSocket = async (): Promise<Socket> => {
   });
 
   socket.on("connect", () => {
-    console.log("✅ Socket connected:", socket?.id);
+    console.log("Socket connected:", socket?.id);
   });
 
   socket.on("connect_error", (error) => {
-    console.error("❌ Socket error:", error.message);
+    console.error(" Socket error:", error.message);
   });
 
   socket.on("disconnect", () => {
-    console.log("⚠️ Socket disconnected");
+    console.log("Socket disconnected");
   });
 
   return socket;
