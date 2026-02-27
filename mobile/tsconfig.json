@@ -18,7 +18,8 @@
       "@interfaces/*": [
         "./interfaces/*"
       ]
-    }
+    },
+    "types": ["node"]
   },
   "include": [
     "**/*.ts",
