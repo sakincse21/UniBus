@@ -4,6 +4,7 @@
 import {
   Map,
   MapMarker,
+  MapRoute,
   MarkerContent,
   MarkerPopup,
   MarkerTooltip,
@@ -38,8 +39,16 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
   return to12h(`${h}:${m}`);
 }
 
-export default function BusMap({ points, startTime }: { points: any[]; startTime?: string | null }) {
+
+export default function BusMap({
+  points,
+  startTime,
+}: {
+  points: any[];
+  startTime?: string | null;
+}) {
   const [locations, setLocations] = useState<Record<number, BusLocation>>({});
+  const [route, setRoute] = useState<Array<[number, number]>>([]);
 
   // Listen for estimated location from tracking request
   useEffect(() => {
@@ -92,15 +101,21 @@ export default function BusMap({ points, startTime }: { points: any[]; startTime
       }
     };
 
-    initSocket();
 
+    
+    initSocket();
+    
     return () => {
       if (socket) {
         socket.off("bus_location_update");
       }
     };
   }, []);
-
+  
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRoute(points.map((p) => [p.lat, p.lng]));
+  }, [points]);
   // Listen for tracking ended — remove bus from map
   useEffect(() => {
     const handler = (e: any) => {
@@ -121,8 +136,13 @@ export default function BusMap({ points, startTime }: { points: any[]; startTime
   return (
     <div className="w-full h-[600px] rounded border ">
       <Map center={[89.5, 22.9]} zoom={12}>
+        <MapRoute coordinates={route} color="#3b82f6" width={4} opacity={0.8} />
         {Object.values(locations).map((bus) => (
-          <MapMarker key={bus?.busId} latitude={bus?.estimate.lat} longitude={bus?.estimate.lng}>
+          <MapMarker
+            key={bus?.busId}
+            latitude={bus?.estimate.lat}
+            longitude={bus?.estimate.lng}
+          >
             <MarkerContent>
               <div
                 className={`size-4 rounded-full ${
@@ -166,7 +186,11 @@ export default function BusMap({ points, startTime }: { points: any[]; startTime
               ? "bg-red-600"
               : "bg-blue-500";
 
-          const label = isFirst ? "Start" : isLast ? "End" : `#${point.sequence}`;
+          const label = isFirst
+            ? "Start"
+            : isLast
+              ? "End"
+              : `#${point.sequence}`;
 
           return (
             <MapMarker
@@ -175,8 +199,10 @@ export default function BusMap({ points, startTime }: { points: any[]; startTime
               longitude={point.lng}
             >
               <MarkerContent>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className={`text-[10px] font-semibold text-foreground bg-background/80 px-1 rounded shadow`}>
+                <div className="flex flex-col items-center gap-0.5 ">
+                  <span
+                    className={`text-[10px] font-semibold text-foreground bg-background/80 px-1 rounded shadow`}
+                  >
                     {time}
                   </span>
                   <div
@@ -192,11 +218,13 @@ export default function BusMap({ points, startTime }: { points: any[]; startTime
               <MarkerPopup>
                 <div className="space-y-1">
                   <p className="font-medium text-foreground">
-                    {isFirst ? "🟢 Starting Point" : isLast ? "🔴 Ending Point" : `Route Point ${point.sequence}`}
+                    {isFirst
+                      ? "🟢 Starting Point"
+                      : isLast
+                        ? "🔴 Ending Point"
+                        : `Route Point ${point.sequence}`}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Time: {time}
-                  </p>
+                  <p className="text-xs text-muted-foreground">Time: {time}</p>
                   <p className="text-xs text-muted-foreground">
                     {point?.lat.toFixed(4)}, {point?.lng.toFixed(4)}
                   </p>

@@ -8,7 +8,13 @@ import cookieParser from "cookie-parser";
 const app = express();
 app.use(
   cors({
-    origin: ["http://192.168.10.108:3000", "http://localhost:3000", "http://localhost:8081"], 
+    origin: [
+      "http://192.168.10.108:3000",
+      "http://localhost:3000",
+      "http://localhost:8081",
+      "http://192.168.1.10:3000",
+      "http://192.168.1.7:3000",
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
@@ -22,4 +28,3 @@ app.use("/api/v1", router);
 app.use(errorHandler);
 
 export default app;
-
