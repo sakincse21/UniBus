@@ -17,7 +17,8 @@ export async function estimateBusLocation(busId: number, now: Date) {
 
   const startMin = timeToMinutes(schedule.startTime);
   const endMin = timeToMinutes(schedule.endTime);
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  // Include seconds for sub-minute precision
+  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
 
   const elapsed = nowMin - startMin;
   const total = endMin - startMin;
@@ -38,9 +39,27 @@ export async function estimateBusLocation(busId: number, now: Date) {
     throw new AppError("No route points defined for this route", 404);
   }
 
-  // Find the segment the bus is currently on based on minuteOffset
+  // ── Clamp elapsed to the range defined by route points ──────────────────────
+  // This handles the common case where the schedule window is wider than the
+  // sum of minuteOffsets (e.g. route is 30 min of offsets but schedule is 60 min).
+  const firstOffset = points[0].minuteOffset;
+  const lastOffset = points[points.length - 1].minuteOffset;
+
+  // If the bus hasn't reached the first defined point yet, snap to start.
+  if (elapsed <= firstOffset) {
+    const { lat, lng } = interpolate(points[0], points[0], 0);
+    return { lat, lng, confidence: 0.5, mode: "estimated", startTime: schedule.startTime, endTime: schedule.endTime };
+  }
+
+  // If the bus has passed all defined points, snap to end.
+  if (elapsed >= lastOffset) {
+    const last = points[points.length - 1];
+    return { lat: last.lat, lng: last.lng, confidence: 0.5, mode: "estimated", startTime: schedule.startTime, endTime: schedule.endTime };
+  }
+
+  // ── Find the segment the bus is currently in ─────────────────────────────────
   let p1 = points[0];
-  let p2 = points[points.length - 1];
+  let p2 = points[1] ?? points[0]; // safe fallback
 
   for (let i = 0; i < points.length - 1; i++) {
     if (elapsed >= points[i].minuteOffset && elapsed <= points[i + 1].minuteOffset) {
@@ -51,7 +70,9 @@ export async function estimateBusLocation(busId: number, now: Date) {
   }
 
   const segmentDuration = p2.minuteOffset - p1.minuteOffset;
-  const ratio = segmentDuration === 0 ? 0 : (elapsed - p1.minuteOffset) / segmentDuration;
+  // Clamp ratio to [0, 1] to prevent extrapolation outside the segment
+  const rawRatio = segmentDuration === 0 ? 0 : (elapsed - p1.minuteOffset) / segmentDuration;
+  const ratio = Math.min(1, Math.max(0, rawRatio));
 
   const { lat, lng } = interpolate(p1, p2, ratio);
 

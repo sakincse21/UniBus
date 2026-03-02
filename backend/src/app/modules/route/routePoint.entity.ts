@@ -18,7 +18,7 @@ export class RoutePoint {
   @Column()
   sequence!: number;
 
-  // minutes from schedule start
-  @Column()
+  // minutes from schedule start (supports fractional minutes)
+  @Column("float")
   minuteOffset!: number;
 }

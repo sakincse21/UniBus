@@ -34,3 +34,40 @@ export interface ICreateNotice {
   forTeachers?: boolean;
   targetBatchId?: string;
 }
+
+export interface IBus {
+  id: number;
+  busNumber: string;
+}
+
+export interface IRoutePoint {
+  sequence: number;
+  lat: number;
+  lng: number;
+  minuteOffset: number;
+}
+
+export interface IBusEstimate {
+  lat: number;
+  lng: number;
+  confidence: number;
+  mode?: "live" | "estimated" | "not_started" | "ended";
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface IBusTrackingResponse {
+  isLive: boolean;
+  points: IRoutePoint[];
+  startTime: string | null;
+  notifiedUsers: number;
+  estimate: IBusEstimate | null;
+}
+
+export interface IBusLiveLocation {
+  busId: number;
+  lat: number;
+  lng: number;
+  isLive: boolean;
+  confidence: number;
+}

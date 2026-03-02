@@ -53,6 +53,11 @@ export const busAPI = {
   requestTracking: (busId: number) => api.post(`/tracking/request/${busId}`),
 };
 
+export const locationAPI = {
+  updateLocation: (lat: number, lng: number) =>
+    api.post("/location/update", { lat, lng }),
+};
+
 export const userAPI = {
   getProfile: () => api.get("/user/profile"),
   updateProfile: (data: any) => api.patch("/user/profile", data),

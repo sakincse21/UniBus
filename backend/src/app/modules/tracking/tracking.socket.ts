@@ -3,6 +3,9 @@ import { LiveTrackingSession } from "./liveTrackingSession.entity";
 import { EstimatedBusLocation } from "./estimatedBusLocation.entity";
 import { UserLocation } from "../location/userLocation.entity";
 import { getScheduleEndTime } from "./tracking.service";
+import { pointToPolylineDistance } from "../../utils/estimate.util";
+import { BusSchedule } from "../schedule/busSchedule.entity";
+import { RoutePoint } from "../route/routePoint.entity";
 import { LessThan } from "typeorm";
 
 function startSessionCleanup(io: any) {
@@ -148,6 +151,42 @@ export const registerTrackingSockets = (io: any) => {
           });
           io.emit("bus_tracking_ended", { busId });
           return;
+        }
+
+        // ── Off-route check: 250 m from nearest polyline segment ─────────────
+        try {
+          const scheduleRepo = AppDataSource.getRepository(BusSchedule);
+          const schedule = await scheduleRepo.findOne({
+            where: { bus: { id: busId } },
+            relations: ["route"],
+          });
+
+          if (schedule) {
+            const rpRepo = AppDataSource.getRepository(RoutePoint);
+            const routePoints = await rpRepo.find({
+              where: { route: { id: schedule.route.id } },
+              order: { sequence: "ASC" },
+            });
+
+            if (routePoints.length >= 2) {
+              const dist = pointToPolylineDistance(lat, lng, routePoints);
+              if (dist > 250) {
+                session.active = false;
+                await sessionRepo.save(session);
+
+                socket.emit("tracking_off_route", {
+                  busId,
+                  dist: Math.round(dist),
+                  message: `You appear to be ${Math.round(dist)}m off the route. Tracking stopped.`,
+                });
+                io.emit("bus_tracking_ended", { busId });
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Off-route check failed:", err);
+          // Non-fatal — continue saving location
         }
 
         // Update bus location

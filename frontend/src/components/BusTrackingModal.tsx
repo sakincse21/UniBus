@@ -77,6 +77,20 @@ export default function BusTrackingModal() {
         }
       });
 
+      socket.on("tracking_off_route", (data: any) => {
+        if (data.busId === busId || !busId) {
+          clearGeoWatch();
+          setIsTracking(false);
+          setBusId(null);
+          toast.warning(
+            `Off-route detected (${data.dist}m from route). Tracking stopped.`
+          );
+          window.dispatchEvent(
+            new CustomEvent("BUS_TRACKING_ENDED", { detail: data }),
+          );
+        }
+      });
+
       socket.on("bus_tracking_ended", (data: any) => {
         window.dispatchEvent(
           new CustomEvent("BUS_TRACKING_ENDED", { detail: data }),
@@ -89,6 +103,7 @@ export default function BusTrackingModal() {
     return () => {
       if (socket) {
         socket.off("tracking_expired");
+        socket.off("tracking_off_route");
         socket.off("bus_tracking_ended");
       }
     };

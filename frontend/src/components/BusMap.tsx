@@ -5,12 +5,37 @@ import {
   Map,
   MapMarker,
   MapRoute,
+  MapControls,
   MarkerContent,
   MarkerPopup,
   MarkerTooltip,
+  useMap,
 } from "@/components/ui/map";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket";
+
+// Auto-centers the map on the user's current GPS location when the map first loads.
+function AutoLocate() {
+  const { map, isLoaded } = useMap();
+  const fired = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || !map || fired.current) return;
+    fired.current = true;
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          map.flyTo({
+            center: [pos.coords.longitude, pos.coords.latitude],
+            zoom: 13,
+            duration: 1200,
+          });
+        },
+        () => {}
+      );
+    }
+  }, [isLoaded, map]);
+  return null;
+}
 
 type BusLocation = {
   busId: number;
@@ -35,8 +60,10 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
   const [sh, sm] = startTime.split(":").map(Number);
   const totalMin = sh * 60 + sm + minuteOffset;
   const h = Math.floor(totalMin / 60) % 24;
-  const m = totalMin % 60;
-  return to12h(`${h}:${m}`);
+  const m = Math.floor(totalMin % 60);
+  return to12h(
+    `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`
+  );
 }
 
 
@@ -136,6 +163,8 @@ export default function BusMap({
   return (
     <div className="w-full h-[600px] rounded border ">
       <Map center={[89.5, 22.9]} zoom={12}>
+        <AutoLocate />
+        <MapControls showZoom showLocate position="bottom-right" />
         <MapRoute coordinates={route} color="#3b82f6" width={4} opacity={0.8} />
         {Object.values(locations).map((bus) => (
           <MapMarker

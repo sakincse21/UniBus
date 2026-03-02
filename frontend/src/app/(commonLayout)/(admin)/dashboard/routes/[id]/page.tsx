@@ -29,10 +29,36 @@ import {
 import {
   Map,
   MapMarker,
+  MapControls,
+  MapRoute,
   MarkerContent,
   MarkerTooltip,
+  useMap,
 } from "@/components/ui/map";
 import type MapLibreGL from "maplibre-gl";
+
+// Auto-centers the map on the user's current location when the map first loads.
+function AutoLocate() {
+  const { map, isLoaded } = useMap();
+  const fired = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || !map || fired.current) return;
+    fired.current = true;
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          map.flyTo({
+            center: [pos.coords.longitude, pos.coords.latitude],
+            zoom: 13,
+            duration: 1200,
+          });
+        },
+        () => {}
+      );
+    }
+  }, [isLoaded, map]);
+  return null;
+}
 
 type RoutePoint = {
   id?: number;
@@ -129,6 +155,9 @@ export default function RoutePointsEditorPage() {
     }
   }, [handleMapClickInternal]);
 
+  // Derived: polyline coordinates for the route preview
+  const routePolyline = points.map((p) => [p.lng, p.lat] as [number, number]);
+
   const handleSavePoints = async () => {
     if (points.length === 0) return toast.error("Add at least one point");
     setLoading(true);
@@ -217,36 +246,66 @@ export default function RoutePointsEditorPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="w-full h-[400px] rounded border">
+          <div className="w-full h-[460px] rounded-lg border overflow-hidden">
             <Map
               ref={handleMapRef}
               center={[89.5, 22.9]}
               zoom={12}
             >
-              {points.map((point, idx) => (
-                <MapMarker
-                  key={`${point.sequence}-${point.lat}-${point.lng}`}
-                  latitude={point.lat}
-                  longitude={point.lng}
-                >
-                  <MarkerContent>
-                    <div
-                      className={`size-6 rounded-full bg-blue-600 shadow-lg flex items-center justify-center text-white text-xs font-bold cursor-pointer ${
-                        editingIdx === idx ? "ring-2 ring-yellow-400" : ""
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingIdx(editingIdx === idx ? null : idx);
-                      }}
-                    >
-                      {point.sequence}
-                    </div>
-                  </MarkerContent>
-                  <MarkerTooltip>
-                    Point #{point.sequence} — {point.minuteOffset}min offset
-                  </MarkerTooltip>
-                </MapMarker>
-              ))}
+              <AutoLocate />
+              <MapControls showZoom showLocate position="bottom-right" />
+
+              {/* Route polyline */}
+              {routePolyline.length > 1 && (
+                <MapRoute
+                  coordinates={routePolyline}
+                  color="#3b82f6"
+                  width={3}
+                  opacity={0.75}
+                />
+              )}
+
+              {points.map((point, idx) => {
+                const isFirst = idx === 0;
+                const isLast = idx === points.length - 1;
+                const bgColor = isFirst
+                  ? "bg-green-600"
+                  : isLast
+                    ? "bg-red-600"
+                    : "bg-blue-600";
+                const label = isFirst ? "S" : isLast ? "E" : String(point.sequence);
+                return (
+                  <MapMarker
+                    key={`${point.sequence}-${point.lat}-${point.lng}`}
+                    latitude={point.lat}
+                    longitude={point.lng}
+                  >
+                    <MarkerContent>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-[10px] font-semibold text-foreground bg-background/90 px-1.5 py-0.5 rounded shadow">
+                          +{point.minuteOffset}m
+                        </span>
+                        <div
+                          className={`${
+                            isFirst || isLast ? "size-6" : "size-5"
+                          } rounded-full ${bgColor} shadow-lg flex items-center justify-center text-white text-[10px] font-bold border-2 border-white/80 cursor-pointer ${
+                            editingIdx === idx ? "ring-2 ring-yellow-400 ring-offset-1" : ""
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingIdx(editingIdx === idx ? null : idx);
+                          }}
+                        >
+                          {label}
+                        </div>
+                      </div>
+                    </MarkerContent>
+                    <MarkerTooltip>
+                      {isFirst ? "Start" : isLast ? "End" : `Point #${point.sequence}`} — +{point.minuteOffset}min
+                    </MarkerTooltip>
+                  </MapMarker>
+                );
+              })}
             </Map>
           </div>
         </CardContent>
@@ -284,7 +343,7 @@ export default function RoutePointsEditorPage() {
                   <TableHead className="w-16">#</TableHead>
                   <TableHead>Latitude</TableHead>
                   <TableHead>Longitude</TableHead>
-                  <TableHead>Minute Offset</TableHead>
+                  <TableHead>Time Offset (min)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -330,15 +389,16 @@ export default function RoutePointsEditorPage() {
                     <TableCell>
                       <Input
                         type="number"
+                        step="0.1"
                         value={point.minuteOffset}
                         onChange={(e) =>
                           handlePointFieldChange(
                             idx,
                             "minuteOffset",
-                            parseInt(e.target.value) || 0
+                            parseFloat(e.target.value) || 0
                           )
                         }
-                        className="w-24"
+                        className="w-28"
                       />
                     </TableCell>
                     <TableCell className="text-right space-x-1">

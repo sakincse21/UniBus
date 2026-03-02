@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 import { useAuthStore } from "@/store/authStore";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "@/global.css";
 
 export default function RootLayout() {
@@ -15,21 +16,25 @@ export default function RootLayout() {
 
   if (isLoading) {
     return (
-      <GluestackUIProvider mode="light">
-        <StatusBar style="auto" />
-      </GluestackUIProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <GluestackUIProvider mode="light">
+          <StatusBar style="auto" />
+        </GluestackUIProvider>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <GluestackUIProvider mode="light">
-      <StatusBar style="auto" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-    </GluestackUIProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <GluestackUIProvider mode="light">
+        <StatusBar style="auto" />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+      </GluestackUIProvider>
+    </GestureHandlerRootView>
   );
 }
