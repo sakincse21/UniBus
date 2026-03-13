@@ -71,3 +71,15 @@ export interface IBusLiveLocation {
   isLive: boolean;
   confidence: number;
 }
+
+export interface IRoutineSlot {
+  id?: number;
+  day: "saturday" | "sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
+  firstHalfStart: string;   // HH:mm
+  secondHalfStart: string;  // HH:mm
+  confidence: number;
+  note: string;
+  confirmed?: boolean;
+  remindersEnabled?: boolean;
+}
+

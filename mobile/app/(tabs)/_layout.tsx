@@ -50,6 +50,15 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => <TabIcon name="Bus" focused={focused} />,
         }}
       />
+      <Tabs.Screen
+        name="weekly-routine"
+        options={{
+          title: "Routine",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="Routine" focused={focused} />
+          ),
+        }}
+      />
       {isAdmin && (
         <Tabs.Screen
           name="pending-notice"

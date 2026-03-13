@@ -30,7 +30,29 @@
       "output": "static",
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow UniBus to access your photos to upload routine images.",
+          "cameraPermission": "Allow UniBus to use the camera to take photos of your routine."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563eb"
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow UniBus to create routine events in your calendar."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     },

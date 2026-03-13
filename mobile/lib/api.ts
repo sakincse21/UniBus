@@ -63,4 +63,24 @@ export const userAPI = {
   updateProfile: (data: any) => api.patch("/user/profile", data),
 };
 
+export const routineAPI = {
+  /** Upload routine image for AI analysis. Returns editable draft slots. */
+  uploadImage: (formData: FormData) =>
+    api.post("/routine/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+
+  /** Save confirmed routine slots (replaces all existing) */
+  confirmRoutine: (slots: any[]) => api.post("/routine/confirm", { slots }),
+
+  /** Get current user's saved routine */
+  getMyRoutine: () => api.get("/routine"),
+
+  /** Update a single routine slot */
+  updateSlot: (id: number, data: any) => api.patch(`/routine/${id}`, data),
+
+  /** Delete all routine entries */
+  deleteRoutine: () => api.delete("/routine"),
+};
+
 export default api;

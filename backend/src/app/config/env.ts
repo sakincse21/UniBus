@@ -11,4 +11,5 @@ export const env = {
   MYSQL_USER: process.env.MYSQL_USER || "root",
   MYSQL_PASSWORD: process.env.MYSQL_PASSWORD || "",
   MYSQL_DB: process.env.MYSQL_DB || "test_db",
+  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
 };

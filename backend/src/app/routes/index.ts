@@ -7,6 +7,7 @@ import { LocationRouter } from "../modules/location/location.route";
 import { NoticeRouter } from "../modules/notice/notice.route";
 import { RouteRouter } from "../modules/route/route.route";
 import { ScheduleRouter } from "../modules/schedule/schedule.route";
+import { RoutineRouter } from "../modules/routine/routine.route";
 // import { ScheduleRouter } from "../modules/schedule/schedule.route";
 
 const router = Router();
@@ -19,5 +20,6 @@ router.use("/location", LocationRouter);
 router.use("/tracking", TrackingRouter);
 router.use("/route", RouteRouter);
 router.use("/schedule", ScheduleRouter);
+router.use("/routine", RoutineRouter);
 
 export default router;
