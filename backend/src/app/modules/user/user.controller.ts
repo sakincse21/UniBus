@@ -13,6 +13,23 @@ const createUser = tryCatch(async (req: Request, res: Response, next: NextFuncti
   });
 });
 
+const bulkUploadUsers = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded. Please upload an xlsx file.",
+    });
+  }
+
+  const results = await UserService.bulkCreateUsers(req.file.path);
+
+  res.status(200).json({
+    success: true,
+    message: `Created ${results.created} users, skipped ${results.skipped}`,
+    data: results,
+  });
+});
+
 const updateUser = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.params.id;
   const { name, email } = req.body;
@@ -46,6 +63,30 @@ const fetchUserbyId = tryCatch(async (req: Request, res: Response, next: NextFun
   });
 });
 
+const getMyProfile = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
+  const userId = req.user.userId;
+  console.log("user requested, ", userId)
+  const user = await UserService.getMyProfile(userId);
+
+  res.status(200).json({
+    success: true,
+    message: "Profile fetched successfully",
+    data: user,
+  });
+});
+
+const updateMyProfile = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
+  const userId = req.user.userId;
+  const { name, email } = req.body;
+  const user = await UserService.updateMyProfile(userId, name, email);
+
+  res.status(200).json({
+    success: true,
+    message: "Profile updated successfully",
+    data: user,
+  });
+});
+
 const getAllUsers = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
   const users = await UserService.getAllUsers();
 
@@ -58,8 +99,11 @@ const getAllUsers = tryCatch(async (req: Request, res: Response, next: NextFunct
 
 export const UserController = {
   createUser,
+  bulkUploadUsers,
   updateUser,
   deleteUser,
   fetchUserbyId,
+  getMyProfile,
+  updateMyProfile,
   getAllUsers,
 };

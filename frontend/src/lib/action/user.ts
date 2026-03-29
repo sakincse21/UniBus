@@ -6,11 +6,12 @@ import { configs } from "../config.env";
 import { revalidateTag } from "next/cache";
 import { updateUserSchema } from "@/components/module/admin/UpdateUser";
 
+const API = configs.BACKEND_BASE_URL + "/api/v1";
+
 export const fetchUser = async (user_id: string) => {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("token");
-  console.log(sessionCookie)
-  const data = await fetch(`/api/v1/user/${user_id}`, {
+  const data = await fetch(`${API}/user/${user_id}`, {
     cache: "no-store",
     credentials: "include",
     headers: {
@@ -29,10 +30,8 @@ export const fetchUser = async (user_id: string) => {
 export const fetchAllUsers = async (options: Record<string, string>) => {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("token");
-  console.log(sessionCookie)
   const queryParams = new URLSearchParams(options).toString();
-  console.log(queryParams);
-  const data = await fetch(`/api/v1/user/?${queryParams}`, {
+  const data = await fetch(`${API}/user/?${queryParams}`, {
     cache: "no-store",
     credentials: "include",
     headers: {
@@ -46,14 +45,13 @@ export const fetchAllUsers = async (options: Record<string, string>) => {
   const users = data?.data;
   const meta = data?.meta;
 
-  return {users, meta};
+  return { users, meta };
 };
 
 export const addUser = async (values: z.infer<typeof addUserSchema>) => {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("token");
-  console.log(sessionCookie?.value);
-  const response = await fetch(`/api/v1/user/`, {
+  const response = await fetch(`${API}/user/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -63,7 +61,7 @@ export const addUser = async (values: z.infer<typeof addUserSchema>) => {
     credentials: "include"
   });
 
-  revalidateTag("users", "max");
+  revalidateTag("users");
 
   const data = await response.json();
 
@@ -73,11 +71,8 @@ export const addUser = async (values: z.infer<typeof addUserSchema>) => {
 export const addBulkUsers = async (formData: FormData) => {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("token");
-  
-  const file = formData.get("file");
-  console.log("File received in server action:", file);
 
-  const response = await fetch(`/api/v1/user/bulk-upload`, {
+  const response = await fetch(`${API}/user/bulk-upload`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${sessionCookie?.value}`,
@@ -86,8 +81,7 @@ export const addBulkUsers = async (formData: FormData) => {
     credentials: "include",
   });
 
-  revalidateTag("users", "max");
-//   console.log(response)
+  revalidateTag("users");
 
   const data = await response.json();
 
@@ -98,8 +92,7 @@ export const addBulkUsers = async (formData: FormData) => {
 export const updateUser = async (values: z.infer<typeof updateUserSchema>, user_id: string) => {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("token");
-  console.log(sessionCookie?.value);
-  const response = await fetch(`/api/v1/user/${user_id}`, {
+  const response = await fetch(`${API}/user/${user_id}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -109,10 +102,9 @@ export const updateUser = async (values: z.infer<typeof updateUserSchema>, user_
     credentials: "include"
   });
 
-  revalidateTag("users", "max");
-  revalidateTag("user", "max");
+  revalidateTag("users");
+  revalidateTag("user");
 
-  // console.log(response)
   const data = await response.json();
 
   return data;
@@ -121,9 +113,8 @@ export const updateUser = async (values: z.infer<typeof updateUserSchema>, user_
 export const deleteUser = async (user_id: string) => {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("token");
-  console.log(sessionCookie?.value);
   const response = await fetch(
-    `/api/v1/user/${user_id}`,
+    `${API}/user/${user_id}`,
     {
       method: "DELETE",
       headers: {
@@ -134,10 +125,44 @@ export const deleteUser = async (user_id: string) => {
     }
   );
 
-  revalidateTag("users", "max");
-  revalidateTag("user", "max");
+  revalidateTag("users");
+  revalidateTag("user");
 
   const data = await response.json();
 
+  return data;
+};
+
+export const fetchMyProfile = async () => {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("token");
+  const response = await fetch(`${API}/user/me`, {
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${sessionCookie?.value}`,
+    },
+    credentials: "include",
+  });
+
+  const data = await response.json();
+  return data;
+};
+
+export const updateMyProfile = async (values: { name?: string; email?: string }) => {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("token");
+  const response = await fetch(`${API}/user/me`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${sessionCookie?.value}`,
+    },
+    body: JSON.stringify(values),
+    credentials: "include",
+  });
+
+  revalidateTag("user");
+
+  const data = await response.json();
   return data;
 };

@@ -23,7 +23,7 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
       })
     : null;
 
-  // CR restrictions
+  // CR restrictions: can only post for their own batch
   if (user.role === UserRole.CR) {
     if (!user.batch?.id) {
       return res.status(400).json({ message: "CR must belong to a batch" });
@@ -40,11 +40,21 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     }
   }
 
-  // Student cannot create notice
+  // Student restrictions: can only post for their own batch
   if (user.role === UserRole.STUDENT) {
-    return res.status(403).json({
-      message: "Students cannot create notices",
-    });
+    if (!user.batch?.id) {
+      return res.status(400).json({ message: "Student must belong to a batch" });
+    }
+    if (forAll || forTeachers) {
+      return res.status(403).json({
+        message: "Students can only post for their own batch",
+      });
+    }
+    if (!targetBatch || Number(targetBatch.id) !== user.batch.id) {
+      return res.status(403).json({
+        message: "Students can only post for their own batch",
+      });
+    }
   }
 
   // Validate targeting - exactly one must be selected
@@ -56,6 +66,7 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     });
   }
 
+  // Auto-approve for admin, teacher, CR. Pending for students.
   const notice = repo.create({
     title,
     content,
@@ -64,15 +75,15 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     forTeachers: !!forTeachers,
     targetBatch: targetBatch?.id ? { id: targetBatch.id } : undefined,
     status:
-      user.role === UserRole.ADMIN || user.role === UserRole.TEACHER
-        ? NoticeStatus.APPROVED
-        : NoticeStatus.PENDING,
+      user.role === UserRole.STUDENT
+        ? NoticeStatus.PENDING
+        : NoticeStatus.APPROVED,
   });
 
   await repo.save(notice);
 
   const io = req.app.get("io");
-  // If admin/teacher-created (auto approved), broadcast immediately
+  // If auto-approved, broadcast immediately
   if (notice.status === NoticeStatus.APPROVED) {
     if (notice.forAll) {
       io.emit("notice_published", notice);
@@ -88,15 +99,12 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
 
 const approveNotice = tryCatch(async (req: Request, res: Response) => {
   const { id } = req.params;
-  console.log("Approving notice with ID:", id);
-  
+
   const repo = AppDataSource.getRepository(Notice);
   const notice = await repo.findOne({
     where: { id: Number(id) },
     relations: ["targetBatch"],
   });
-
-  console.log("Approving notice:", notice);
 
   if (!notice) {
     return res.status(404).json({ message: "Notice not found" });
@@ -106,7 +114,6 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
   await repo.save(notice);
 
   const io = req.app.get("io");
-  // Broadcast after approval based on target audience
   if (notice.forAll) {
     io.emit("notice_published", notice);
   } else if (notice.forTeachers) {
@@ -122,7 +129,6 @@ const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
   const user = req.user;
   const userRole = user.role as UserRole;
 
-  // Fetch user with batch relation (for students/CR)
   const ifUser = await AppDataSource.getRepository("User").findOne({
     where: { user_id: user.userId },
     relations: ["batch"],
@@ -135,12 +141,9 @@ const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
     .leftJoinAndSelect("notice.createdBy", "creator")
     .where("notice.status = :status", { status: NoticeStatus.APPROVED });
 
-  //Role-based filtering logic
   if (userRole === UserRole.ADMIN) {
     // Admin sees ALL approved notices
-    // No additional WHERE conditions needed
   } else if (userRole === UserRole.TEACHER) {
-    // Teacher sees: forAll + forTeachers notices (no batch check)
     qb.andWhere(
       `(notice.forAll = :forAll OR notice.forTeachers = :forTeachers)`,
       { forAll: true, forTeachers: true },
@@ -150,13 +153,11 @@ const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
     const batchId = ifUser?.batch?.id ?? null;
 
     if (batchId) {
-      // User has a batch - show forAll + their batch notices
       qb.andWhere(`(notice.forAll = :forAll OR batch.id = :batchId)`, {
         forAll: true,
         batchId,
       });
     } else {
-      // User has NO batch (edge case) - only show forAll notices
       qb.andWhere(`notice.forAll = :forAll`, { forAll: true });
     }
   }
@@ -167,7 +168,8 @@ const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
 });
 
 const getPendingNotices = tryCatch(async (req: Request, res: Response) => {
-  if (req.user.role !== UserRole.ADMIN) {
+  // Admin and CR can view pending notices
+  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.CR) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -182,7 +184,7 @@ const getPendingNotices = tryCatch(async (req: Request, res: Response) => {
 });
 
 const rejectNotice = tryCatch(async (req: Request, res: Response) => {
-  if (req.user.role !== UserRole.ADMIN) {
+  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.CR) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -201,7 +203,7 @@ const rejectNotice = tryCatch(async (req: Request, res: Response) => {
 });
 
 const deleteNotice = tryCatch(async (req: Request, res: Response) => {
-  if (req.user.role !== UserRole.ADMIN) {
+  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.CR) {
     return res.status(403).json({ message: "Forbidden" });
   }
 

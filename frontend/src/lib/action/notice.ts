@@ -1,7 +1,5 @@
 "use client";
 
-import { configs } from "../config.env";
-
 export async function fetchNotices() {
   const res = await fetch(`/api/v1/notice`, {
     credentials: "include",
@@ -14,7 +12,6 @@ export async function fetchNotices() {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createNotice(data: any) {
-    console.log(configs.BACKEND_BASE_URL)
   const res = await fetch(`/api/v1/notice`, {
     method: "POST",
     credentials: "include",
@@ -34,22 +31,25 @@ export async function fetchPendingNotices() {
 }
 
 export async function approveNotice(id: number) {
-  return fetch(`/api/v1/notice/${id}/approve`, {
-    method: "PATCH",
+  const res = await fetch(`/api/v1/notice/${id}/approve`, {
+    method: "PUT",
     credentials: "include",
   });
+  return res.json();
 }
 
 export async function rejectNotice(id: number) {
-  return fetch(`/api/v1/notice/${id}/reject`, {
-    method: "PATCH",
+  const res = await fetch(`/api/v1/notice/${id}/reject`, {
+    method: "PUT",
     credentials: "include",
   });
+  return res.json();
 }
 
 export async function deleteNotice(id: number) {
-  return fetch(`/api/v1/notice/${id}`, {
+  const res = await fetch(`/api/v1/notice/${id}`, {
     method: "DELETE",
     credentials: "include",
   });
+  return res.json();
 }

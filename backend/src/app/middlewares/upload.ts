@@ -34,3 +34,25 @@ export const uploadRoutineImage = multer({
   fileFilter,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 }).single("routineImage");
+
+const xlsxFileFilter = (
+  _req: Express.Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
+) => {
+  const allowedTypes = [
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+  ];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only .xlsx and .xls files are allowed"));
+  }
+};
+
+export const uploadXlsx = multer({
+  storage,
+  fileFilter: xlsxFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 },
+}).single("file");
