@@ -219,8 +219,8 @@ export default function CalendarGridView() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Calendar</h1>
-          <p className="text-gray-500 text-sm mt-1">{monthName}</p>
+          <h1 className="text-2xl font-semibold">Calendar</h1>
+          <p className="text-sm text-muted-foreground mt-1">{monthName}</p>
         </div>
 
         <Dialog open={showFixtureDialog} onOpenChange={setShowFixtureDialog}>

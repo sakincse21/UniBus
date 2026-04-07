@@ -10,6 +10,7 @@ import { RoutePoint } from "../modules/route/routePoint.entity";
 import { Route } from "../modules/route/route.entity";
 import { Batch } from "../modules/batch/batch.entity";
 import { Notice } from "../modules/notice/notice.entity";
+import { Attachment } from "../modules/notice/attachment.entity";
 import { UserLocation } from "../modules/location/userLocation.entity";
 import { Routine } from "../modules/routine/routine.entity";
 import { UserFixture } from "../modules/calendar/calendar.entity";
@@ -26,5 +27,5 @@ export const AppDataSource = new DataSource({
   entities: [User, Bus, LiveTrackingSession, EstimatedBusLocation,
   Route,
   RoutePoint,
-  BusSchedule, Batch, Notice, UserLocation, Routine, UserFixture],
+  BusSchedule, Batch, Notice, Attachment, UserLocation, Routine, UserFixture],
 });

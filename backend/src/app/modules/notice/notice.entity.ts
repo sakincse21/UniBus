@@ -3,10 +3,12 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  OneToMany,
   CreateDateColumn,
 } from "typeorm";
 import { User } from "../user/user.entity";
 import { Batch } from "../batch/batch.entity";
+import { Attachment } from "./attachment.entity";
 
 export enum NoticeStatus {
   PENDING = "pending",
@@ -46,6 +48,12 @@ export class Notice {
 
   @Column({ type: "date", nullable: true })
   eventDate?: Date;
+
+  @OneToMany(() => Attachment, (attachment) => attachment.notice, {
+    cascade: true,
+    eager: true,
+  })
+  attachments?: Attachment[];
 
   @CreateDateColumn()
   createdAt!: Date;

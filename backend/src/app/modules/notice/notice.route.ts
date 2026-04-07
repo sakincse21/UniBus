@@ -35,5 +35,10 @@ router.delete(
   roleValidate([UserRole.ADMIN, UserRole.CR]),
   NoticeController.deleteNotice,
 );
+router.get(
+  "/:id",
+  authValidate,
+  NoticeController.getNoticeById,
+);
 
 export const NoticeRouter = router;

@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
-import { createNotice } from "@/lib/action/notice";
+import { createNotice, uploadAttachments } from "@/lib/action/notice";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +20,15 @@ import {
 } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { useRole } from "@/components/RoleProvider";
+import { X, Paperclip, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
 
 type AudienceType = "forAll" | "forTeachers" | "targetBatch";
+
+interface AttachedFile {
+  file: File;
+  preview?: string;
+  isImage: boolean;
+}
 
 export default function CreateNoticePage() {
   const router = useRouter();
@@ -31,7 +39,9 @@ export default function CreateNoticePage() {
   const [audience, setAudience] = useState<AudienceType>("targetBatch");
   const [targetBatchId, setTargetBatchId] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
   useEffect(() => {
     // Admin/teacher default to forAll, student/cr default to targetBatch
@@ -43,6 +53,43 @@ export default function CreateNoticePage() {
   }, [role]);
 
   const canSelectAllAudiences = role === "admin" || role === "teacher";
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    files.forEach((file) => {
+      // Check file size (50MB limit)
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 50MB)`);
+        return;
+      }
+
+      const isImage = file.type.startsWith("image/");
+      const newAttachment: AttachedFile = {
+        file,
+        isImage,
+      };
+
+      // Create preview for images
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          newAttachment.preview = event.target?.result as string;
+          setAttachments((prev) => [...prev, newAttachment]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setAttachments((prev) => [...prev, newAttachment]);
+      }
+    });
+
+    // Reset input
+    e.target.value = "";
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const submit = async () => {
     if (!title.trim() || !content.trim()) {
@@ -56,32 +103,51 @@ export default function CreateNoticePage() {
     }
 
     setLoading(true);
-    const res = await createNotice({
-      title,
-      content,
-      forAll: audience === "forAll",
-      forTeachers: audience === "forTeachers",
-      targetBatchId: audience === "targetBatch" ? targetBatchId : undefined,
-      eventDate: eventDate ? new Date(eventDate).toISOString().split("T")[0] : undefined,
-    });
-    setLoading(false);
+    try {
+      const res = await createNotice({
+        title,
+        content,
+        forAll: audience === "forAll",
+        forTeachers: audience === "forTeachers",
+        targetBatchId: audience === "targetBatch" ? targetBatchId : undefined,
+        eventDate: eventDate ? new Date(eventDate).toISOString().split("T")[0] : undefined,
+      });
 
-    if (res.success) {
+      if (!res.success) {
+        toast.error(res.message || "Failed to create notice");
+        setLoading(false);
+        return;
+      }
+
+      // Upload attachments if any
+      if (attachments.length > 0) {
+        setUploadingAttachments(true);
+        const attachmentFiles = attachments.map((a) => a.file);
+        const uploadRes = await uploadAttachments(res.data.id, attachmentFiles);
+        setUploadingAttachments(false);
+
+        if (!uploadRes.success) {
+          toast.error("Notice created but some files failed to upload");
+        }
+      }
+
       toast.success(
         role === "student"
           ? "Notice submitted for approval"
           : "Notice created successfully"
       );
       router.push("/notice");
-    } else {
-      toast.error(res.message || "Failed to create notice");
+    } catch (error) {
+      toast.error("An error occurred");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="max-w-2xl mx-auto w-full space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Create Notice</h1>
+        <h1 className="text-2xl font-semibold">Create Notice</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Compose a new notice for your audience
         </p>
@@ -148,6 +214,106 @@ export default function CreateNoticePage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Attachments</CardTitle>
+          <CardDescription>
+            Upload files to attach to this notice
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* File Upload Input */}
+          <div>
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+                accept="*/*"
+              />
+              <div className="border-2 border-dashed rounded-lg p-6 hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                  <Paperclip className="w-5 h-5" />
+                  <span className="text-sm">Click to upload files or drag and drop</span>
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Max 10 files, 50MB each
+                </p>
+              </div>
+            </label>
+          </div>
+
+          {/* Attached Files Preview */}
+          {attachments.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium">
+                Attached Files ({attachments.length})
+              </p>
+              
+              {/* Image Previews Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {attachments
+                  .filter((a) => a.isImage)
+                  .map((attachment, index) => (
+                    <div
+                      key={index}
+                      className="relative group rounded-lg overflow-hidden bg-muted"
+                    >
+                      <img
+                        src={attachment.preview}
+                        alt={attachment.file.name}
+                        className="w-full h-32 object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => removeAttachment(index)}
+                          className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-xs p-1 truncate text-gray-600 dark:text-gray-400 bg-white dark:bg-black/20">
+                        {attachment.file.name}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+
+              {/* File List (non-images) */}
+              {attachments.filter((a) => !a.isImage).length > 0 && (
+                <div className="space-y-2">
+                  {attachments
+                    .filter((a) => !a.isImage)
+                    .map((attachment, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-muted rounded-lg"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm truncate">
+                            {attachment.file.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            ({(attachment.file.size / 1024).toFixed(1)} KB)
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => removeAttachment(index)}
+                          className="text-red-500 hover:text-red-600 p-1"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Audience</CardTitle>
           <CardDescription>
             Select who should see this notice
@@ -202,12 +368,17 @@ export default function CreateNoticePage() {
         <Button variant="outline" onClick={() => router.push("/notice")}>
           Cancel
         </Button>
-        <Button onClick={submit} disabled={loading}>
-          {loading
+        <Button
+          onClick={submit}
+          disabled={loading || uploadingAttachments}
+        >
+          {uploadingAttachments
+            ? "Uploading files..."
+            : loading
             ? "Creating..."
             : role === "student"
-              ? "Submit for Approval"
-              : "Create Notice"}
+            ? "Submit for Approval"
+            : "Create Notice"}
         </Button>
       </div>
     </div>

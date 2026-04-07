@@ -226,6 +226,53 @@ const deleteNotice = tryCatch(async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+const getNoticeById = tryCatch(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const user = req.user;
+  const userRole = user.role as UserRole;
+
+  const repo = AppDataSource.getRepository(Notice);
+  const notice = await repo.findOne({
+    where: { id: Number(id) },
+    relations: ["createdBy", "targetBatch", "attachments"],
+  });
+
+  if (!notice) {
+    return res.status(404).json({ message: "Notice not found" });
+  }
+
+  // Check if user has permission to view this notice
+  if (notice.status !== NoticeStatus.APPROVED) {
+    // Only admin, CR, or creator can view non-approved notices
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.CR &&
+      notice.createdBy.user_id !== user.userId
+    ) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+  } else {
+    // Check visibility for approved notices
+    const ifUser = await AppDataSource.getRepository("User").findOne({
+      where: { user_id: user.userId },
+      relations: ["batch"],
+    });
+
+    if (userRole === UserRole.TEACHER) {
+      if (!notice.forAll && !notice.forTeachers) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    } else if (userRole === UserRole.STUDENT || userRole === UserRole.CR) {
+      const batchId = ifUser?.batch?.id ?? null;
+      if (!notice.forAll && notice.targetBatch?.id !== batchId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
+  }
+
+  res.json({ success: true, data: notice });
+});
+
 export const NoticeController = {
   createNotice,
   getVisibleNotices,
@@ -233,4 +280,5 @@ export const NoticeController = {
   getPendingNotices,
   rejectNotice,
   deleteNotice,
+  getNoticeById,
 };

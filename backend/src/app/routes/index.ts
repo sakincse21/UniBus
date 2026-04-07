@@ -5,6 +5,7 @@ import { BusRouter } from "../modules/bus/bus.route";
 import { TrackingRouter } from "../modules/tracking/tracking.route";
 import { LocationRouter } from "../modules/location/location.route";
 import { NoticeRouter } from "../modules/notice/notice.route";
+import { AttachmentRouter } from "../modules/notice/attachment.route";
 import { RouteRouter } from "../modules/route/route.route";
 import { ScheduleRouter } from "../modules/schedule/schedule.route";
 import { RoutineRouter } from "../modules/routine/routine.route";
@@ -14,6 +15,7 @@ import { CalendarRouter } from "../modules/calendar/calendar.route";
 const router = Router();
 
 router.use("/notice", NoticeRouter);
+router.use("/attachment", AttachmentRouter);
 router.use('/auth', AuthRouter);
 router.use('/user', UserRouter);
 router.use("/bus", BusRouter);

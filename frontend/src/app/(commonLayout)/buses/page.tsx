@@ -112,7 +112,7 @@ export default function BusesPage() {
   // Render blocking UI while requesting (but not if skipped)
   if (locationStatus === "requesting") {
     return (
-      <div className="w-full max-w-6xl h-full flex flex-col items-center justify-center gap-4">
+      <div className="w-full max-w-6xl mx-auto h-full flex flex-col items-center justify-center gap-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         <p className="text-muted-foreground">Requesting location access...</p>
         <p className="text-xs text-muted-foreground/70">
@@ -132,7 +132,7 @@ export default function BusesPage() {
 
   if (locationStatus === "denied" || locationStatus === "error") {
     return (
-      <div className="w-full max-w-6xl h-full flex flex-col items-center justify-center gap-6 p-6">
+      <div className="w-full max-w-6xl mx-auto h-full flex flex-col items-center justify-center gap-6 p-6">
         <div className="text-center space-y-2">
           <h2 className="text-xl font-semibold text-destructive">
             Location Access Required
@@ -182,9 +182,9 @@ export default function BusesPage() {
   }
 
   return (
-    <div className="w-full max-w-6xl h-full flex flex-col gap-6">
+    <div className="w-full max-w-6xl mx-auto h-full flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Live Bus Tracking</h1>
+        <h1 className="text-2xl font-semibold">Live Bus Tracking</h1>
         
         {/* Show location status indicator */}
         {locationStatus === "skipped" && (

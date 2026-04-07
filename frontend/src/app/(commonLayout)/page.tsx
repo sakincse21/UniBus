@@ -30,13 +30,11 @@ export default function HomePage() {
       title: "Bus Schedule",
       description: "View live bus schedules and routes",
       url: "/buses",
-      accent: "from-blue-500/10 to-blue-600/5 border-blue-500/20",
     },
     {
       title: "Notices",
       description: "Read announcements and updates",
       url: "/notice",
-      accent: "from-violet-500/10 to-violet-600/5 border-violet-500/20",
     },
     ...(role === "student" || role === "cr" || role === "admin"
       ? [
@@ -47,7 +45,6 @@ export default function HomePage() {
                 ? "Submit a notice for approval"
                 : "Publish a notice to your batch",
             url: "/notice/create",
-            accent: "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20",
           },
         ]
       : []),
@@ -55,16 +52,13 @@ export default function HomePage() {
       title: "Profile",
       description: "View and update your profile",
       url: "/profile",
-      accent: "from-orange-500/10 to-orange-600/5 border-orange-500/20",
     },
   ];
 
   return (
     <div className="max-w-3xl mx-auto w-full space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome to UniBus
-        </h1>
+        <h1 className="text-2xl font-semibold">Welcome to UniBus</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {role && (
             <>
@@ -96,9 +90,7 @@ export default function HomePage() {
       <div className="grid gap-4 sm:grid-cols-2">
         {quickLinks.map((link) => (
           <Link key={link.url} href={link.url}>
-            <Card
-              className={`h-full bg-gradient-to-br ${link.accent} hover:shadow-md transition-all duration-200 cursor-pointer`}
-            >
+            <Card className="h-full hover:border-foreground/30 transition-colors cursor-pointer">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">{link.title}</CardTitle>
               </CardHeader>
@@ -113,9 +105,9 @@ export default function HomePage() {
       {/* Admin shortcut */}
       {role === "admin" && (
         <div>
-          <h2 className="text-lg font-medium mb-3">Administration</h2>
+          <h2 className="text-base font-semibold mt-6 mb-3">Administration</h2>
           <Link href="/dashboard">
-            <Card className="bg-gradient-to-br from-rose-500/10 to-rose-600/5 border-rose-500/20 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <Card className="hover:border-foreground/30 transition-colors cursor-pointer">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Admin Dashboard</CardTitle>
               </CardHeader>

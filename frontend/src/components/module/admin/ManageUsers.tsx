@@ -123,7 +123,7 @@ export default function AllUsers() {
   console.log(users)
 
   return (
-    <div className="w-full flex flex-col justify-center items-center md:w-5xl">
+    <div className="w-full max-w-5xl mx-auto">
       <Card className="w-full">
         <CardHeader>
           <CardTitle>All Users</CardTitle>

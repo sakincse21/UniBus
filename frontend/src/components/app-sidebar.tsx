@@ -117,8 +117,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar {...props}>
       <SidebarHeader>
-        <div className="px-3 py-4">
-          <h1 className="text-lg font-semibold tracking-tight">UniBus</h1>
+        <div className="px-2 py-4">
+          <h1 className="text-sm font-semibold tracking-tight">UniBus</h1>
           {role && (
             <span className="text-xs text-muted-foreground capitalize">
               {role}

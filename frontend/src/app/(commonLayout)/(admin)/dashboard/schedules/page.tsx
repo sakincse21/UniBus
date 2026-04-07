@@ -154,7 +154,7 @@ export default function ScheduleManagementPage() {
   };
 
   return (
-    <div className="w-full max-w-5xl space-y-6">
+    <div className="w-full max-w-5xl mx-auto space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Create Schedule</CardTitle>
