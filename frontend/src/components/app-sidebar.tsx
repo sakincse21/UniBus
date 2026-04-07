@@ -33,6 +33,7 @@ function getNavSections(role: UserRole | null) {
       items: [
         { title: "Buses", url: "/buses" },
         { title: "Notices", url: "/notice" },
+        { title: "Calendar", url: "/calendar" },
       ],
     });
   }
@@ -45,6 +46,7 @@ function getNavSections(role: UserRole | null) {
         { title: "Buses", url: "/buses" },
         { title: "Notices", url: "/notice" },
         { title: "Create Notice", url: "/notice/create" },
+        { title: "Calendar", url: "/calendar" },
       ],
     });
     sections.push({
@@ -63,6 +65,7 @@ function getNavSections(role: UserRole | null) {
         { title: "Buses", url: "/buses" },
         { title: "Notices", url: "/notice" },
         { title: "Create Notice", url: "/notice/create" },
+        { title: "Calendar", url: "/calendar" },
       ],
     });
     sections.push({

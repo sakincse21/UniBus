@@ -59,6 +59,15 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: "Calendar",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="Calendar" focused={focused} />
+          ),
+        }}
+      />
       {isAdmin && (
         <Tabs.Screen
           name="pending-notice"

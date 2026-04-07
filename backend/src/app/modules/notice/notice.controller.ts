@@ -5,7 +5,7 @@ import { Notice, NoticeStatus } from "./notice.entity";
 import { User, UserRole } from "../user/user.entity";
 
 const createNotice = tryCatch(async (req: Request, res: Response) => {
-  const { title, content, forAll, forTeachers, targetBatchId } = req.body;
+  const { title, content, forAll, forTeachers, targetBatchId, eventDate } = req.body;
 
   const user = await AppDataSource.getRepository("User").findOne({
     where: { user_id: req.user.userId },
@@ -66,6 +66,17 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     });
   }
 
+  // Validate eventDate if provided
+  let parsedEventDate: Date | undefined;
+  if (eventDate) {
+    parsedEventDate = new Date(eventDate);
+    if (isNaN(parsedEventDate.getTime())) {
+      return res.status(400).json({
+        message: "Invalid eventDate format",
+      });
+    }
+  }
+
   // Auto-approve for admin, teacher, CR. Pending for students.
   const notice = repo.create({
     title,
@@ -74,6 +85,7 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     forAll: !!forAll,
     forTeachers: !!forTeachers,
     targetBatch: targetBatch?.id ? { id: targetBatch.id } : undefined,
+    eventDate: parsedEventDate,
     status:
       user.role === UserRole.STUDENT
         ? NoticeStatus.PENDING

@@ -83,4 +83,27 @@ export const routineAPI = {
   deleteRoutine: () => api.delete("/routine"),
 };
 
+// Calendar API
+export const calendarAPI = {
+  /** Get aggregated calendar events for next N days */
+  getCalendarEvents: (days: number = 30) =>
+    api.get(`/calendar/events?days=${days}`),
+
+  /** Create personal calendar event */
+  createFixture: (data: any) => api.post("/calendar/fixtures", data),
+
+  /** Get personal calendar events */
+  getFixtures: () => api.get("/calendar/fixtures"),
+
+  /** Update personal calendar event */
+  updateFixture: (id: number, data: any) =>
+    api.put(`/calendar/fixtures/${id}`, data),
+
+  /** Delete personal calendar event */
+  deleteFixture: (id: number) => api.delete(`/calendar/fixtures/${id}`),
+
+  /** Delete a notice (with role-based permission) */
+  deleteNotice: (id: number) => api.delete(`/calendar/notice/${id}`),
+};
+
 export default api;

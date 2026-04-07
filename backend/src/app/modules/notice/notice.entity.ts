@@ -44,6 +44,9 @@ export class Notice {
   @ManyToOne(() => Batch, { nullable: true })
   targetBatch?: Batch;
 
+  @Column({ type: "date", nullable: true })
+  eventDate?: Date;
+
   @CreateDateColumn()
   createdAt!: Date;
 }

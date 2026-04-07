@@ -61,7 +61,6 @@ export const addUser = async (values: z.infer<typeof addUserSchema>) => {
     credentials: "include"
   });
 
-  revalidateTag("users");
 
   const data = await response.json();
 
@@ -81,7 +80,6 @@ export const addBulkUsers = async (formData: FormData) => {
     credentials: "include",
   });
 
-  revalidateTag("users");
 
   const data = await response.json();
 
@@ -101,10 +99,6 @@ export const updateUser = async (values: z.infer<typeof updateUserSchema>, user_
     body: JSON.stringify({ ...values }),
     credentials: "include"
   });
-
-  revalidateTag("users");
-  revalidateTag("user");
-
   const data = await response.json();
 
   return data;
@@ -124,10 +118,6 @@ export const deleteUser = async (user_id: string) => {
       credentials: "include",
     }
   );
-
-  revalidateTag("users");
-  revalidateTag("user");
-
   const data = await response.json();
 
   return data;
@@ -160,9 +150,6 @@ export const updateMyProfile = async (values: { name?: string; email?: string })
     body: JSON.stringify(values),
     credentials: "include",
   });
-
-  revalidateTag("user");
-
   const data = await response.json();
   return data;
 };

@@ -83,3 +83,60 @@ export interface IRoutineSlot {
   remindersEnabled?: boolean;
 }
 
+// Calendar interfaces
+export interface ICalendarEventMetadata {
+  forAll?: boolean;
+  forTeachers?: boolean;
+  batchId?: number;
+  batchName?: string;
+  confidence?: number;
+  note?: string;
+  noticeContent?: string;
+  createdBy?: string;
+  canDelete?: boolean;
+}
+
+export interface ICalendarEventSource {
+  noticeId?: number;
+  routineId?: number;
+  fixtureId?: number;
+}
+
+export interface ICalendarEvent {
+  id: string;
+  type: "notice" | "routine" | "personal";
+  title: string;
+  description?: string;
+  startDateTime: string; // ISO date string
+  endDateTime?: string; // ISO date string
+  isAllDay?: boolean;
+  source: ICalendarEventSource;
+  metadata?: ICalendarEventMetadata;
+}
+
+export interface IUserFixture {
+  id: number;
+  title: string;
+  description?: string;
+  isAllDay: boolean;
+  startDateTime: string; // ISO date string
+  endDateTime: string; // ISO date string
+  user_id?: string;
+}
+
+export interface ICreateFixturePayload {
+  title: string;
+  description?: string;
+  isAllDay: boolean;
+  startDateTime: string; // ISO date string
+  endDateTime: string; // ISO date string
+}
+
+export interface IUpdateFixturePayload {
+  title?: string;
+  description?: string;
+  isAllDay?: boolean;
+  startDateTime?: string; // ISO date string
+  endDateTime?: string; // ISO date string
+}
+

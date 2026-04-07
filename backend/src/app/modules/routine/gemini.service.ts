@@ -30,7 +30,7 @@ export async function analyzeRoutineImage(
 Extract the schedule and return ONLY a valid JSON array. Each element must have:
 - "day": one of "saturday","sunday","monday","tuesday","wednesday","thursday","friday" (lowercase)
 - "firstHalfStart": the time (HH:mm, 24-hour) when the FIRST class/lab of the day starts
-- "secondHalfStart": the time (HH:mm, 24-hour) when the FIRST class/lab AFTER the lunch/mid-day break starts
+- "secondHalfStart": the time (HH:mm, 24-hour) when the FIRST class/lab AFTER the lunch/mid-day break starts, the lunch break is usually around 13:10 to 14:30
 - "confidence": a number 0 to 1 indicating how confident you are about the extracted times
 - "note": a short description like "Classes start at 8:30 AM, afternoon after 1:00 PM"
 

@@ -30,6 +30,7 @@ export default function CreateNoticePage() {
   const [content, setContent] = useState("");
   const [audience, setAudience] = useState<AudienceType>("targetBatch");
   const [targetBatchId, setTargetBatchId] = useState("");
+  const [eventDate, setEventDate] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export default function CreateNoticePage() {
       forAll: audience === "forAll",
       forTeachers: audience === "forTeachers",
       targetBatchId: audience === "targetBatch" ? targetBatchId : undefined,
+      eventDate: eventDate ? new Date(eventDate).toISOString().split("T")[0] : undefined,
     });
     setLoading(false);
 
@@ -127,6 +129,18 @@ export default function CreateNoticePage() {
               rows={5}
               value={content}
               onChange={(e) => setContent(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Event Date (Optional)</label>
+            <p className="text-xs text-muted-foreground">
+              If you set a date, this notice will also appear as an event in the calendar.
+            </p>
+            <Input
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
             />
           </div>
         </CardContent>
