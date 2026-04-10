@@ -1,35 +1,60 @@
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert,
+  TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { authAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { IUser } from "@/interfaces";
+import {
+  Text,
+  VStack,
+  Heading,
+  FormControl,
+  Input,
+  Button,
+} from "@gluestack-ui/themed";
+import type { ViewProps } from "react-native";
 
 export default function LoginScreen() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
+    const newErrors: typeof errors = {};
+
+    if (!email?.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Please enter a valid email";
+    }
+
+    if (!password) {
+      newErrors.password = "Password is required";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
+    setErrors({});
     setIsLoading(true);
+
     try {
       const response = await authAPI.login(email, password);
 
@@ -45,11 +70,15 @@ export default function LoginScreen() {
 
         await login(user, token);
         router.replace("/(tabs)");
+      } else {
+        Alert.alert("Error", response.data.message || "Login failed");
       }
     } catch (error: any) {
+      console.error("Login error:", error);
       Alert.alert(
         "Login Failed",
-        error.response?.data?.message || "Please check your credentials",
+        error.response?.data?.message ||
+          "Please check your credentials and try again",
       );
     } finally {
       setIsLoading(false);
@@ -59,67 +88,146 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1 bg-white"
+      style={{ flex: 1 }}
     >
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={false}
       >
-        <View className="flex-1 justify-center px-6">
-          <View className="items-center mb-10">
-            <Text className="text-3xl font-bold text-gray-900">UniBus</Text>
-            <Text className="text-gray-500 mt-2">University Bus Tracking</Text>
-          </View>
-
-          <View className="gap-4">
-            <View>
-              <Text className="text-gray-900 font-medium mb-2">Email</Text>
-              <TextInput
-                className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                placeholder="Enter your email"
-                placeholderTextColor="#9ca3af"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <View>
-              <Text className="text-gray-900 font-medium mb-2">Password</Text>
-              <TextInput
-                className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                placeholder="Enter your password"
-                placeholderTextColor="#9ca3af"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-              />
-            </View>
-
-            <TouchableOpacity
-              className="bg-blue-600 rounded-lg py-3 mt-4"
-              onPress={handleLogin}
-              disabled={isLoading}
+        <VStack
+          style={{
+            flex: 1,
+            paddingHorizontal: 24,
+            paddingTop: insets.top + 20,
+            paddingBottom: insets.bottom + 20,
+            justifyContent: "center",
+            gap: 16,
+          }}
+        >
+          {/* Header */}
+          <VStack style={{ alignItems: "center", marginBottom: 16, gap: 12 }}>
+            <Heading
+              style={{
+                textAlign: "center",
+                fontSize: 32,
+                fontWeight: "700",
+                color: "#000",
+              }}
             >
-              {isLoading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text className="text-white text-center font-semibold text-lg">
-                  Login
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+              UniBus
+            </Heading>
+            <Text
+              style={{ textAlign: "center", fontSize: 14, color: "#4b5563" }}
+            >
+              University Bus Tracking System
+            </Text>
+          </VStack>
 
-          <View className="flex-row justify-center mt-6">
-            <Text className="text-gray-500">Don't have an account? </Text>
+          {/* Form Fields */}
+          <VStack style={{ gap: 12 }}>
+            {/* Email */}
+            <FormControl isInvalid={!!errors.email}>
+              <FormControl.Label>
+                <Text
+                  style={{ fontSize: 14, fontWeight: "600", color: "#000" }}
+                >
+                  Email
+                </Text>
+              </FormControl.Label>
+              <Input isDisabled={isLoading}>
+                <Input.Input
+                  placeholder="Enter your email"
+                  value={email}
+                  onChangeText={(text: string) => {
+                    setEmail(text);
+                    if (errors.email)
+                      setErrors({ ...errors, email: undefined });
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                  placeholderTextColor="#9ca3af"
+                />
+              </Input>
+              {errors.email && (
+                <FormControl.Error>
+                  <Text style={{ fontSize: 12, color: "#dc2626" }}>
+                    {errors.email}
+                  </Text>
+                </FormControl.Error>
+              )}
+            </FormControl>
+
+            {/* Password */}
+            <FormControl isInvalid={!!errors.password}>
+              <FormControl.Label>
+                <Text
+                  style={{ fontSize: 14, fontWeight: "600", color: "#000" }}
+                >
+                  Password
+                </Text>
+              </FormControl.Label>
+              <Input isDisabled={isLoading}>
+                <Input.Input
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={(text: string) => {
+                    setPassword(text);
+                    if (errors.password)
+                      setErrors({ ...errors, password: undefined });
+                  }}
+                  secureTextEntry
+                  editable={!isLoading}
+                  placeholderTextColor="#9ca3af"
+                />
+              </Input>
+              {errors.password && (
+                <FormControl.Error>
+                  <Text style={{ fontSize: 12, color: "#dc2626" }}>
+                    {errors.password}
+                  </Text>
+                </FormControl.Error>
+              )}
+            </FormControl>
+          </VStack>
+
+          {/* Login Button */}
+          <Button
+            onPress={handleLogin}
+            isDisabled={isLoading}
+            style={{
+              marginTop: 8,
+              width: "100%",
+              backgroundColor: isLoading ? "#d1d5db" : "#0ea5e9",
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+              borderRadius: 6,
+            }}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Button.Text style={{ color: "white", fontWeight: "600" }}>
+                Sign In
+              </Button.Text>
+            )}
+          </Button>
+
+          {/* Sign Up Link */}
+          <VStack style={{ alignItems: "center", gap: 4 }}>
+            <Text style={{ fontSize: 14, color: "#4b5563" }}>
+              Don't have an account?
+            </Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
-              <Text className="text-blue-600 font-semibold">Sign Up</Text>
+              <Text
+                style={{ fontSize: 14, fontWeight: "600", color: "#0ea5e9" }}
+              >
+                Sign Up Here
+              </Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </VStack>
+        </VStack>
       </ScrollView>
     </KeyboardAvoidingView>
   );

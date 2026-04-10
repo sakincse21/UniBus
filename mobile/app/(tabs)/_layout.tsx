@@ -1,13 +1,26 @@
 import { Tabs } from "expo-router";
 import { View, Text } from "react-native";
 import { useAuthStore } from "@/store/authStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => (
-  <View className="items-center">
+const TabIcon = ({
+  name,
+  focused,
+  iconChar,
+}: {
+  name: string;
+  focused: boolean;
+  iconChar: string;
+}) => (
+  <View className="items-center justify-center gap-1">
+    <Text className={`text-2xl ${focused ? "text-blue-600" : "text-gray-500"}`}>
+      {iconChar}
+    </Text>
     <Text
-      className={`text-xs ${
-        focused ? "text-blue-600 font-bold" : "text-gray-500"
+      className={`text-xs font-semibold ${
+        focused ? "text-blue-600" : "text-gray-500"
       }`}
+      numberOfLines={1}
     >
       {name}
     </Text>
@@ -16,21 +29,40 @@ const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => (
 
 export default function TabsLayout() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role === "admin";
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#2563eb",
-        tabBarInactiveTintColor: "#9ca3af",
+        tabBarInactiveTintColor: "#6b7280",
         tabBarStyle: {
           backgroundColor: "#ffffff",
           borderTopWidth: 1,
           borderTopColor: "#e5e7eb",
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          paddingBottom: Math.max(insets.bottom, 12),
+          paddingTop: 10,
+          height: 70 + Math.max(insets.bottom, 0),
+          paddingHorizontal: 4,
+          elevation: 12,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.15,
+          shadowRadius: 6,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 6,
+          gap: 2,
+          flex: 1,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "700",
+          marginTop: 2,
+        },
+        sceneStyle: {
+          backgroundColor: "#f9fafb",
         },
       }}
     >
@@ -39,15 +71,17 @@ export default function TabsLayout() {
         options={{
           title: "Notices",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="Notices" focused={focused} />
+            <TabIcon name="Notices" focused={focused} iconChar="📢" />
           ),
         }}
       />
       <Tabs.Screen
         name="bus-tracking"
         options={{
-          title: "Bus",
-          tabBarIcon: ({ focused }) => <TabIcon name="Bus" focused={focused} />,
+          title: "Bus Track",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="Track" focused={focused} iconChar="🚌" />
+          ),
         }}
       />
       <Tabs.Screen
@@ -55,7 +89,7 @@ export default function TabsLayout() {
         options={{
           title: "Routine",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="Routine" focused={focused} />
+            <TabIcon name="Routine" focused={focused} iconChar="📋" />
           ),
         }}
       />
@@ -64,27 +98,16 @@ export default function TabsLayout() {
         options={{
           title: "Calendar",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="Calendar" focused={focused} />
+            <TabIcon name="Calendar" focused={focused} iconChar="📅" />
           ),
         }}
       />
-      {isAdmin && (
-        <Tabs.Screen
-          name="pending-notice"
-          options={{
-            title: "Pending",
-            tabBarIcon: ({ focused }) => (
-              <TabIcon name="Pending" focused={focused} />
-            ),
-          }}
-        />
-      )}
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="Profile" focused={focused} />
+            <TabIcon name="Profile" focused={focused} iconChar="👤" />
           ),
         }}
       />

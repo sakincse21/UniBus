@@ -8,17 +8,34 @@ interface EventCardProps {
   isDeleting?: boolean;
 }
 
-export const EventCard: React.FC<EventCardProps> = ({ event, onDelete, isDeleting }) => {
+export const EventCard: React.FC<EventCardProps> = ({
+  event,
+  onDelete,
+  isDeleting,
+}) => {
   const getEventColor = (type: string) => {
     switch (type) {
       case "notice":
-        return "bg-blue-100 border-l-4 border-blue-500";
+        return "bg-blue-50 border-l-4 border-blue-500";
       case "routine":
-        return "bg-purple-100 border-l-4 border-purple-500";
+        return "bg-purple-50 border-l-4 border-purple-500";
       case "personal":
-        return "bg-green-100 border-l-4 border-green-500";
+        return "bg-green-50 border-l-4 border-green-500";
       default:
-        return "bg-gray-100 border-l-4 border-gray-500";
+        return "bg-gray-50 border-l-4 border-gray-500";
+    }
+  };
+
+  const getEventTypeIcon = (type: string) => {
+    switch (type) {
+      case "notice":
+        return "📋";
+      case "routine":
+        return "📅";
+      case "personal":
+        return "⭐";
+      default:
+        return "📌";
     }
   };
 
@@ -39,35 +56,48 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onDelete, isDeletin
     }
   };
 
-  const shouldShowDelete = event.type === "personal" || event.metadata?.canDelete;
+  const shouldShowDelete =
+    event.type === "personal" || event.metadata?.canDelete;
 
   return (
-    <View className={`p-3 rounded-md mb-2 ${getEventColor(event.type)}`}>
+    <View className={`p-3 rounded-lg mb-2 ${getEventColor(event.type)}`}>
       <View className="flex-row justify-between items-start">
         <View className="flex-1">
-          <Text className="font-semibold text-sm">{event.title}</Text>
+          <View className="flex-row items-center gap-2 mb-1">
+            <Text className="text-base">{getEventTypeIcon(event.type)}</Text>
+            <Text className="font-semibold text-sm text-gray-900 flex-1">
+              {event.title}
+            </Text>
+          </View>
+
           {event.description && (
-            <Text className="text-xs text-gray-600 mt-1">{event.description}</Text>
-          )}
-          {!event.isAllDay && (
-            <Text className="text-xs text-gray-500 mt-1">{getTimeString()}</Text>
-          )}
-          {event.metadata?.createdBy && (
-            <Text className="text-xs text-gray-500 mt-1">
-              by {event.metadata.createdBy}
+            <Text className="text-xs text-gray-600 mt-1.5 px-6">
+              {event.description}
             </Text>
           )}
-          {event.metadata?.note && (
-            <Text className="text-xs text-gray-600 mt-1 italic">
-              Note: {event.metadata.note}
+
+          <View className="mt-2 px-6 space-y-1">
+            <Text className="text-xs text-gray-700 font-medium">
+              ⏰ {getTimeString()}
             </Text>
-          )}
+            {event.metadata?.createdBy && (
+              <Text className="text-xs text-gray-500">
+                by {event.metadata.createdBy}
+              </Text>
+            )}
+            {event.metadata?.note && (
+              <Text className="text-xs text-gray-600 italic">
+                📝 {event.metadata.note}
+              </Text>
+            )}
+          </View>
         </View>
+
         {shouldShowDelete && onDelete && (
           <TouchableOpacity
             onPress={onDelete}
             disabled={isDeleting}
-            className="ml-2 p-2"
+            className="ml-2 p-1"
           >
             <Text className="text-lg text-red-500 font-bold">
               {isDeleting ? "..." : "✕"}

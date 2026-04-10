@@ -1,83 +1,95 @@
-import * as Notifications from "expo-notifications";
-import * as Calendar from "expo-calendar";
 import { Platform } from "react-native";
 import { IRoutineSlot } from "@/interfaces";
 
 // ── Notification setup ────────────────────────────────────────────────────────
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Note: Full push notifications require a development build
+// Expo Go does not support Android Push notifications (removed in SDK 53)
 
 export async function requestNotificationPermissions(): Promise<boolean> {
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let finalStatus = existing;
-
-  if (existing !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+  try {
+    if (Platform.OS === "web" || process.env.NODE_ENV === "development") {
+      console.log("Push notifications are limited in Expo Go. Use a development build for production.");
+      return false;
+    }
+    // Full implementation would use expo-notifications here
+    return false;
+  } catch (error) {
+    console.debug("Notification permissions setup skipped (Expo Go limitation)");
+    return false;
   }
-
-  return finalStatus === "granted";
 }
 
 // ── Calendar setup ────────────────────────────────────────────────────────────
 
 export async function requestCalendarPermissions(): Promise<boolean> {
-  const { status } = await Calendar.requestCalendarPermissionsAsync();
-  return status === "granted";
+  try {
+    const Calendar = await import("expo-calendar").catch(() => null);
+    if (!Calendar) {
+      console.debug("Calendar module not available");
+      return false;
+    }
+    const { status } = await Calendar.requestCalendarPermissionsAsync();
+    return status === "granted";
+  } catch (error) {
+    console.debug("Calendar permissions setup skipped");
+    return false;
+  }
 }
 
 async function getOrCreateCalendarId(): Promise<string | null> {
-  const calendars = await Calendar.getCalendarsAsync(
-    Calendar.EntityTypes.EVENT,
-  );
-  const existing = calendars.find((c) => c.title === "UniBus Routine");
-
-  if (existing) return existing.id;
-
-  if (Platform.OS === "android") {
-    const defaultCalendar = calendars.find(
-      (c) => c.accessLevel === Calendar.CalendarAccessLevel.OWNER,
+  try {
+    const CalendarModule = await import("expo-calendar").catch(() => null);
+    if (!CalendarModule) {
+      console.debug("Calendar module not available");
+      return null;
+    }
+    const calendars = await CalendarModule.getCalendarsAsync(
+      CalendarModule.EntityTypes.EVENT,
     );
-    if (!defaultCalendar) return null;
+    const existing = calendars.find((c: any) => c.title === "UniBus Routine");
 
-    const newCalendarId = await Calendar.createCalendarAsync({
+    if (existing) return existing.id;
+
+    if (Platform.OS === "android") {
+      const defaultCalendar = calendars.find(
+        (c: any) => c.accessLevel === CalendarModule.CalendarAccessLevel.OWNER,
+      );
+      if (!defaultCalendar) return null;
+
+      const newCalendarId = await CalendarModule.createCalendarAsync({
+        title: "UniBus Routine",
+        color: "#2563eb",
+        entityType: CalendarModule.EntityTypes.EVENT,
+        sourceId: defaultCalendar.source.id,
+        source: defaultCalendar.source,
+        name: "UniBus Routine",
+        ownerAccount: defaultCalendar.source.name,
+        accessLevel: CalendarModule.CalendarAccessLevel.OWNER,
+      });
+      return newCalendarId;
+    }
+
+    // iOS
+    const defaultSource = calendars.find(
+      (c: any) => c.source?.type === CalendarModule.SourceType.LOCAL,
+    )?.source;
+
+    if (!defaultSource) return null;
+
+    const newCalendarId = await CalendarModule.createCalendarAsync({
       title: "UniBus Routine",
       color: "#2563eb",
-      entityType: Calendar.EntityTypes.EVENT,
-      sourceId: defaultCalendar.source.id,
-      source: defaultCalendar.source,
+      entityType: CalendarModule.EntityTypes.EVENT,
+      sourceId: defaultSource.id,
+      source: defaultSource,
       name: "UniBus Routine",
-      ownerAccount: defaultCalendar.source.name,
-      accessLevel: Calendar.CalendarAccessLevel.OWNER,
+      accessLevel: CalendarModule.CalendarAccessLevel.OWNER,
     });
     return newCalendarId;
+  } catch (error) {
+    console.debug("Error creating calendar:", error);
+    return null;
   }
-
-  // iOS
-  const defaultSource = calendars.find(
-    (c) => c.source?.type === Calendar.SourceType.LOCAL,
-  )?.source;
-
-  if (!defaultSource) return null;
-
-  const newCalendarId = await Calendar.createCalendarAsync({
-    title: "UniBus Routine",
-    color: "#2563eb",
-    entityType: Calendar.EntityTypes.EVENT,
-    sourceId: defaultSource.id,
-    source: defaultSource,
-    name: "UniBus Routine",
-    accessLevel: Calendar.CalendarAccessLevel.OWNER,
-  });
-  return newCalendarId;
 }
 
 // ── Day helpers ───────────────────────────────────────────────────────────────
@@ -116,152 +128,97 @@ function parseTimeToDate(date: Date, time: string): Date {
 // ── Schedule weekly local notifications ───────────────────────────────────────
 
 /**
- * Cancel all existing routine notifications and schedule new weekly ones
- * for 10 minutes before each first-half and second-half start.
+ * Schedule weekly reminders for routine slots.
+ * Note: Full scheduling requires a development build. This is a stub for Expo Go.
  */
 export async function scheduleWeeklyReminders(
   slots: IRoutineSlot[],
 ): Promise<string[]> {
-  const hasPermission = await requestNotificationPermissions();
-  if (!hasPermission) throw new Error("Notification permission denied");
-
-  // Cancel all existing routine notifications
-  await cancelAllReminders();
-
-  const notificationIds: string[] = [];
-
-  for (const slot of slots) {
-    if (!slot.remindersEnabled && slot.remindersEnabled !== undefined) continue;
-
-    const dayIndex = DAY_MAP[slot.day];
-    if (!dayIndex) continue;
-    // expo-notifications uses 1=Sunday..7=Saturday
-    const weekday = dayIndex;
-
-    // First half reminder: 10 minutes before
-    if (slot.firstHalfStart) {
-      const [h, m] = slot.firstHalfStart.split(":").map(Number);
-      let reminderH = h;
-      let reminderM = m - 10;
-      if (reminderM < 0) {
-        reminderM += 60;
-        reminderH -= 1;
-      }
-
-      const id = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "📚 Class Starting Soon",
-          body: `Your ${slot.day} first half starts at ${slot.firstHalfStart}${slot.note ? ` — ${slot.note}` : ""}`,
-          data: { type: "routine", slotDay: slot.day, half: "first" },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-          weekday,
-          hour: reminderH,
-          minute: reminderM,
-        },
-      });
-      notificationIds.push(id);
-    }
-
-    // Second half reminder: 10 minutes before
-    if (slot.secondHalfStart) {
-      const [h, m] = slot.secondHalfStart.split(":").map(Number);
-      let reminderH = h;
-      let reminderM = m - 10;
-      if (reminderM < 0) {
-        reminderM += 60;
-        reminderH -= 1;
-      }
-
-      const id = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "📚 Afternoon Session Starting",
-          body: `Your ${slot.day} second half starts at ${slot.secondHalfStart}${slot.note ? ` — ${slot.note}` : ""}`,
-          data: { type: "routine", slotDay: slot.day, half: "second" },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-          weekday,
-          hour: reminderH,
-          minute: reminderM,
-        },
-      });
-      notificationIds.push(id);
-    }
-  }
-
-  return notificationIds;
+  console.debug("Reminder scheduling not available in Expo Go. Use a development build for notifications.");
+  return [];
 }
 
 /**
  * Cancel all scheduled routine notifications.
  */
 export async function cancelAllReminders(): Promise<void> {
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  for (const n of scheduled) {
-    if ((n.content.data as any)?.type === "routine") {
-      await Notifications.cancelScheduledNotificationAsync(n.identifier);
-    }
-  }
+  console.debug("Reminder cancellation not available in Expo Go.");
 }
 
 // ── Optional: Add to device calendar ──────────────────────────────────────────
 
 /**
  * Create recurring calendar events for the routine.
+ * Note: Full calendar integration requires a development build.
  * Returns the number of events created.
  */
 export async function addRoutineToCalendar(
   slots: IRoutineSlot[],
 ): Promise<number> {
-  const hasPermission = await requestCalendarPermissions();
-  if (!hasPermission) throw new Error("Calendar permission denied");
-
-  const calendarId = await getOrCreateCalendarId();
-  if (!calendarId) throw new Error("Could not create calendar");
-
-  let count = 0;
-
-  for (const slot of slots) {
-    const nextDate = getNextDateForDay(slot.day);
-
-    if (slot.firstHalfStart) {
-      const startDate = parseTimeToDate(nextDate, slot.firstHalfStart);
-      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000); // 2h block
-
-      await Calendar.createEventAsync(calendarId, {
-        title: `First Half${slot.note ? ` — ${slot.note}` : ""}`,
-        startDate,
-        endDate,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        alarms: [{ relativeOffset: -10 }], // 10 min before
-        recurrenceRule: {
-          frequency: Calendar.Frequency.WEEKLY,
-          interval: 1,
-        },
-      });
-      count++;
+  try {
+    const hasPermission = await requestCalendarPermissions();
+    if (!hasPermission) {
+      console.debug("Calendar permission not granted");
+      return 0;
     }
 
-    if (slot.secondHalfStart) {
-      const startDate = parseTimeToDate(nextDate, slot.secondHalfStart);
-      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
-
-      await Calendar.createEventAsync(calendarId, {
-        title: `Second Half${slot.note ? ` — ${slot.note}` : ""}`,
-        startDate,
-        endDate,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        alarms: [{ relativeOffset: -10 }],
-        recurrenceRule: {
-          frequency: Calendar.Frequency.WEEKLY,
-          interval: 1,
-        },
-      });
-      count++;
+    const calendarId = await getOrCreateCalendarId();
+    if (!calendarId) {
+      console.debug("Could not create calendar");
+      return 0;
     }
+
+    const CalendarModule = await import("expo-calendar").catch(() => null);
+    if (!CalendarModule) {
+      console.debug("Calendar module not available");
+      return 0;
+    }
+
+    let count = 0;
+
+    for (const slot of slots) {
+      const nextDate = getNextDateForDay(slot.day);
+
+      if (slot.firstHalfStart) {
+        const startDate = parseTimeToDate(nextDate, slot.firstHalfStart);
+        const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000); // 2h block
+
+        await CalendarModule.createEventAsync(calendarId, {
+          title: `First Half${slot.note ? ` — ${slot.note}` : ""}`,
+          startDate,
+          endDate,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          alarms: [{ relativeOffset: -10 }], // 10 min before
+          recurrenceRule: {
+            frequency: CalendarModule.Frequency.WEEKLY,
+            interval: 1,
+          },
+        });
+        count++;
+      }
+
+      if (slot.secondHalfStart) {
+        const startDate = parseTimeToDate(nextDate, slot.secondHalfStart);
+        const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
+
+        await CalendarModule.createEventAsync(calendarId, {
+          title: `Second Half${slot.note ? ` — ${slot.note}` : ""}`,
+          startDate,
+          endDate,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          alarms: [{ relativeOffset: -10 }],
+          recurrenceRule: {
+            frequency: CalendarModule.Frequency.WEEKLY,
+            interval: 1,
+          },
+        });
+        count++;
+      }
+    }
+
+    return count;
+  } catch (error) {
+    console.debug("Calendar event creation failed:", error);
+    return 0;
   }
-
-  return count;
 }

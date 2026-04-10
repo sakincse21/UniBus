@@ -16,14 +16,22 @@ export const getSocket = async (): Promise<Socket> => {
     transports: ["websocket"],
     reconnection: true,
     reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
   });
 
   socket.on("connect", () => {
     console.log("Socket connected:", socket?.id);
   });
 
-  socket.on("connect_error", (error) => {
-    console.error(" Socket error:", error.message);
+  socket.on("connect_error", (error: any) => {
+    // Silently handle connection errors in development
+    // Backend may not be running during development
+    if (process.env.NODE_ENV === "development") {
+      console.debug("Socket connection error (expected in dev):", error?.message);
+    } else {
+      console.error("Socket error:", error?.message);
+    }
   });
 
   socket.on("disconnect", () => {

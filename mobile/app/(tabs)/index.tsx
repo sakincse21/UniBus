@@ -11,21 +11,25 @@ import { noticeAPI } from "@/lib/api";
 import { INotice } from "@/interfaces";
 import { getSocket } from "@/lib/socket";
 import NoticeCard from "@/components/ui/NoticeCard";
+import NoticeDetailModal from "@/components/NoticeDetailModal";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function NoticesTab() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [notices, setNotices] = useState<INotice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedNotice, setSelectedNotice] = useState<INotice | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
   const fetchNotices = async () => {
     try {
       const response = await noticeAPI.getNotices();
       if (response.data.success) {
-        // Backend already filters by role, so just display what we get
         setNotices(response.data.data || []);
       }
     } catch (error) {
@@ -44,7 +48,6 @@ export default function NoticesTab() {
     const setupSocket = async () => {
       socket = await getSocket();
       socket.on("notice_published", (notice: INotice) => {
-        // Backend already ensures only relevant notices are sent to each user's room
         setNotices((prev) => [notice, ...prev]);
       });
     };
@@ -63,7 +66,16 @@ export default function NoticesTab() {
     fetchNotices();
   };
 
-  // Check if user can create notices
+  const handleNoticePress = (notice: INotice) => {
+    setSelectedNotice(notice);
+    setDetailModalVisible(true);
+  };
+
+  const handleNoticeDelete = (noticeId: number) => {
+    setNotices((prev) => prev.filter((n) => n.id !== noticeId));
+    setDetailModalVisible(false);
+  };
+
   const canCreateNotice =
     user?.role === "admin" || user?.role === "teacher" || user?.role === "cr";
 
@@ -76,37 +88,37 @@ export default function NoticesTab() {
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
       {/* Header */}
-      <View className="px-4 py-4 bg-white border-b border-gray-200">
-        <View className="flex-row justify-between items-center">
-          <View>
-            <Text className="text-2xl font-bold text-gray-900">Notices</Text>
-            <Text className="text-gray-500 text-sm mt-1">
+      <View className="px-4 py-4 border-b border-gray-100">
+        <View className="flex-row justify-between items-start gap-4 mb-2">
+          <View className="flex-1">
+            <Text className="text-3xl font-bold text-gray-900">Notices</Text>
+            <Text className="text-gray-500 text-sm font-medium mt-1">
               {user?.role === "admin"
                 ? "All notices"
                 : user?.role === "teacher"
-                  ? "Teacher & general notices"
+                  ? "Teacher & general"
                   : user?.batch
-                    ? `Batch ${user.batch.name} & general notices`
-                    : "General notices"}
+                    ? `Batch ${user.batch.name}`
+                    : "General"}
             </Text>
           </View>
           {canCreateNotice && (
             <TouchableOpacity
-              className="bg-blue-600 px-4 py-2 rounded-lg"
+              className="bg-blue-600 px-3.5 py-2.5 rounded-lg active:bg-blue-700"
               onPress={() => router.push("/create-notice")}
             >
-              <Text className="text-white font-semibold">+ New</Text>
+              <Text className="text-white font-semibold text-sm">+ New</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Notice List */}
+      {/* Notices List */}
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -114,21 +126,36 @@ export default function NoticesTab() {
             colors={["#2563eb"]}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
         {notices.length === 0 ? (
-          <View className="items-center py-10">
-            <Text className="text-4xl mb-4">📋</Text>
-            <Text className="text-gray-500 text-lg">No notices yet</Text>
-            <Text className="text-gray-400 text-sm mt-2">
+          <View className="items-center py-16">
+            <Text className="text-5xl mb-3">📋</Text>
+            <Text className="text-gray-900 text-lg font-semibold">
+              No notices yet
+            </Text>
+            <Text className="text-gray-500 text-sm mt-2">
               Check back later for updates
             </Text>
           </View>
         ) : (
           notices.map((notice) => (
-            <NoticeCard key={notice.id} notice={notice} />
+            <NoticeCard
+              key={notice.id}
+              notice={notice}
+              onPress={() => handleNoticePress(notice)}
+            />
           ))
         )}
       </ScrollView>
+
+      {/* Notice Detail Modal */}
+      <NoticeDetailModal
+        visible={detailModalVisible}
+        notice={selectedNotice}
+        onClose={() => setDetailModalVisible(false)}
+        onDelete={handleNoticeDelete}
+      />
     </View>
   );
 }

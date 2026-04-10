@@ -42,10 +42,17 @@ export const authAPI = {
 export const noticeAPI = {
   getNotices: () => api.get("/notice"),
   getPendingNotices: () => api.get("/notice/pending"),
+  getNoticeById: (id: number) => api.get(`/notice/${id}`),
   createNotice: (data: any) => api.post("/notice", data),
   approveNotice: (id: number) => api.put(`/notice/${id}/approve`),
   rejectNotice: (id: number) => api.put(`/notice/${id}/reject`),
   deleteNotice: (id: number) => api.delete(`/notice/${id}`),
+  getAttachments: (noticeId: number) =>
+    api.get(`/attachment?noticeId=${noticeId}`),
+  downloadAttachment: (attachmentId: number) =>
+    api.get(`/attachment/${attachmentId}/download`, {
+      responseType: "blob",
+    }),
 };
 
 export const busAPI = {
