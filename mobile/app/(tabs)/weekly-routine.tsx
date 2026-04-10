@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Switch,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { useRoutineStore } from "@/store/routineStore";
 import { IRoutineSlot } from "@/interfaces";
@@ -86,7 +87,9 @@ function SlotCard({
             </Text>
           </View>
           {isDraft && (
-            <View className={`rounded-full px-2 py-0.5 ${confidenceBadge(slot.confidence)}`}>
+            <View
+              className={`rounded-full px-2 py-0.5 ${confidenceBadge(slot.confidence)}`}
+            >
               <Text className="text-xs font-medium">
                 {Math.round(slot.confidence * 100)}%
               </Text>
@@ -169,6 +172,7 @@ function SlotCard({
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function WeeklyRoutineScreen() {
+  const insets = useSafeAreaInsets();
   const {
     draft,
     routine,
@@ -338,12 +342,10 @@ export default function WeeklyRoutineScreen() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
       {/* Header */}
       <View className="px-4 py-4 bg-white border-b border-gray-200">
-        <Text className="text-2xl font-bold text-gray-900">
-          Weekly Routine
-        </Text>
+        <Text className="text-2xl font-bold text-gray-900">Weekly Routine</Text>
         <Text className="text-gray-500 text-sm mt-1">
           Upload your routine image and set class reminders
         </Text>
@@ -447,9 +449,7 @@ export default function WeeklyRoutineScreen() {
               onPress={handleConfirm}
               disabled={isLoading || schedulingReminders}
               className={`rounded-xl py-3.5 mt-2 ${
-                isLoading || schedulingReminders
-                  ? "bg-blue-300"
-                  : "bg-blue-600"
+                isLoading || schedulingReminders ? "bg-blue-300" : "bg-blue-600"
               }`}
             >
               {isLoading || schedulingReminders ? (

@@ -1,7 +1,7 @@
 import React from "react";
 import { View } from "react-native";
-import CalendarView from "@/components/CalendarView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import CalendarView from "@/components/CalendarView";
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();

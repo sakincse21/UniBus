@@ -91,27 +91,17 @@ export default function NoticesTab() {
     <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
       {/* Header */}
       <View className="px-4 py-4 border-b border-gray-100">
-        <View className="flex-row justify-between items-start gap-4 mb-2">
-          <View className="flex-1">
-            <Text className="text-3xl font-bold text-gray-900">Notices</Text>
-            <Text className="text-gray-500 text-sm font-medium mt-1">
-              {user?.role === "admin"
-                ? "All notices"
-                : user?.role === "teacher"
-                  ? "Teacher & general"
-                  : user?.batch
-                    ? `Batch ${user.batch.name}`
-                    : "General"}
-            </Text>
-          </View>
-          {canCreateNotice && (
-            <TouchableOpacity
-              className="bg-blue-600 px-3.5 py-2.5 rounded-lg active:bg-blue-700"
-              onPress={() => router.push("/create-notice")}
-            >
-              <Text className="text-white font-semibold text-sm">+ New</Text>
-            </TouchableOpacity>
-          )}
+        <View>
+          <Text className="text-3xl font-bold text-gray-900">Notices</Text>
+          <Text className="text-gray-500 text-sm font-medium mt-1">
+            {user?.role === "admin"
+              ? "All notices"
+              : user?.role === "teacher"
+                ? "Teacher & general"
+                : user?.batch
+                  ? `Batch ${user.batch.name}`
+                  : "General"}
+          </Text>
         </View>
       </View>
 

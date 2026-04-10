@@ -16,14 +16,6 @@ const TabIcon = ({
     <Text className={`text-2xl ${focused ? "text-blue-600" : "text-gray-500"}`}>
       {iconChar}
     </Text>
-    <Text
-      className={`text-xs font-semibold ${
-        focused ? "text-blue-600" : "text-gray-500"
-      }`}
-      numberOfLines={1}
-    >
-      {name}
-    </Text>
   </View>
 );
 
@@ -80,7 +72,7 @@ export default function TabsLayout() {
         options={{
           title: "Bus Track",
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="Track" focused={focused} iconChar="🚌" />
+            <TabIcon name="Bus Track" focused={focused} iconChar="🚌" />
           ),
         }}
       />
