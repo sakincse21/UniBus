@@ -125,15 +125,6 @@ export default function NoticesTab() {
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
             <Text className="text-3xl font-bold text-gray-900">Notices</Text>
-            <Text className="text-gray-500 text-sm font-medium mt-1">
-              {user?.role === "admin"
-                ? "All notices"
-                : user?.role === "teacher"
-                  ? "Teacher & general"
-                  : user?.batch
-                    ? `Batch ${user.batch.name}`
-                    : "General"}
-            </Text>
           </View>
           {canCreateNotice && (
             <TouchableOpacity

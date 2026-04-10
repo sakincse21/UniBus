@@ -54,7 +54,7 @@ export const noticeAPI = {
       responseType: "blob",
     }),
   uploadAttachments: (formData: FormData) =>
-    api.post("/attachment", formData, {
+    api.post("/attachment/upload", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
 };
@@ -75,8 +75,8 @@ export const locationAPI = {
 };
 
 export const userAPI = {
-  getProfile: () => api.get("/user/profile"),
-  updateProfile: (data: any) => api.patch("/user/profile", data),
+  getProfile: () => api.get("/user/me"),
+  updateProfile: (data: any) => api.patch("/user/me", data),
 };
 
 export const routineAPI = {

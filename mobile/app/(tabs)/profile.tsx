@@ -148,20 +148,6 @@ export default function ProfileTab() {
               🚪 Logout
             </Text>
           </TouchableOpacity>
-
-          {/* Info Section */}
-          <View className="mt-6">
-            <Text className="text-lg font-bold text-gray-900 mb-3">
-              About UniBus
-            </Text>
-            <View className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <Text className="text-gray-700 text-sm leading-5">
-                UniBus is your companion app for university bus tracking,
-                notices, calendar events, and routine management. Stay connected
-                with your batch and never miss important updates.
-              </Text>
-            </View>
-          </View>
         </View>
       </ScrollView>
 
