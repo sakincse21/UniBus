@@ -184,6 +184,36 @@ export default function NoticeDetailModal({
             </View>
           </View>
 
+          {/* Event Date and Time - if present */}
+          {(notice.eventDate || notice.startTime || notice.endTime) && (
+            <View className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
+              <Text className="text-blue-900 font-semibold text-sm mb-2">
+                📅 Event Schedule
+              </Text>
+              {notice.eventDate && (
+                <View className="flex-row justify-between mb-2">
+                  <Text className="text-blue-700 text-sm">Date</Text>
+                  <Text className="text-blue-900 font-medium text-sm">
+                    {new Date(notice.eventDate).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </Text>
+                </View>
+              )}
+              {(notice.startTime || notice.endTime) && (
+                <View className="flex-row justify-between">
+                  <Text className="text-blue-700 text-sm">Time</Text>
+                  <Text className="text-blue-900 font-medium text-sm">
+                    {notice.startTime || "—"} to {notice.endTime || "—"}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Content */}
           <View className="mb-6">
             <Text className="text-gray-900 text-base leading-6">

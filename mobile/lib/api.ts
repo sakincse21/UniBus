@@ -48,16 +48,25 @@ export const noticeAPI = {
   rejectNotice: (id: number) => api.put(`/notice/${id}/reject`),
   deleteNotice: (id: number) => api.delete(`/notice/${id}`),
   getAttachments: (noticeId: number) =>
-    api.get(`/attachment?noticeId=${noticeId}`),
+    api.get(`/attachment/notice/${noticeId}`),
   downloadAttachment: (attachmentId: number) =>
-    api.get(`/attachment/${attachmentId}/download`, {
+    api.get(`/attachment/download/${attachmentId}`, {
       responseType: "blob",
+    }),
+  uploadAttachments: (formData: FormData) =>
+    api.post("/attachment", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
 };
 
 export const busAPI = {
   getBuses: () => api.get("/bus"),
   requestTracking: (busId: number) => api.post(`/tracking/request/${busId}`),
+};
+
+export const batchAPI = {
+  getAllBatches: () => api.get("/batch"),
+  getBatchById: (id: number) => api.get(`/batch/${id}`),
 };
 
 export const locationAPI = {

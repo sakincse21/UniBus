@@ -59,6 +59,17 @@ export const EventCard: React.FC<EventCardProps> = ({
   const shouldShowDelete =
     event.type === "personal" || event.metadata?.canDelete;
 
+  const getMetadataDisplay = () => {
+    const parts: string[] = [];
+
+    if (event.metadata?.forAll) parts.push("For All");
+    if (event.metadata?.forTeachers) parts.push("For Teachers");
+    if (event.metadata?.batchName)
+      parts.push(`Batch ${event.metadata.batchName}`);
+
+    return parts.join(" • ");
+  };
+
   return (
     <View className={`p-3 rounded-lg mb-2 ${getEventColor(event.type)}`}>
       <View className="flex-row justify-between items-start">
@@ -80,11 +91,37 @@ export const EventCard: React.FC<EventCardProps> = ({
             <Text className="text-xs text-gray-700 font-medium">
               ⏰ {getTimeString()}
             </Text>
-            {event.metadata?.createdBy && (
-              <Text className="text-xs text-gray-500">
-                by {event.metadata.createdBy}
+
+            {/* Event metadata (forAll, batch, etc) */}
+            {getMetadataDisplay() && (
+              <Text className="text-xs text-gray-600 font-medium">
+                👥 {getMetadataDisplay()}
               </Text>
             )}
+
+            {/* Created by */}
+            {event.metadata?.createdBy && (
+              <Text className="text-xs text-gray-500">
+                ✍️ by {event.metadata.createdBy}
+              </Text>
+            )}
+
+            {/* Confidence level for routine events */}
+            {event.metadata?.confidence !== undefined && (
+              <Text
+                className={`text-xs font-medium ${
+                  event.metadata.confidence >= 0.8
+                    ? "text-green-600"
+                    : event.metadata.confidence >= 0.5
+                      ? "text-yellow-600"
+                      : "text-red-600"
+                }`}
+              >
+                🎯 {Math.round(event.metadata.confidence * 100)}% confidence
+              </Text>
+            )}
+
+            {/* Note */}
             {event.metadata?.note && (
               <Text className="text-xs text-gray-600 italic">
                 📝 {event.metadata.note}

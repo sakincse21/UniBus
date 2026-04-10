@@ -17,6 +17,9 @@ export interface INotice {
   status: "pending" | "approved" | "rejected";
   forAll: boolean;
   forTeachers: boolean;
+  eventDate?: string; // ISO date string for calendar integration
+  startTime?: string; // HH:mm format
+  endTime?: string; // HH:mm format
   targetBatch?: {
     id: number;
     name: string;
@@ -33,6 +36,9 @@ export interface ICreateNotice {
   forAll?: boolean;
   forTeachers?: boolean;
   targetBatchId?: string;
+  eventDate?: string; // ISO date string
+  startTime?: string; // HH:mm format
+  endTime?: string; // HH:mm format
 }
 
 export interface IBus {
@@ -74,9 +80,16 @@ export interface IBusLiveLocation {
 
 export interface IRoutineSlot {
   id?: number;
-  day: "saturday" | "sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
-  firstHalfStart: string;   // HH:mm
-  secondHalfStart: string;  // HH:mm
+  day:
+    | "saturday"
+    | "sunday"
+    | "monday"
+    | "tuesday"
+    | "wednesday"
+    | "thursday"
+    | "friday";
+  firstHalfStart: string; // HH:mm
+  secondHalfStart: string; // HH:mm
   confidence: number;
   note: string;
   confirmed?: boolean;
@@ -139,4 +152,3 @@ export interface IUpdateFixturePayload {
   startDateTime?: string; // ISO date string
   endDateTime?: string; // ISO date string
 }
-

@@ -2,24 +2,15 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@components/*": [
-        "./components/*"
-      ],
-      "@lib/*": [
-        "./lib/*"
-      ],
-      "@store/*": [
-        "./store/*"
-      ],
-      "@interfaces/*": [
-        "./interfaces/*"
-      ]
-    },
-    "types": ["node"]
+      "@/*": ["./*"],
+      "@components/*": ["./components/*"],
+      "@lib/*": ["./lib/*"],
+      "@store/*": ["./store/*"],
+      "@interfaces/*": ["./interfaces/*"]
+    }
   },
   "include": [
     "**/*.ts",

@@ -26,7 +26,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isAllDay, setIsAllDay] = useState(true);
-  const [startDate, setStartDate] = useState(initialDate?.toISOString().split("T")[0] || "");
+  const [startDate, setStartDate] = useState(
+    initialDate
+      ? `${initialDate.getFullYear()}-${String(initialDate.getMonth() + 1).padStart(2, "0")}-${String(initialDate.getDate()).padStart(2, "0")}`
+      : "",
+  );
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [isLoading, setIsLoading] = useState(false);
@@ -48,11 +52,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       let endDateTime = "";
 
       if (isAllDay) {
-        startDateTime = `${startDate}T00:00:00Z`;
-        endDateTime = `${startDate}T23:59:59Z`;
+        startDateTime = `${startDate}T00:00:00`;
+        endDateTime = `${startDate}T23:59:59`;
       } else {
-        startDateTime = `${startDate}T${startTime}:00Z`;
-        endDateTime = `${startDate}T${endTime}:00Z`;
+        startDateTime = `${startDate}T${startTime}:00`;
+        endDateTime = `${startDate}T${endTime}:00`;
       }
 
       await onCreate({
@@ -67,7 +71,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       setTitle("");
       setDescription("");
       setIsAllDay(true);
-      setStartDate(initialDate?.toISOString().split("T")[0] || "");
+      setStartDate(
+        initialDate
+          ? `${initialDate.getFullYear()}-${String(initialDate.getMonth() + 1).padStart(2, "0")}-${String(initialDate.getDate()).padStart(2, "0")}`
+          : "",
+      );
       setStartTime("09:00");
       setEndTime("10:00");
       onClose();
