@@ -4,6 +4,16 @@ import jwt, { SignOptions } from "jsonwebtoken";
 import { AppError } from "../../errors/AppError";
 import { env } from "../../config/env";
 import userRepo from "../user/user.repository";
+import { sendForgotPasswordEmail } from "../../utils/emailService";
+
+const generateTempPassword = (): string => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let password = "";
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+};
 
 const register = async (name: string, email: string, password: string) => {
   const exists = await userRepo.findOne({ where: { email } });
@@ -40,7 +50,26 @@ const login = async (email: string, password: string) => {
   return { id: user.user_id, email: user.email, role: user.role, token };
 };
 
+const forgotPassword = async (email: string) => {
+  const user = await userRepo.findOne({ where: { email } });
+  if (!user) throw new AppError("User not found", 404);
+
+  // Generate temporary password
+  const tempPassword = generateTempPassword();
+  const hashedPassword = await bcrypt.hash(tempPassword, env.BCRYPT_SALT);
+
+  // Update user password
+  user.password = hashedPassword;
+  await userRepo.save(user);
+
+  // Send email
+  await sendForgotPasswordEmail(email, tempPassword, user.name);
+
+  return { success: true, message: "Password reset link sent to your email" };
+};
+
 export const AuthService = {
   register,
   login,
+  forgotPassword,
 };

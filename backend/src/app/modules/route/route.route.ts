@@ -19,6 +19,7 @@ router.delete("/:id", authValidate, roleValidate(["admin"]), RouteController.del
 // Route points management (admin-only)
 router.put("/:id/points", authValidate, roleValidate(["admin"]), RouteController.setRoutePoints);
 router.post("/:id/points", authValidate, roleValidate(["admin"]), RouteController.addRoutePoint);
+router.get("/:id/download-points-excel", authValidate, roleValidate(["admin"]), RouteController.downloadRoutePointsExcel);
 router.post("/:id/upload-points-excel", authValidate, roleValidate(["admin"]), uploadXlsx, RouteController.uploadRoutePointsExcel);
 router.patch("/points/:pointId", authValidate, roleValidate(["admin"]), RouteController.updateRoutePoint);
 router.delete("/points/:pointId", authValidate, roleValidate(["admin"]), RouteController.deleteRoutePoint);

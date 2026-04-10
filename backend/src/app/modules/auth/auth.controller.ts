@@ -29,6 +29,24 @@ const login = tryCatch(async (req: Request, res: Response, next: NextFunction) =
   });
 });
 
+const forgotPassword = tryCatch(async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: "Email is required",
+    });
+  }
+
+  const result = await AuthService.forgotPassword(email);
+
+  res.json({
+    success: true,
+    message: result.message,
+  });
+});
+
 const getSocketToken = (req: Request, res: Response) => {
   res.json({
     token: req.cookies.token,
@@ -36,8 +54,9 @@ const getSocketToken = (req: Request, res: Response) => {
 };
 
 
-export const AuthController={
-    register,
-    login,
-    getSocketToken,
-}
+export const AuthController = {
+  register,
+  login,
+  forgotPassword,
+  getSocketToken,
+};

@@ -204,10 +204,11 @@ const uploadRoutePointsExcel = tryCatch(async (req: Request, res: Response) => {
 
     // Validate Excel data structure
     const validatedPoints = excelData.map((row: any, idx: number) => {
-      const sequence = Number(row.sequence) || idx + 1;
-      const lat = Number(row.lat);
-      const lng = Number(row.lng);
-      const minuteOffset = Number(row.minuteOffset) || 0;
+      // Handle both short column names (lat, lng) and full names (Latitude, Longitude)
+      const sequence = Number(row.sequence || row.Sequence) || idx + 1;
+      const lat = Number(row.lat || row.Latitude);
+      const lng = Number(row.lng || row.Longitude);
+      const minuteOffset = Number(row.minuteOffset || row["Minute Offset"]) || 0;
 
       if (isNaN(lat) || isNaN(lng)) {
         throw new AppError(
@@ -274,6 +275,51 @@ const uploadRoutePointsExcel = tryCatch(async (req: Request, res: Response) => {
   }
 });
 
+const downloadRoutePointsExcel = tryCatch(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ExcelJS = require("exceljs");
+
+  const routeRepo = AppDataSource.getRepository(Route);
+  const route = await routeRepo.findOne({ where: { id: Number(id) } });
+  if (!route) throw new AppError("Route not found", 404);
+
+  const rpRepo = AppDataSource.getRepository(RoutePoint);
+  const points = await rpRepo.find({
+    where: { route: { id: route.id } },
+    order: { sequence: "ASC" },
+  });
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Route Points");
+
+  worksheet.columns = [
+    { header: "Sequence", key: "sequence", width: 12 },
+    { header: "Latitude", key: "lat", width: 15 },
+    { header: "Longitude", key: "lng", width: 15 },
+    { header: "Minute Offset", key: "minuteOffset", width: 15 },
+  ];
+
+  // Format header row
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+
+  points.forEach((point) => {
+    worksheet.addRow({
+      sequence: point.sequence,
+      lat: point.lat,
+      lng: point.lng,
+      minuteOffset: point.minuteOffset,
+    });
+  });
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Route_${id}_Points.xlsx"`);
+
+  await workbook.xlsx.write(res);
+  res.end();
+});
+
 export const RouteController = {
   getRouteByBus,
   getAllRoutes,
@@ -286,4 +332,5 @@ export const RouteController = {
   updateRoutePoint,
   deleteRoutePoint,
   uploadRoutePointsExcel,
+  downloadRoutePointsExcel,
 };

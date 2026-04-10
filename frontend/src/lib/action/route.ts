@@ -126,3 +126,18 @@ export const uploadRoutePointsExcel = async (
   });
   return res.json();
 };
+
+export const downloadRoutePointsExcelBlob = async (routeId: number) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/api/v1/route/${routeId}/download-points-excel`, {
+    headers: {
+      Authorization: headers.Authorization,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to download route points");
+  }
+
+  return res.blob();
+};

@@ -27,7 +27,7 @@ const UserUpdatePage = () => {
   }
 
   return (
-    <div>
+    <div className="mx-auto">
       <UpdateUserForm user={user} />
     </div>
   );

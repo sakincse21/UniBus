@@ -65,3 +65,35 @@ export const logoutFunc = async () => {
     console.error("Error during logout:", error);
   }
 }
+
+export const forgotPasswordAction = async (email: string): Promise<any> => {
+  try {
+    const res = await fetch(`${configs.BACKEND_BASE_URL}/api/v1/auth/forgot-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return { 
+        success: false,
+        message: data.message || "Failed to send reset email"
+      };
+    }
+
+    return { 
+      success: true,
+      message: data.message || "Password reset email sent successfully"
+    };
+  } catch (error) {
+    console.error("Error during forgot password:", error);
+    return { 
+      success: false,
+      message: "An error occurred. Please try again."
+    };
+  }
+}
