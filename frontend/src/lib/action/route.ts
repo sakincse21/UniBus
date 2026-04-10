@@ -106,3 +106,23 @@ export const deleteRoutePoint = async (pointId: number) => {
   });
   return res.json();
 };
+
+export const uploadRoutePointsExcel = async (
+  routeId: number,
+  file: File
+) => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token");
+  
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE}/api/v1/route/${routeId}/upload-points-excel`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token?.value}`,
+    },
+    body: formData,
+  });
+  return res.json();
+};

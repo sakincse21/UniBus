@@ -135,8 +135,8 @@ async function getNoticeEvents(
     type: "notice",
     title: notice.title,
     description: notice.content,
-    startDateTime: new Date(notice.eventDate!),
-    endDateTime: new Date(notice.eventDate!),
+    startDateTime: new Date(notice.eventDate + 'T00:00:00'),
+    endDateTime: new Date(notice.eventDate + 'T00:00:00'),
     isAllDay: true,
     source: { noticeId: notice.id },
     metadata: {

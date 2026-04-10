@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authValidate } from "../../middlewares/authValidate";
 import { RouteController } from "./route.controller";
 import { roleValidate } from "../../middlewares/roleValidate";
+import { uploadXlsx } from "../../middlewares/upload";
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.delete("/:id", authValidate, roleValidate(["admin"]), RouteController.del
 // Route points management (admin-only)
 router.put("/:id/points", authValidate, roleValidate(["admin"]), RouteController.setRoutePoints);
 router.post("/:id/points", authValidate, roleValidate(["admin"]), RouteController.addRoutePoint);
+router.post("/:id/upload-points-excel", authValidate, roleValidate(["admin"]), uploadXlsx, RouteController.uploadRoutePointsExcel);
 router.patch("/points/:pointId", authValidate, roleValidate(["admin"]), RouteController.updateRoutePoint);
 router.delete("/points/:pointId", authValidate, roleValidate(["admin"]), RouteController.deleteRoutePoint);
 

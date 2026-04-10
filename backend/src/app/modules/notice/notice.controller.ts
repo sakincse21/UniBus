@@ -66,15 +66,9 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     });
   }
 
-  // Validate eventDate if provided
-  let parsedEventDate: Date | undefined;
-  if (eventDate) {
-    parsedEventDate = new Date(eventDate);
-    if (isNaN(parsedEventDate.getTime())) {
-      return res.status(400).json({
-        message: "Invalid eventDate format",
-      });
-    }
+  // Validate eventDate format if provided (YYYY-MM-DD)
+  if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+    return res.status(400).json({ message: "Invalid eventDate format (use YYYY-MM-DD)" });
   }
 
   // Validate time format if provided (HH:MM)
@@ -98,7 +92,7 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     forAll: !!forAll,
     forTeachers: !!forTeachers,
     targetBatch: targetBatch?.id ? { id: targetBatch.id } : undefined,
-    eventDate: parsedEventDate,
+    eventDate: eventDate || undefined,
     startTime: startTime || undefined,
     endTime: endTime || undefined,
     status:

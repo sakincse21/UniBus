@@ -5,6 +5,9 @@ import { Route } from "./route.entity";
 import { BusSchedule } from "../schedule/busSchedule.entity";
 import { RoutePoint } from "./routePoint.entity";
 import { AppError } from "../../errors/AppError";
+import { readExcelFromFile } from "../../utils/excelRead";
+import fs from "fs";
+import path from "path";
 
 
 
@@ -182,6 +185,95 @@ const deleteRoutePoint = tryCatch(async (req: Request, res: Response) => {
   res.json({ success: true, message: "Route point deleted" });
 });
 
+const uploadRoutePointsExcel = tryCatch(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!req.file) {
+    throw new AppError("No file uploaded", 400);
+  }
+
+  try {
+    const filePath = req.file.path;
+    
+    // Read Excel file
+    const excelData = readExcelFromFile(filePath);
+
+    if (!Array.isArray(excelData) || excelData.length === 0) {
+      throw new AppError("Excel file is empty or invalid format", 400);
+    }
+
+    // Validate Excel data structure
+    const validatedPoints = excelData.map((row: any, idx: number) => {
+      const sequence = Number(row.sequence) || idx + 1;
+      const lat = Number(row.lat);
+      const lng = Number(row.lng);
+      const minuteOffset = Number(row.minuteOffset) || 0;
+
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new AppError(
+          `Row ${idx + 2}: Invalid latitude or longitude values. Expected numbers.`,
+          400
+        );
+      }
+
+      if (lat < -90 || lat > 90) {
+        throw new AppError(`Row ${idx + 2}: Latitude must be between -90 and 90`, 400);
+      }
+
+      if (lng < -180 || lng > 180) {
+        throw new AppError(`Row ${idx + 2}: Longitude must be between -180 and 180`, 400);
+      }
+
+      return { sequence, lat, lng, minuteOffset };
+    });
+
+    // Check if route exists
+    const routeRepo = AppDataSource.getRepository(Route);
+    const route = await routeRepo.findOne({ where: { id: Number(id) } });
+    if (!route) throw new AppError("Route not found", 404);
+
+    // Delete existing route points
+    const rpRepo = AppDataSource.getRepository(RoutePoint);
+    await rpRepo.delete({ route: { id: route.id } });
+
+    // Create and save new route points
+    const newPoints = validatedPoints.map((p: any) =>
+      rpRepo.create({
+        route: { id: route.id },
+        lat: p.lat,
+        lng: p.lng,
+        sequence: p.sequence,
+        minuteOffset: p.minuteOffset,
+      })
+    );
+
+    await rpRepo.save(newPoints);
+
+    res.json({
+      success: true,
+      data: {
+        message: `Successfully imported ${newPoints.length} route points`,
+        pointsCount: newPoints.length,
+        points: newPoints,
+      },
+    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError("Failed to process Excel file: " + (error as any).message, 400);
+  } finally {
+    // Delete uploaded file
+    if (req.file) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (err) {
+        console.error("Failed to delete uploaded file:", err);
+      }
+    }
+  }
+});
+
 export const RouteController = {
   getRouteByBus,
   getAllRoutes,
@@ -193,4 +285,5 @@ export const RouteController = {
   addRoutePoint,
   updateRoutePoint,
   deleteRoutePoint,
+  uploadRoutePointsExcel,
 };

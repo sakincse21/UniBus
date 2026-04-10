@@ -189,12 +189,7 @@ export default function NoticeDetailPage() {
               </p>
               {notice.eventDate && (
                 <p className="text-xs mt-1">
-                  Event Date:{" "}
-                  {new Date(notice.eventDate).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+                  Event Date: {notice.eventDate}
                 </p>
               )}
             </div>

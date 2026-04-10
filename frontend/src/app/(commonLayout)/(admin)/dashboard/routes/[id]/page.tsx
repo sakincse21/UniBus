@@ -37,6 +37,8 @@ import {
 } from "@/components/ui/map";
 import type MapLibreGL from "maplibre-gl";
 
+import { RouteExcelUpload } from "@/components/module/admin/RouteExcelUpload";
+
 // Auto-centers the map on the user's current location when the map first loads.
 function AutoLocate() {
   const { map, isLoaded } = useMap();
@@ -310,6 +312,17 @@ export default function RoutePointsEditorPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Excel Upload */}
+      <RouteExcelUpload routeId={routeId} onSuccess={(data) => {
+        setPoints(data.points.map((p: any) => ({
+          id: p.id,
+          lat: p.lat,
+          lng: p.lng,
+          sequence: p.sequence,
+          minuteOffset: p.minuteOffset
+        })));
+      }} />
 
       {/* Points Table */}
       <Card>

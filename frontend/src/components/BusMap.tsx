@@ -90,9 +90,11 @@ function normalizeRoutePoints(pts: any[]): any[] {
 export default function BusMap({
   points,
   startTime,
+  routeId,
 }: {
   points: any[];
   startTime?: string | null;
+  routeId?: number | null;
 }) {
   const [locations, setLocations] = useState<Record<number, BusLocation>>({});
   const [route, setRoute] = useState<Array<[number, number]>>([]);
@@ -159,9 +161,35 @@ export default function BusMap({
     };
   }, []);
   
+  
   useEffect(() => {
+    // When route is displayed, join the route room to receive live bus location updates
+    let socket: any;
+    
+    if (routeId) {
+      (async () => {
+        try {
+          socket = await getSocket();
+          socket.emit("view_bus_route", { routeId });
+          console.log("Joined route room:", `route:${routeId}`);
+        } catch (error) {
+          console.error("Failed to join route room:", error);
+        }
+      })();
+    }
+    
+    return () => {
+      if (socket && routeId) {
+        socket.emit("leave_bus_route", { routeId });
+      }
+    };
+  }, [routeId]);
+
+  useEffect(() => {
+    // Clear bus locations when switching routes to prevent stale markers
+    setLocations({});
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRoute(points.map((p) => [p.lat, p.lng]));
+    setRoute(points.map((p) => [p.lng, p.lat]));
     // Debug: Log the structure of received points
     if (points && points.length > 0) {
       console.log("BusMap received points:", points);

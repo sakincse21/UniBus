@@ -112,7 +112,7 @@ export default function CreateNoticePage() {
         forAll: audience === "forAll",
         forTeachers: audience === "forTeachers",
         targetBatchId: audience === "targetBatch" ? targetBatchId : undefined,
-        eventDate: eventDate ? new Date(eventDate).toISOString().split("T")[0] : undefined,
+        eventDate: eventDate || undefined,
         startTime: startTime || undefined,
         endTime: endTime || undefined,
       });
