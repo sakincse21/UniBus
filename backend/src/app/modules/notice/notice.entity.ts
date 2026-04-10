@@ -46,8 +46,8 @@ export class Notice {
   @ManyToOne(() => Batch, { nullable: true })
   targetBatch?: Batch;
 
-  @Column({ type: "date", nullable: true })
-  eventDate?: Date;
+  @Column({ type: "varchar", nullable: true })
+  eventDate?: string;
 
   @Column({ type: "time", nullable: true })
   startTime?: string;

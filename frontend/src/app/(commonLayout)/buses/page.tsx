@@ -12,6 +12,7 @@ type LocationState = "idle" | "requesting" | "granted" | "denied" | "error" | "s
 export default function BusesPage() {
   const [buses, setBuses] = useState<any[]>([]);
   const [points, setPoints] = useState<any[]>([]);
+  const [routeId, setRouteId] = useState<number | null>(null);
   const [scheduleStartTime, setScheduleStartTime] = useState<string | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationState>("idle");
   const [locationError, setLocationError] = useState<string>("");
@@ -226,7 +227,6 @@ export default function BusesPage() {
           <Button 
             key={bus.id} 
             onClick={() => {
-              setPoints([]);
               handleRequestTracking(bus.id);
             }}
           >
@@ -236,7 +236,7 @@ export default function BusesPage() {
       </div>
 
       <div className="h-full min-h-[400px]">
-        <BusMap points={points} startTime={scheduleStartTime} />
+        <BusMap points={points} startTime={scheduleStartTime} routeId={routeId} />
       </div>
     </div>
   );
@@ -282,6 +282,7 @@ export default function BusesPage() {
       }
 
       setPoints(data.points || []);
+      setRouteId(data.routeId || null);
       setScheduleStartTime(data.startTime || null);
     } catch (error) {
       console.error("Error requesting tracking:", error);

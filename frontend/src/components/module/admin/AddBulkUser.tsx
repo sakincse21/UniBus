@@ -56,7 +56,7 @@ const AddBulkUsersForm = () => {
   }
 
   return (
-    <div className="w-full h-full max-w-md mt-8 flex flex-col gap-4 justify-center items-center">
+    <div className="w-full h-full max-w-md mx-auto mt-8 flex flex-col gap-4 justify-center items-center">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <FormField

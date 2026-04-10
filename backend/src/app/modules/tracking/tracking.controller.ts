@@ -36,6 +36,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
       success: true,
       estimate,
       points,
+      routeId: schedule?.route?.id || null,
       isLive: false,
       notifiedUsers: 0,
       startTime: schedule?.startTime || null,
@@ -58,6 +59,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
         ? { lat: liveLoc.lat, lng: liveLoc.lng, confidence: liveLoc.confidence, mode: "live" }
         : estimate,
       points,
+      routeId: schedule?.route?.id || null,
       notifiedUsers: 0,
       isLive: !!liveLoc,
       startTime: schedule?.startTime || null,
@@ -78,6 +80,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     if (io && u.user?.user_id) {
       io.to(`user:${u.user.user_id}`).emit("bus_tracking_request", {
         busId,
+        routeId: schedule?.route?.id,
         message: "Are you currently on this bus?",
         estimate,
       });
@@ -88,6 +91,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     success: true,
     estimate,
     points,
+    routeId: schedule?.route?.id || null,
     notifiedUsers: radiusUsers.length,
     isLive: false,
     startTime: schedule?.startTime || null,

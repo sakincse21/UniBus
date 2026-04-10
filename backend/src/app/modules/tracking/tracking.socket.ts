@@ -28,7 +28,7 @@ function startSessionCleanup(io: any) {
           });
         }
 
-        io.emit("bus_tracking_ended", { busId: session.bus?.id });
+        io.to(`bus:${session.bus?.id}`).emit("bus_tracking_ended", { busId: session.bus?.id });
       }
     } catch (err) {
       console.error("Error during session cleanup:", err);
@@ -101,8 +101,20 @@ export const registerTrackingSockets = (io: any) => {
       }
 
       let expiresAt: Date;
+      let routeId: number | null = null;
+      
       try {
         expiresAt = await getScheduleEndTime(busId);
+        
+        // Fetch the route associated with this bus
+        const scheduleRepo = AppDataSource.getRepository(BusSchedule);
+        const schedule = await scheduleRepo.findOne({
+          where: { bus: { id: busId } },
+          relations: ["route"],
+        });
+        if (schedule?.route) {
+          routeId = schedule.route.id;
+        }
       } catch {
         //15minuetes default if schedule info is unavailable
         expiresAt = new Date(Date.now() + 15 * 60 * 1000);
@@ -120,7 +132,70 @@ export const registerTrackingSockets = (io: any) => {
 
       socket.emit("tracking_started", { busId, expiresAt: expiresAt.toISOString() });
 
-      io.emit("bus_live_tracking_started", { busId });
+      // Broadcast to route-specific room (or fallback to bus room if route not found)
+      const broadcastKey = routeId ? `route:${routeId}` : `bus:${busId}`;
+      io.to(broadcastKey).emit("bus_live_tracking_started", { busId, routeId });
+    });
+
+
+    socket.on("view_bus_route", ({ busId, routeId }: { busId?: number; routeId?: number }) => {
+      // Join the room for this bus/route to receive live location updates
+      // Prefer route room if available, fallback to bus room
+      const room = routeId ? `route:${routeId}` : busId ? `bus:${busId}` : undefined;
+      if (room) {
+        socket.join(room);
+        console.log(`Socket ${socket.id} joined room: ${room}`);
+
+        // Send current locations of any actively tracked buses on this route
+        (async () => {
+          try {
+            if (routeId) {
+              const sessionRepo = AppDataSource.getRepository(LiveTrackingSession);
+              const activeSessions = await sessionRepo.find({
+                where: { active: true },
+                relations: ["bus"],
+              });
+
+              // Filter for sessions whose buses are on this route
+              for (const session of activeSessions) {
+                const scheduleRepo = AppDataSource.getRepository(BusSchedule);
+                const schedule = await scheduleRepo.findOne({
+                  where: { bus: { id: session.bus?.id } },
+                  relations: ["route"],
+                });
+
+                if (schedule?.route?.id === routeId) {
+                  // Get the latest location for this bus
+                  const locRepo = AppDataSource.getRepository(EstimatedBusLocation);
+                  const loc = await locRepo.findOne({
+                    where: { bus: { id: session.bus?.id } },
+                  });
+
+                  if (loc) {
+                    socket.emit("bus_location_update", {
+                      busId: session.bus?.id,
+                      lat: loc.lat,
+                      lng: loc.lng,
+                      estimate: { lat: loc.lat, lng: loc.lng, confidence: loc.confidence },
+                    });
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Error sending initial locations:", err);
+          }
+        })();
+      }
+    });
+
+    socket.on("leave_bus_route", ({ busId, routeId }: { busId?: number; routeId?: number }) => {
+      // Leave the room for this bus/route when navigating away
+      const room = routeId ? `route:${routeId}` : busId ? `bus:${busId}` : undefined;
+      if (room) {
+        socket.leave(room);
+        console.log(`Socket ${socket.id} left room: ${room}`);
+      }
     });
 
     socket.on(
@@ -149,7 +224,7 @@ export const registerTrackingSockets = (io: any) => {
             busId,
             message: "Tracking session expired (bus schedule ended)",
           });
-          io.emit("bus_tracking_ended", { busId });
+          io.to(`bus:${busId}`).emit("bus_tracking_ended", { busId });
           return;
         }
 
@@ -179,7 +254,7 @@ export const registerTrackingSockets = (io: any) => {
                   dist: Math.round(dist),
                   message: `You appear to be ${Math.round(dist)}m off the route. Tracking stopped.`,
                 });
-                io.emit("bus_tracking_ended", { busId });
+                io.to(`bus:${busId}`).emit("bus_tracking_ended", { busId });
                 return;
               }
             }
@@ -204,7 +279,19 @@ export const registerTrackingSockets = (io: any) => {
         await locRepo.save(loc);
 
         // Broadcast live bus location to all connected clients
-        io.emit("bus_location_update", { busId, lat, lng, confidence: 0.95 });
+        // Broadcast to route if available, otherwise use bus room
+        const scheduleRepo = AppDataSource.getRepository(BusSchedule);
+        const schedule = await scheduleRepo.findOne({
+          where: { bus: { id: busId } },
+          relations: ["route"],
+        });
+        const broadcastKey = schedule?.route?.id ? `route:${schedule.route.id}` : `bus:${busId}`;
+        io.to(broadcastKey).emit("bus_location_update", { 
+          busId, 
+          lat, 
+          lng, 
+          estimate: { lat, lng, confidence: 0.95 }
+        });
       },
     );
 
@@ -229,7 +316,7 @@ export const registerTrackingSockets = (io: any) => {
         await sessionRepo.save(session);
 
         socket.emit("tracking_stopped", { busId });
-        io.emit("bus_tracking_ended", { busId });
+        io.to(`bus:${busId}`).emit("bus_tracking_ended", { busId });
       }
     });
 

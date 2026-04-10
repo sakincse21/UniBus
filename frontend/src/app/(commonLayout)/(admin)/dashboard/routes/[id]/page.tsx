@@ -25,6 +25,7 @@ import {
   fetchRouteById,
   setRoutePoints,
   updateRoute,
+  downloadRoutePointsExcelBlob,
 } from "@/lib/action/route";
 import {
   Map,
@@ -36,6 +37,9 @@ import {
   useMap,
 } from "@/components/ui/map";
 import type MapLibreGL from "maplibre-gl";
+import { downloadFile } from "@/lib/utils";
+
+import { RouteExcelUpload } from "@/components/module/admin/RouteExcelUpload";
 
 // Auto-centers the map on the user's current location when the map first loads.
 function AutoLocate() {
@@ -186,6 +190,20 @@ export default function RoutePointsEditorPage() {
     }
   };
 
+  const handleDownloadPoints = async () => {
+    try {
+      setLoading(true);
+      const blob = await downloadRoutePointsExcelBlob(routeId);
+      downloadFile(blob, `Route_${routeId}_Points.xlsx`);
+      toast.success("Route points downloaded!");
+    } catch (error) {
+      toast.error("Failed to download route points");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRemovePoint = (idx: number) => {
     setPoints((prev) => {
       const updated = prev.filter((_, i) => i !== idx);
@@ -221,7 +239,7 @@ export default function RoutePointsEditorPage() {
   };
 
   return (
-    <div className="w-full max-w-6xl space-y-6">
+    <div className="w-full max-w-6xl space-y-6 mx-auto">
       <div className="flex items-center gap-4">
         <Button variant="ghost" onClick={() => router.push("/dashboard/routes")}>
           ← Back
@@ -311,12 +329,31 @@ export default function RoutePointsEditorPage() {
         </CardContent>
       </Card>
 
+      {/* Excel Upload */}
+      <RouteExcelUpload routeId={routeId} onSuccess={(data) => {
+        setPoints(data.points.map((p: any) => ({
+          id: p.id,
+          lat: p.lat,
+          lng: p.lng,
+          sequence: p.sequence,
+          minuteOffset: p.minuteOffset
+        })));
+      }} />
+
       {/* Points Table */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Route Points ({points.length})</CardTitle>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadPoints}
+                disabled={loading || points.length === 0}
+              >
+                Download Excel
+              </Button>
               <Button
                 variant="destructive"
                 size="sm"

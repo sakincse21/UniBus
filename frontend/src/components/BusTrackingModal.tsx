@@ -11,6 +11,7 @@ import { toast } from "sonner";
 export default function BusTrackingModal() {
   const [open, setOpen] = useState(false);
   const [busId, setBusId] = useState<number | null>(null);
+  const [routeId, setRouteId] = useState<number | null>(null);
   const [estimate, setEstimate] = useState<any>(null);
   const [isTracking, setIsTracking] = useState(false);
   const [geoWatchId, setGeoWatchId] = useState<number | null>(null);
@@ -30,18 +31,22 @@ export default function BusTrackingModal() {
     try {
       const socket = await getSocket();
       socket.emit("stop_tracking", { busId });
+      // Leave the route-specific room when stopping tracking
+      socket.emit("leave_bus_route", { busId, routeId: routeId || undefined });
     } catch (e) {
       console.error("Failed to emit stop_tracking:", e);
     }
     setIsTracking(false);
     setBusId(null);
+    setRouteId(null);
     toast.info("Bus tracking stopped");
-  }, [busId, clearGeoWatch]);
+  }, [busId, routeId, clearGeoWatch]);
 
   // Listen for bus_track_request from layout
   useEffect(() => {
     const handler = (e: any) => {
       setBusId(e.detail.busId);
+      setRouteId(e.detail.routeId || null);
       setEstimate(e.detail.estimate);
       setOpen(true);
       window.dispatchEvent(
@@ -69,7 +74,12 @@ export default function BusTrackingModal() {
         if (data.busId === busId || !busId) {
           clearGeoWatch();
           setIsTracking(false);
+          if (busId) {
+            // Leave the room when tracking expires
+            socket.emit("leave_bus_route", { busId, routeId: routeId || undefined });
+          }
           setBusId(null);
+          setRouteId(null);
           toast.warning("Bus tracking session has expired (schedule ended)");
           window.dispatchEvent(
             new CustomEvent("BUS_TRACKING_ENDED", { detail: data }),
@@ -81,7 +91,12 @@ export default function BusTrackingModal() {
         if (data.busId === busId || !busId) {
           clearGeoWatch();
           setIsTracking(false);
+          if (busId) {
+            // Leave the room when tracking ends due to off-route
+            socket.emit("leave_bus_route", { busId, routeId: routeId || undefined });
+          }
           setBusId(null);
+          setRouteId(null);
           toast.warning(
             `Off-route detected (${data.dist}m from route). Tracking stopped.`
           );
@@ -107,7 +122,7 @@ export default function BusTrackingModal() {
         socket.off("bus_tracking_ended");
       }
     };
-  }, [busId, clearGeoWatch]);
+  }, [busId, routeId, clearGeoWatch]);
 
   // Clean up geo watch on unmount
   useEffect(() => {
@@ -123,6 +138,9 @@ export default function BusTrackingModal() {
 
     const socket = await getSocket();
     socket.emit("accept_tracking", { busId });
+    
+    // Join the route-specific room (or bus room if route not available) to receive only relevant location updates
+    socket.emit("view_bus_route", { busId, routeId: routeId || undefined });
 
     setOpen(false);
     setIsTracking(true);

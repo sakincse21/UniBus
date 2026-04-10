@@ -8,6 +8,6 @@ export function readExcelFromFile(filePath:string) {
 
   return xlsx.utils.sheet_to_json(sheet, {
     defval: null,
-    raw: false,
+    raw: true,
   });
 }
