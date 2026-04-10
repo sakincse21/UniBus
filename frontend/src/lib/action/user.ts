@@ -138,7 +138,7 @@ export const fetchMyProfile = async () => {
   return data;
 };
 
-export const updateMyProfile = async (values: { name?: string; email?: string }) => {
+export const updateMyProfile = async (values: { name?: string; email?: string; password?: string }) => {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("token");
   const response = await fetch(`${API}/user/me`, {

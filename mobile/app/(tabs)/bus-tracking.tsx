@@ -58,6 +58,26 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
   );
 }
 
+// Normalize route points if offsets seem incorrect (all 0 or missing)
+function normalizeRoutePoints(pts: any[]): any[] {
+  if (!pts || pts.length === 0) return pts;
+  
+  // Check if all offsets are 0 or the same
+  const offsets = pts.map((p) => p.minuteOffset ?? 0);
+  const uniqueOffsets = new Set(offsets.filter((o) => o !== undefined && o !== null));
+  
+  // If all offsets are 0 or missing, auto-generate them
+  if (uniqueOffsets.size === 0 || (uniqueOffsets.size === 1 && offsets[0] === 0)) {
+    console.warn("🔧 Auto-generating minuteOffsets for route points (original offsets were all 0)");
+    return pts.map((p, idx) => ({
+      ...p,
+      minuteOffset: idx * 5, // 5 minutes spacing between points
+    }));
+  }
+  
+  return pts;
+}
+
 // ─── Stop Marker (rich, matches web UI) ──────────────────────────────────────
 
 function StopMarker({
@@ -568,7 +588,7 @@ export default function BusTrackingTab() {
         )}
 
         {/* Route stop markers */}
-        {routePoints.map((pt, idx) => {
+        {normalizeRoutePoints(routePoints).map((pt, idx) => {
           const type =
             idx === 0
               ? "start"

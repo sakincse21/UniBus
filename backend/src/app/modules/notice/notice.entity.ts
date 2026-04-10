@@ -49,6 +49,12 @@ export class Notice {
   @Column({ type: "date", nullable: true })
   eventDate?: Date;
 
+  @Column({ type: "time", nullable: true })
+  startTime?: string;
+
+  @Column({ type: "time", nullable: true })
+  endTime?: string;
+
   @OneToMany(() => Attachment, (attachment) => attachment.notice, {
     cascade: true,
     eager: true,

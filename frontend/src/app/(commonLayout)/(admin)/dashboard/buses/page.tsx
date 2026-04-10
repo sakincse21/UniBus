@@ -34,28 +34,45 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { toast } from "sonner";
 import { fetchBuses, createBus, updateBus, deleteBus } from "@/lib/action/bus";
 
+const ITEMS_PER_PAGE = 10;
+
 export default function BusManagementPage() {
-  const [buses, setBuses] = useState<any[]>([]);
+  const [allBuses, setAllBuses] = useState<any[]>([]);
   const [busNumber, setBusNumber] = useState("");
   const [editBus, setEditBus] = useState<any>(null);
   const [editBusNumber, setEditBusNumber] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadBuses = async () => {
     const res = await fetchBuses();
-    if (res.success) setBuses(res.data);
+    if (res.success) setAllBuses(res.data);
   };
 
   useEffect(() => {
     let ignore = false;
     fetchBuses().then((res) => {
-      if (!ignore && res.success) setBuses(res.data);
+      if (!ignore && res.success) setAllBuses(res.data);
     });
     return () => { ignore = true; };
   }, []);
+
+  const totalPages = Math.ceil(allBuses.length / ITEMS_PER_PAGE);
+  const paginatedBuses = allBuses.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleCreate = async () => {
     if (!busNumber.trim()) return toast.error("Bus number is required");
@@ -66,6 +83,7 @@ export default function BusManagementPage() {
       toast.success("Bus created");
       setBusNumber("");
       loadBuses();
+      setCurrentPage(1);
     } else {
       toast.error(res.message || "Failed to create bus");
     }
@@ -121,67 +139,102 @@ export default function BusManagementPage() {
           <CardTitle>All Buses</CardTitle>
         </CardHeader>
         <CardContent>
-          {buses.length === 0 ? (
+          {allBuses.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
               No buses added yet.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Bus Number</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {buses.map((bus) => (
-                  <TableRow key={bus.id}>
-                    <TableCell>{bus.id}</TableCell>
-                    <TableCell className="font-medium">
-                      {bus.busNumber}
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setEditBus(bus);
-                          setEditBusNumber(bus.busNumber);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm">
-                            Delete
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Bus?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will permanently delete bus {bus.busNumber}.
-                              This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(bus.id)}
-                              className="bg-destructive"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Bus Number</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
+                </TableHeader>
+                <TableBody>
+                  {paginatedBuses.map((bus) => (
+                    <TableRow key={bus.id}>
+                      <TableCell>{bus.id}</TableCell>
+                      <TableCell className="font-medium">
+                        {bus.busNumber}
+                      </TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setEditBus(bus);
+                            setEditBusNumber(bus.busNumber);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm">
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Bus?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete bus {bus.busNumber}.
+                                This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(bus.id)}
+                                className="bg-destructive"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <Pagination className="mt-6">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

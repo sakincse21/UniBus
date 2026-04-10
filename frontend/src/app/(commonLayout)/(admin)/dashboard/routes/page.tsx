@@ -29,6 +29,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { toast } from "sonner";
 import {
   fetchRoutes,
@@ -37,23 +45,32 @@ import {
 } from "@/lib/action/route";
 import Link from "next/link";
 
+const ITEMS_PER_PAGE = 10;
+
 export default function RoutesManagementPage() {
-  const [routes, setRoutes] = useState<any[]>([]);
+  const [allRoutes, setAllRoutes] = useState<any[]>([]);
   const [routeName, setRouteName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadRoutes = async () => {
     const res = await fetchRoutes();
-    if (res.success) setRoutes(res.data);
+    if (res.success) setAllRoutes(res.data);
   };
 
   useEffect(() => {
     let ignore = false;
     fetchRoutes().then((res) => {
-      if (!ignore && res.success) setRoutes(res.data);
+      if (!ignore && res.success) setAllRoutes(res.data);
     });
     return () => { ignore = true; };
   }, []);
+
+  const totalPages = Math.ceil(allRoutes.length / ITEMS_PER_PAGE);
+  const paginatedRoutes = allRoutes.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleCreate = async () => {
     if (!routeName.trim()) return toast.error("Route name is required");
@@ -64,6 +81,7 @@ export default function RoutesManagementPage() {
       toast.success("Route created");
       setRouteName("");
       loadRoutes();
+      setCurrentPage(1);
     } else {
       toast.error(res.message || "Failed to create route");
     }
@@ -105,62 +123,97 @@ export default function RoutesManagementPage() {
           <CardTitle>All Routes</CardTitle>
         </CardHeader>
         <CardContent>
-          {routes.length === 0 ? (
+          {allRoutes.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
               No routes added yet.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Route Name</TableHead>
-                  <TableHead>Points</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {routes.map((route) => (
-                  <TableRow key={route.id}>
-                    <TableCell>{route.id}</TableCell>
-                    <TableCell className="font-medium">{route.name}</TableCell>
-                    <TableCell>{route.points?.length || 0} points</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Link href={`/dashboard/routes/${route.id}`}>
-                        <Button variant="secondary" size="sm">
-                          Edit Points
-                        </Button>
-                      </Link>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm">
-                            Delete
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Route?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will permanently delete route &quot;{route.name}&quot;
-                              and all its points. This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(route.id)}
-                              className="bg-destructive"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Route Name</TableHead>
+                    <TableHead>Points</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedRoutes.map((route) => (
+                    <TableRow key={route.id}>
+                      <TableCell>{route.id}</TableCell>
+                      <TableCell className="font-medium">{route.name}</TableCell>
+                      <TableCell>{route.points?.length || 0} points</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Link href={`/dashboard/routes/${route.id}`}>
+                          <Button variant="secondary" size="sm">
+                            Edit Points
+                          </Button>
+                        </Link>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm">
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Route?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete route &quot;{route.name}&quot;
+                                and all its points. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(route.id)}
+                                className="bg-destructive"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <Pagination className="mt-6">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

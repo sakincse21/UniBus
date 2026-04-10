@@ -1,7 +1,7 @@
 "use client";
 
-export async function fetchNotices() {
-  const res = await fetch(`/api/v1/notice`, {
+export async function fetchNotices(page: number = 1, limit: number = 10) {
+  const res = await fetch(`/api/v1/notice?page=${page}&limit=${limit}`, {
     credentials: "include",
   });
 

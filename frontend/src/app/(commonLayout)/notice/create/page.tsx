@@ -39,6 +39,8 @@ export default function CreateNoticePage() {
   const [audience, setAudience] = useState<AudienceType>("targetBatch");
   const [targetBatchId, setTargetBatchId] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
@@ -111,6 +113,8 @@ export default function CreateNoticePage() {
         forTeachers: audience === "forTeachers",
         targetBatchId: audience === "targetBatch" ? targetBatchId : undefined,
         eventDate: eventDate ? new Date(eventDate).toISOString().split("T")[0] : undefined,
+        startTime: startTime || undefined,
+        endTime: endTime || undefined,
       });
 
       if (!res.success) {
@@ -199,15 +203,48 @@ export default function CreateNoticePage() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Event Date (Optional)</label>
+            <label className="text-sm font-medium">Event Date & Time (Optional)</label>
             <p className="text-xs text-muted-foreground">
               If you set a date, this notice will also appear as an event in the calendar.
             </p>
-            <Input
-              type="date"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-            />
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Date</label>
+                <Input
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                />
+              </div>
+              
+              {eventDate && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Start Time</label>
+                      <Input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">End Time</label>
+                      <Input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {startTime && endTime && (
+                    <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5">
+                      Showing time: {startTime} - {endTime}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

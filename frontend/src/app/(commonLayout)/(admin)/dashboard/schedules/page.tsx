@@ -51,11 +51,14 @@ import {
   deleteSchedule,
 } from "@/lib/action/schedule";
 
+const ITEMS_PER_PAGE = 10;
+
 export default function ScheduleManagementPage() {
-  const [schedules, setSchedules] = useState<any[]>([]);
+  const [allSchedules, setAllSchedules] = useState<any[]>([]);
   const [buses, setBuses] = useState<any[]>([]);
   const [routes, setRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Create form
   const [selectedBusId, setSelectedBusId] = useState<string>("");
@@ -75,7 +78,7 @@ export default function ScheduleManagementPage() {
       fetchBuses(),
       fetchRoutes(),
     ]);
-    if (schedRes.success) setSchedules(schedRes.data);
+    if (schedRes.success) setAllSchedules(schedRes.data);
     if (busRes.success) setBuses(busRes.data);
     if (routeRes.success) setRoutes(routeRes.data);
   };
@@ -85,7 +88,7 @@ export default function ScheduleManagementPage() {
     Promise.all([fetchSchedules(), fetchBuses(), fetchRoutes()]).then(
       ([schedRes, busRes, routeRes]) => {
         if (ignore) return;
-        if (schedRes.success) setSchedules(schedRes.data);
+        if (schedRes.success) setAllSchedules(schedRes.data);
         if (busRes.success) setBuses(busRes.data);
         if (routeRes.success) setRoutes(routeRes.data);
       }
@@ -93,9 +96,15 @@ export default function ScheduleManagementPage() {
     return () => { ignore = true; };
   }, []);
 
+  const totalPages = Math.ceil(allSchedules.length / ITEMS_PER_PAGE);
+  const paginatedSchedules = allSchedules.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   // Filter out buses that already have schedules
   const availableBuses = buses.filter(
-    (b) => !schedules.some((s) => s.bus?.id === b.id)
+    (b) => !allSchedules.some((s) => s.bus?.id === b.id)
   );
 
   const handleCreate = async () => {
@@ -225,78 +234,107 @@ export default function ScheduleManagementPage() {
           <CardTitle>All Schedules</CardTitle>
         </CardHeader>
         <CardContent>
-          {schedules.length === 0 ? (
+          {allSchedules.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
               No schedules created yet.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Bus</TableHead>
-                  <TableHead>Route</TableHead>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {schedules.map((schedule) => (
-                  <TableRow key={schedule.id}>
-                    <TableCell>{schedule.id}</TableCell>
-                    <TableCell className="font-medium">
-                      {schedule.bus?.busNumber || "N/A"}
-                    </TableCell>
-                    <TableCell>{schedule.route?.name || "N/A"}</TableCell>
-                    <TableCell>{schedule.startTime}</TableCell>
-                    <TableCell>{schedule.endTime}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setEditSchedule(schedule);
-                          setEditRouteId(String(schedule.route?.id || ""));
-                          setEditStartTime(schedule.startTime);
-                          setEditEndTime(schedule.endTime);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm">
-                            Delete
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Delete Schedule?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will delete the schedule for bus{" "}
-                              {schedule.bus?.busNumber}. This action cannot be
-                              undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(schedule.id)}
-                              className="bg-destructive"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Bus</TableHead>
+                    <TableHead>Route</TableHead>
+                    <TableHead>Start Time</TableHead>
+                    <TableHead>End Time</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedSchedules.map((schedule) => (
+                    <TableRow key={schedule.id}>
+                      <TableCell>{schedule.id}</TableCell>
+                      <TableCell className="font-medium">
+                        {schedule.bus?.busNumber || "N/A"}
+                      </TableCell>
+                      <TableCell>{schedule.route?.name || "N/A"}</TableCell>
+                      <TableCell>{schedule.startTime}</TableCell>
+                      <TableCell>{schedule.endTime}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setEditSchedule(schedule);
+                            setEditRouteId(String(schedule.route?.id || ""));
+                            setEditStartTime(schedule.startTime);
+                            setEditEndTime(schedule.endTime);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm">
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Delete Schedule?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will delete the schedule for bus{" "}
+                                {schedule.bus?.busNumber}. This action cannot be
+                                undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(schedule.id)}
+                                className="bg-destructive"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* Pagination Controls */}
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages} ({allSchedules.length} total)
+                </p>
+                <div className="space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

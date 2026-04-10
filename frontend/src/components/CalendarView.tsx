@@ -353,6 +353,15 @@ export default function CalendarView() {
                               </div>
                             )}
 
+                            {event.startTime && event.endTime && (
+                              <div className="flex items-center gap-1 text-xs bg-blue-50 px-2 py-1 rounded">
+                                <Clock className="w-3 h-3" />
+                                <span>
+                                  {event.startTime} - {event.endTime}
+                                </span>
+                              </div>
+                            )}
+
                             {event.metadata?.confidence !== undefined && (
                               <div className="flex items-center gap-1 text-xs">
                                 <span className="text-gray-500">Confidence:</span>

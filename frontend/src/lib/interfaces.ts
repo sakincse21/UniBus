@@ -40,6 +40,8 @@ export interface ICalendarEvent {
   description?: string;
   startDateTime: string;
   endDateTime?: string;
+  startTime?: string;
+  endTime?: string;
   isAllDay?: boolean;
   source: ICalendarEventSource;
   metadata?: ICalendarEventMetadata;

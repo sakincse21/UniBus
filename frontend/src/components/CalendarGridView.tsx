@@ -395,6 +395,12 @@ export default function CalendarGridView() {
                                 All day
                               </div>
                             )}
+                            {event.startTime && event.endTime && (
+                              <div className="text-xs mt-2 opacity-75 bg-white/30 rounded px-2 py-1">
+                                <span className="font-medium">Time: </span>
+                                {event.startTime} - {event.endTime}
+                              </div>
+                            )}
                             {event.metadata?.confidence !== undefined && (
                               <div className="text-xs mt-1 opacity-75">
                                 Confidence: {Math.round(event.metadata.confidence * 100)}%
@@ -507,9 +513,15 @@ export default function CalendarGridView() {
                         className={`text-xs p-1 rounded truncate ${getEventColor(
                           event.type
                         )}`}
-                        title={event.title}
+                        title={`${event.title}${event.startTime ? ` - ${event.startTime}${event.endTime ? ` to ${event.endTime}` : ''}` : ''}`}
                       >
-                        {event.title}
+                        <span className="font-medium">{event.title}</span>
+                        {event.startTime && (
+                          <span className="text-xs block opacity-75">
+                            {event.startTime}
+                            {event.endTime && ` - ${event.endTime}`}
+                          </span>
+                        )}
                       </div>
                     ))}
                     {day.events.length > 4 && (

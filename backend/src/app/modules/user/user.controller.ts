@@ -32,8 +32,8 @@ const bulkUploadUsers = tryCatch(async (req: Request, res: Response, next: NextF
 
 const updateUser = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.params.id;
-  const { name, email } = req.body;
-  const user = await UserService.updateUser(userId, name, email);
+  const payload = req.body;
+  const user = await UserService.updateUser(userId, payload);
 
   res.status(200).json({
     success: true,
@@ -77,8 +77,8 @@ const getMyProfile = tryCatch(async (req: Request, res: Response, next: NextFunc
 
 const updateMyProfile = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user.userId;
-  const { name, email } = req.body;
-  const user = await UserService.updateMyProfile(userId, name, email);
+  const { name, email, password } = req.body;
+  const user = await UserService.updateMyProfile(userId, name, email, password);
 
   res.status(200).json({
     success: true,

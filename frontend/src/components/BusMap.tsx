@@ -66,6 +66,26 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
   );
 }
 
+// Normalize route points if offsets seem incorrect (all 0 or missing)
+function normalizeRoutePoints(pts: any[]): any[] {
+  if (!pts || pts.length === 0) return pts;
+  
+  // Check if all offsets are 0 or the same
+  const offsets = pts.map((p) => p.minuteOffset ?? 0);
+  const uniqueOffsets = new Set(offsets.filter((o) => o !== undefined && o !== null));
+  
+  // If all offsets are 0 or missing, auto-generate them
+  if (uniqueOffsets.size === 0 || (uniqueOffsets.size === 1 && offsets[0] === 0)) {
+    console.warn("🔧 Auto-generating minuteOffsets for route points (original offsets were all 0)");
+    return pts.map((p, idx) => ({
+      ...p,
+      minuteOffset: idx * 5, // 5 minutes spacing between points
+    }));
+  }
+  
+  return pts;
+}
+
 
 export default function BusMap({
   points,
@@ -142,6 +162,21 @@ export default function BusMap({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRoute(points.map((p) => [p.lat, p.lng]));
+    // Debug: Log the structure of received points
+    if (points && points.length > 0) {
+      console.log("BusMap received points:", points);
+      console.log("First point keys:", Object.keys(points[0]));
+      console.log("First point minuteOffset:", points[0].minuteOffset);
+      console.log("All points minuteOffsets:", points.map((p: any) => p.minuteOffset));
+      
+      // Check if all minuteOffsets are the same (bug indicator)
+      const offsets = points.map((p: any) => p.minuteOffset);
+      const uniqueOffsets = new Set(offsets);
+      if (uniqueOffsets.size === 1) {
+        console.warn("⚠️ All points have the same minuteOffset. They might not have been set properly.");
+        console.warn("Current minuteOffset value:", offsets[0]);
+      }
+    }
   }, [points]);
   // Listen for tracking ended — remove bus from map
   useEffect(() => {
@@ -203,7 +238,7 @@ export default function BusMap({
             </MarkerPopup>
           </MapMarker>
         ))}
-        {points?.map((point, idx) => {
+        {normalizeRoutePoints(points)?.map((point, idx) => {
           const isFirst = idx === 0;
           const isLast = idx === points.length - 1;
           const time = pointTime(startTime ?? null, point.minuteOffset);

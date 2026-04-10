@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchNoticeById, getAttachmentDownloadUrl } from "@/lib/action/notice";
+import { fetchNoticeById, getAttachmentDownloadUrl, deleteNotice } from "@/lib/action/notice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,15 +13,29 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Download,
   ArrowLeft,
   Image as ImageIcon,
   FileText,
+  Trash2,
 } from "lucide-react";
+import { useRole } from "@/components/RoleProvider";
+import { toast } from "sonner";
 
 export default function NoticeDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const role = useRole();
   const noticeId = params.id as string;
 
   const [notice, setNotice] = useState<any>(null);
@@ -31,6 +45,8 @@ export default function NoticeDetailPage() {
     url: string;
     title: string;
   } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!noticeId) return;
@@ -61,6 +77,24 @@ export default function NoticeDetailPage() {
     ) : (
       <FileText className="w-4 h-4" />
     );
+  };
+
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      const result = await deleteNotice(Number(noticeId));
+      if (result.success) {
+        toast.success("Notice deleted successfully");
+        router.push("/notice");
+      } else {
+        toast.error(result.message || "Failed to delete notice");
+      }
+    } catch {
+      toast.error("Failed to delete notice");
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(false);
+    }
   };
 
   if (loading) {
@@ -118,15 +152,27 @@ export default function NoticeDetailPage() {
 
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-start justify-between">
-            <CardTitle className="text-2xl font-bold">{notice.title}</CardTitle>
-            <span className="text-sm text-muted-foreground whitespace-nowrap ml-4">
-              {new Date(notice.createdAt).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <CardTitle className="text-2xl font-bold">{notice.title}</CardTitle>
+              <span className="text-sm text-muted-foreground whitespace-nowrap ml-0 mt-1 block">
+                {new Date(notice.createdAt).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
+            {(role === "admin" || role === "teacher" || role === "cr") && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setDeleteConfirm(true)}
+                className="shrink-0"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
           {notice.createdBy && (
             <div className="mt-3 text-sm text-muted-foreground">
@@ -281,6 +327,28 @@ export default function NoticeDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirm} onOpenChange={setDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Notice</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this notice? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

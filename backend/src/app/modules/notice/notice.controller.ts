@@ -5,7 +5,7 @@ import { Notice, NoticeStatus } from "./notice.entity";
 import { User, UserRole } from "../user/user.entity";
 
 const createNotice = tryCatch(async (req: Request, res: Response) => {
-  const { title, content, forAll, forTeachers, targetBatchId, eventDate } = req.body;
+  const { title, content, forAll, forTeachers, targetBatchId, eventDate, startTime, endTime } = req.body;
 
   const user = await AppDataSource.getRepository("User").findOne({
     where: { user_id: req.user.userId },
@@ -77,6 +77,19 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     }
   }
 
+  // Validate time format if provided (HH:MM)
+  const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+  if (startTime && !timeRegex.test(startTime)) {
+    return res.status(400).json({
+      message: "Invalid startTime format (use HH:MM)",
+    });
+  }
+  if (endTime && !timeRegex.test(endTime)) {
+    return res.status(400).json({
+      message: "Invalid endTime format (use HH:MM)",
+    });
+  }
+
   // Auto-approve for admin, teacher, CR. Pending for students.
   const notice = repo.create({
     title,
@@ -86,6 +99,8 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     forTeachers: !!forTeachers,
     targetBatch: targetBatch?.id ? { id: targetBatch.id } : undefined,
     eventDate: parsedEventDate,
+    startTime: startTime || undefined,
+    endTime: endTime || undefined,
     status:
       user.role === UserRole.STUDENT
         ? NoticeStatus.PENDING
@@ -110,6 +125,10 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
 });
 
 const approveNotice = tryCatch(async (req: Request, res: Response) => {
+  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.TEACHER && req.user.role !== UserRole.CR) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
   const { id } = req.params;
 
   const repo = AppDataSource.getRepository(Notice);
@@ -180,8 +199,8 @@ const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
 });
 
 const getPendingNotices = tryCatch(async (req: Request, res: Response) => {
-  // Admin and CR can view pending notices
-  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.CR) {
+  // Admin, Teacher, and CR can view pending notices
+  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.TEACHER && req.user.role !== UserRole.CR) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -196,7 +215,7 @@ const getPendingNotices = tryCatch(async (req: Request, res: Response) => {
 });
 
 const rejectNotice = tryCatch(async (req: Request, res: Response) => {
-  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.CR) {
+  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.TEACHER && req.user.role !== UserRole.CR) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -215,13 +234,16 @@ const rejectNotice = tryCatch(async (req: Request, res: Response) => {
 });
 
 const deleteNotice = tryCatch(async (req: Request, res: Response) => {
-  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.CR) {
+  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.TEACHER && req.user.role !== UserRole.CR) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
   const { id } = req.params;
   const repo = AppDataSource.getRepository(Notice);
   await repo.delete(Number(id));
+
+  const io = req.app.get("io");
+  io.emit("notice_deleted", { id: Number(id) });
 
   res.json({ success: true });
 });

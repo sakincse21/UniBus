@@ -10,29 +10,29 @@ const router = Router();
 router.post("/", authValidate, NoticeController.createNotice);
 router.get("/", authValidate, NoticeController.getVisibleNotices);
 
-// Admin and CR can manage pending notices
+// Admin, Teacher, and CR can manage pending notices
 router.get(
   "/pending",
   authValidate,
-  roleValidate([UserRole.ADMIN, UserRole.CR]),
+  roleValidate([UserRole.ADMIN, UserRole.TEACHER, UserRole.CR]),
   NoticeController.getPendingNotices,
 );
 router.put(
   "/:id/approve",
   authValidate,
-  roleValidate([UserRole.ADMIN, UserRole.CR]),
+  roleValidate([UserRole.ADMIN, UserRole.TEACHER, UserRole.CR]),
   NoticeController.approveNotice,
 );
 router.put(
   "/:id/reject",
   authValidate,
-  roleValidate([UserRole.ADMIN, UserRole.CR]),
+  roleValidate([UserRole.ADMIN, UserRole.TEACHER, UserRole.CR]),
   NoticeController.rejectNotice,
 );
 router.delete(
   "/:id",
   authValidate,
-  roleValidate([UserRole.ADMIN, UserRole.CR]),
+  roleValidate([UserRole.ADMIN, UserRole.TEACHER, UserRole.CR]),
   NoticeController.deleteNotice,
 );
 router.get(

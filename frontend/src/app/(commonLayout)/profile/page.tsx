@@ -21,6 +21,10 @@ export default function ProfilePage() {
   const [role, setRole] = useState("");
   const [batchName, setBatchName] = useState("");
   const [createdAt, setCreatedAt] = useState("");
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   useEffect(() => {
     fetchMyProfile().then((res) => {
@@ -35,12 +39,39 @@ export default function ProfilePage() {
     });
   }, []);
 
+  const validatePassword = (): boolean => {
+    setPasswordError("");
+    if (newPassword && newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters");
+      return false;
+    }
+    if (newPassword && newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
+    if (!validatePassword()) {
+      return;
+    }
+
     setSaving(true);
-    const res = await updateMyProfile({ name, email });
+    const updateData: any = { name, email };
+    if (newPassword) {
+      updateData.password = newPassword;
+    }
+
+    const res = await updateMyProfile(updateData);
     setSaving(false);
     if (res.success) {
       toast.success("Profile updated successfully");
+      if (newPassword) {
+        setNewPassword("");
+        setConfirmPassword("");
+        setShowPasswordChange(false);
+      }
     } else {
       toast.error(res.message || "Failed to update profile");
     }
@@ -93,6 +124,71 @@ export default function ProfilePage() {
               {saving ? "Saving..." : "Save Changes"}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Security</CardTitle>
+          <CardDescription>
+            Change your password
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!showPasswordChange ? (
+            <Button
+              variant="outline"
+              onClick={() => setShowPasswordChange(true)}
+            >
+              Change Password
+            </Button>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Password</label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    setPasswordError("");
+                  }}
+                  placeholder="Enter new password (min 6 characters)"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Confirm Password</label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setPasswordError("");
+                  }}
+                  placeholder="Confirm new password"
+                />
+              </div>
+              {passwordError && (
+                <p className="text-sm text-red-500">{passwordError}</p>
+              )}
+              <div className="flex gap-2 justify-end pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPasswordChange(false);
+                    setNewPassword("");
+                    setConfirmPassword("");
+                    setPasswordError("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={saving || !newPassword}>
+                  {saving ? "Saving..." : "Update Password"}
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
