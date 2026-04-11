@@ -26,6 +26,13 @@ interface CalendarWeek {
   days: CalendarDay[];
 }
 
+// Utility function to format date to local YYYY-MM-DD format
+const formatLocalDate = (date: Date): string => {
+  return date.getFullYear() + '-' + 
+    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+    String(date.getDate()).padStart(2, '0');
+};
+
 export default function CalendarGridView() {
   const [events, setEvents] = useState<ICalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,11 +85,19 @@ export default function CalendarGridView() {
 
       for (let i = 0; i < 7; i++) {
         const date = new Date(currentDateIterator);
-        const dateStr = date.toISOString().split("T")[0];
-        const dayEvents = events.filter(
-          (e) =>
-            new Date(e.startDateTime).toISOString().split("T")[0] === dateStr
-        );
+        // Use local date formatting to maintain timezone context
+        const dateStr = date.getFullYear() + '-' + 
+          String(date.getMonth() + 1).padStart(2, '0') + '-' +
+          String(date.getDate()).padStart(2, '0');
+        
+        // Also convert event date to local format for proper comparison
+        const dayEvents = events.filter((e) => {
+          const eventDate = new Date(e.startDateTime);
+          const eventDateStr = eventDate.getFullYear() + '-' +
+            String(eventDate.getMonth() + 1).padStart(2, '0') + '-' +
+            String(eventDate.getDate()).padStart(2, '0');
+          return eventDateStr === dateStr;
+        });
 
         week.days.push({
           date,
@@ -157,7 +172,7 @@ export default function CalendarGridView() {
   };
 
   const openFixtureDialog = (date: Date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = formatLocalDate(date);
     setFixtureData((prev) => ({
       ...prev,
       startDateTime: `${dateStr}T08:00`,
@@ -345,10 +360,11 @@ export default function CalendarGridView() {
 
           <div className="space-y-4">
             {selectedDate && events
-              .filter((e) => 
-                new Date(e.startDateTime).toISOString().split("T")[0] ===
-                selectedDate.toISOString().split("T")[0]
-              )
+              .filter((e) => {
+                const eventDateStr = formatLocalDate(new Date(e.startDateTime));
+                const selectedDateStr = formatLocalDate(selectedDate);
+                return eventDateStr === selectedDateStr;
+              })
               .length === 0 ? (
               <div className="text-center py-6">
                 <Calendar className="w-8 h-8 mx-auto mb-2 text-gray-300" />
@@ -358,10 +374,11 @@ export default function CalendarGridView() {
               <div className="space-y-2">
                 {selectedDate &&
                   events
-                    .filter((e) =>
-                      new Date(e.startDateTime).toISOString().split("T")[0] ===
-                      selectedDate.toISOString().split("T")[0]
-                    )
+                    .filter((e) => {
+                      const eventDateStr = formatLocalDate(new Date(e.startDateTime));
+                      const selectedDateStr = formatLocalDate(selectedDate);
+                      return eventDateStr === selectedDateStr;
+                    })
                     .map((event) => (
                       <div
                         key={event.id}

@@ -10,7 +10,12 @@ const createBus = async (busNumber: string) => {
 };
 
 const getAllBuses = async () => {
-  return await busRepo.find();
+  // Explicitly fetch all buses without any filtering
+  // Using createQueryBuilder to ensure we get ALL results
+  return await busRepo
+    .createQueryBuilder("bus")
+    .orderBy("bus.id", "ASC")
+    .getMany();
 };
 
 const getBusById = async (id: number) => {

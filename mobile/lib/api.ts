@@ -2,6 +2,8 @@ import axios from "axios";
 import config from "./config";
 import storage from "./storage";
 
+console.log("API Base URL:", config.API_BASE_URL);
+
 const api = axios.create({
   baseURL: config.API_BASE_URL,
   headers: {

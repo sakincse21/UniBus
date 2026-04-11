@@ -20,6 +20,13 @@ interface GroupedEvents {
   [date: string]: ICalendarEvent[];
 }
 
+// Utility function to format date to local YYYY-MM-DD format
+const formatLocalDate = (date: Date): string => {
+  return date.getFullYear() + '-' + 
+    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+    String(date.getDate()).padStart(2, '0');
+};
+
 export default function CalendarView() {
   const [events, setEvents] = useState<ICalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +63,7 @@ export default function CalendarView() {
     const grouped: GroupedEvents = {};
 
     events.forEach((event) => {
-      const dateStr = new Date(event.startDateTime)
-        .toISOString()
-        .split("T")[0];
+      const dateStr = formatLocalDate(new Date(event.startDateTime));
 
       if (!grouped[dateStr]) {
         grouped[dateStr] = [];

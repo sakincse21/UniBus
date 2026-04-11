@@ -63,8 +63,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "http://192.168.10.191:5000/api/v1",
-      "socketUrl": "http://192.168.10.191:5000",
+      "apiBaseUrl": "http://192.168.10.108:5000/api/v1",
+      "socketUrl": "http://192.168.10.108:5000",
       "router": {},
       "eas": {
         "projectId": "80949995-3dff-40be-a5ec-b0f90e6ea163"

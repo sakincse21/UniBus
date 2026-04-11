@@ -3,6 +3,7 @@ import { Notice, NoticeStatus } from "../notice/notice.entity";
 import { Routine, DayOfWeek } from "../routine/routine.entity";
 import { UserFixture } from "./calendar.entity";
 import { User, UserRole } from "../user/user.entity";
+import { parseLocalDate } from "../../utils/dateUtils";
 
 export interface CalendarEvent {
   id: string;
@@ -135,8 +136,8 @@ async function getNoticeEvents(
     type: "notice",
     title: notice.title,
     description: notice.content,
-    startDateTime: new Date(notice.eventDate + 'T00:00:00'),
-    endDateTime: new Date(notice.eventDate + 'T00:00:00'),
+    startDateTime: parseLocalDate(notice.eventDate!),
+    endDateTime: parseLocalDate(notice.eventDate!),
     isAllDay: true,
     source: { noticeId: notice.id },
     metadata: {

@@ -5,6 +5,7 @@ import { UserFixture } from "./calendar.entity";
 import { getCalendarEvents, canDeleteNotice } from "./calendar.service";
 import { Notice } from "../notice/notice.entity";
 import { User } from "../user/user.entity";
+import { parseLocalDateTime } from "../../utils/dateUtils";
 
 const getCalendarEventsHandler = tryCatch(async (req: Request, res: Response) => {
   const userId = req.user.userId;
@@ -37,8 +38,8 @@ const createPersonalFixture = tryCatch(async (req: Request, res: Response) => {
     });
   }
 
-  const start = new Date(startDateTime);
-  const end = new Date(endDateTime);
+  const start = parseLocalDateTime(startDateTime);
+  const end = parseLocalDateTime(endDateTime);
 
   if (isNaN(start.getTime()) || isNaN(end.getTime())) {
     return res.status(400).json({
@@ -107,8 +108,8 @@ const updatePersonalFixture = tryCatch(async (req: Request, res: Response) => {
 
   // Validation
   if (startDateTime && endDateTime) {
-    const start = new Date(startDateTime);
-    const end = new Date(endDateTime);
+    const start = parseLocalDateTime(startDateTime);
+    const end = parseLocalDateTime(endDateTime);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({

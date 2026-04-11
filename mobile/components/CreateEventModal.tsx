@@ -11,6 +11,11 @@ import {
   Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import {
+  formatLocalDateTime,
+  formatLocalDateAllDay,
+  formatLocalDateEndOfDay,
+} from "@/lib/dateFormatter";
 
 interface CreateEventModalProps {
   visible: boolean;
@@ -58,18 +63,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       let endDateTime: string;
 
       if (isAllDay) {
-        const dateStr = selectedDate.toISOString().split("T")[0];
-        startDateTime = `${dateStr}T00:00:00`;
-        endDateTime = `${dateStr}T23:59:59`;
+        startDateTime = formatLocalDateAllDay(selectedDate);
+        endDateTime = formatLocalDateEndOfDay(selectedDate);
       } else {
-        const dateStr = selectedDate.toISOString().split("T")[0];
-        const startHour = startTime.getHours().toString().padStart(2, "0");
-        const startMin = startTime.getMinutes().toString().padStart(2, "0");
-        const endHour = endTime.getHours().toString().padStart(2, "0");
-        const endMin = endTime.getMinutes().toString().padStart(2, "0");
-
-        startDateTime = `${dateStr}T${startHour}:${startMin}:00`;
-        endDateTime = `${dateStr}T${endHour}:${endMin}:00`;
+        startDateTime = formatLocalDateTime(selectedDate, startTime);
+        endDateTime = formatLocalDateTime(selectedDate, endTime);
       }
 
       await onCreate({

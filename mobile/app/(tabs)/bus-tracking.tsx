@@ -52,59 +52,161 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
   );
 }
 
+/**
+ * Linear interpolation between two coordinates
+ */
+function interpolatePosition(
+  p1: { lat: number; lng: number },
+  p2: { lat: number; lng: number },
+  ratio: number
+): { lat: number; lng: number } {
+  return {
+    lat: p1.lat + (p2.lat - p1.lat) * ratio,
+    lng: p1.lng + (p2.lng - p1.lng) * ratio,
+  };
+}
+
+/**
+ * Calculate estimated bus position based on current time and route points
+ */
+function calculateEstimatedPosition(
+  routePoints: IRoutePoint[],
+  startTime: string | null
+): { lat: number; lng: number } | null {
+  if (!routePoints || routePoints.length === 0 || !startTime) return null;
+
+  // Parse start time (HH:mm format)
+  const [sh, sm] = startTime.split(":").map(Number);
+  const startMin = sh * 60 + sm;
+
+  // Calculate current time in minutes
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+
+  // Calculate elapsed time since route start
+  const elapsed = nowMin - startMin;
+
+  // If before route start, return first point
+  if (elapsed < 0) {
+    return { lat: routePoints[0].lat, lng: routePoints[0].lng };
+  }
+
+  // If after route end, return last point
+  const lastOffset = routePoints[routePoints.length - 1].minuteOffset;
+  if (elapsed > lastOffset) {
+    const last = routePoints[routePoints.length - 1];
+    return { lat: last.lat, lng: last.lng };
+  }
+
+  // Find which two points the bus is between
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    const p1 = routePoints[i];
+    const p2 = routePoints[i + 1];
+
+    if (elapsed >= p1.minuteOffset && elapsed <= p2.minuteOffset) {
+      // Calculate interpolation ratio (0 = at p1, 1 = at p2)
+      const segmentDuration = p2.minuteOffset - p1.minuteOffset;
+      const ratio =
+        segmentDuration > 0 ? (elapsed - p1.minuteOffset) / segmentDuration : 0;
+
+      // Interpolate position
+      return interpolatePosition(p1, p2, ratio);
+    }
+  }
+
+  return { lat: routePoints[0].lat, lng: routePoints[0].lng };
+}
+
+/**
+ * Get color based on offset progress (0% = green, 50% = orange, 100% = red)
+ */
+function getOffsetColor(offsetPercent: number): string {
+  // Clamp between 0 and 1
+  const p = Math.max(0, Math.min(1, offsetPercent));
+  
+  if (p < 0.5) {
+    // Green to Yellow: 0% -> green (#22C55E), 50% -> orange (#F59E0B)
+    const ratio = p * 2; // 0 to 1
+    return interpolateColor("#22C55E", "#F59E0B", ratio);
+  } else {
+    // Yellow to Red: 50% -> orange (#F59E0B), 100% -> red (#EF4444)
+    const ratio = (p - 0.5) * 2; // 0 to 1
+    return interpolateColor("#F59E0B", "#EF4444", ratio);
+  }
+}
+
+function interpolateColor(color1: string, color2: string, t: number): string {
+  const c1 = hexToRgb(color1);
+  const c2 = hexToRgb(color2);
+  const r = Math.round(c1.r + (c2.r - c1.r) * t);
+  const g = Math.round(c1.g + (c2.g - c1.g) * t);
+  const b = Math.round(c1.b + (c2.b - c1.b) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return {
+    r: parseInt(result![1], 16),
+    g: parseInt(result![2], 16),
+    b: parseInt(result![3], 16),
+  };
+}
+
 function StopMarker({
   type,
-  sequence,
   time,
+  offsetColor,
 }: {
   type: "start" | "end" | "mid";
-  sequence: number;
-  time?: string;
+  time: string;
+  offsetColor?: string;
 }) {
-  const bgColor =
-    type === "start" ? "#22C55E" : type === "end" ? "#EF4444" : "#3B82F6";
+  const bgColor = offsetColor || (type === "start" ? "#22C55E" : type === "end" ? "#EF4444" : "#3B82F6");
   const label =
-    type === "start" ? "S" : type === "end" ? "E" : String(sequence);
-  const size = type === "mid" ? 22 : 26;
+    type === "start" ? "S" : type === "end" ? "E" : time;
+  
+  // Larger sizes for better time text visibility
+  const outerSize = type === "mid" ? 42 : 36;
+  const innerSize = type === "mid" ? 26 : 20;
+  const fontSize = type === "mid" ? 8 : 11;
 
   return (
-    <View style={{ alignItems: "center" }}>
-      {time ? (
-        <View
-          style={{
-            backgroundColor: "rgba(255,255,255,0.95)",
-            paddingHorizontal: 6,
-            paddingVertical: 2,
-            borderRadius: 4,
-            marginBottom: 3,
-            shadowColor: "#000",
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-            elevation: 2,
-          }}
-        >
-          <Text style={{ fontSize: 9, fontWeight: "600", color: "#1f2937" }}>
-            {time}
-          </Text>
-        </View>
-      ) : null}
+    <View
+      style={{
+        width: outerSize,
+        height: outerSize,
+        borderRadius: outerSize / 2,
+        backgroundColor: "rgba(255,255,255,0.95)",
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 5,
+      }}
+    >
       <View
         style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
+          width: innerSize,
+          height: innerSize,
+          borderRadius: innerSize / 2,
           backgroundColor: bgColor,
-          borderWidth: 2,
-          borderColor: "#fff",
           alignItems: "center",
           justifyContent: "center",
-          shadowColor: "#000",
-          shadowOpacity: 0.2,
-          shadowRadius: 3,
-          elevation: 3,
         }}
       >
-        <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
+        <Text 
+          numberOfLines={1}
+          style={{ 
+            color: "#fff", 
+            fontSize, 
+            fontWeight: "700",
+            textAlign: "center",
+            paddingHorizontal: 2,
+          }}
+        >
           {label}
         </Text>
       </View>
@@ -145,6 +247,7 @@ export default function BusTrackingTab() {
 
   const [isSharingGps, setIsSharingGps] = useState(false);
   const [sharingForBusId, setSharingForBusId] = useState<number | null>(null);
+  const [userGpsLocation, setUserGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   const isSharingRef = useRef(false);
   const sharingBusIdRef = useRef<number | null>(null);
   const gpsSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
@@ -169,6 +272,7 @@ export default function BusTrackingTab() {
       sharingBusIdRef.current = null;
       setIsSharingGps(false);
       setSharingForBusId(null);
+      setUserGpsLocation(null);
       if (busId && socketRef.current) {
         socketRef.current.emit("stop_tracking", { busId });
       }
@@ -206,10 +310,15 @@ export default function BusTrackingTab() {
               sub.remove();
               return;
             }
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            // Store user location in state for map display
+            setUserGpsLocation({ lat, lng });
+            // Send to server
             socketRef.current?.emit("gps_update", {
               busId,
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
+              lat,
+              lng,
             });
           },
         );
@@ -253,9 +362,14 @@ export default function BusTrackingTab() {
       if (!cancelled) {
         try {
           const res = await busAPI.getBuses();
-          setBuses(res.data?.data ?? []);
-        } catch {
+          // Handle multiple response formats
+          const busesData = res.data?.data || res.data || res || [];
+          const busesArray = Array.isArray(busesData) ? busesData : [];
+          setBuses(busesArray);
+        } catch (err) {
+          console.error("Error loading buses:", err);
           showToast("Failed to load buses.");
+          setBuses([]);
         }
         setLoadingBuses(false);
       }
@@ -264,7 +378,44 @@ export default function BusTrackingTab() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showToast]);
+
+  // Debug: Log route points updates
+  useEffect(() => {
+    if (routePoints.length > 0) {
+      console.log(`📍 Route points updated: ${routePoints.length} points visible`);
+      routePoints.forEach((pt, idx) => {
+        const type = idx === 0 ? "START" : idx === routePoints.length - 1 ? "END" : `STOP ${pt.sequence}`;
+        console.log(`  ${type}: (${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}) offset: ${pt.minuteOffset}m`);
+      });
+    }
+  }, [routePoints]);
+
+  // Update estimated bus position every second based on elapsed time
+  // Skip this if user is sharing GPS location
+  useEffect(() => {
+    if (activeBusId === null || routePoints.length === 0 || !scheduleStartTime || isSharingGps) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const estimatedPos = calculateEstimatedPosition(routePoints, scheduleStartTime);
+      if (estimatedPos) {
+        setBusLocations((prev) => ({
+          ...prev,
+          [activeBusId]: {
+            ...prev[activeBusId],
+            lat: estimatedPos.lat,
+            lng: estimatedPos.lng,
+            isLive: false,
+            confidence: prev[activeBusId]?.confidence ?? 0.5,
+          },
+        }));
+      }
+    }, 1000); // Update every second
+
+    return () => clearInterval(interval);
+  }, [activeBusId, routePoints, scheduleStartTime, isSharingGps]);
 
   useEffect(() => {
     let mounted = true;
@@ -377,6 +528,15 @@ export default function BusTrackingTab() {
         setActiveBusId(busId);
         setRoutePoints(data.points ?? []);
         setScheduleStartTime(data.startTime ?? null);
+
+        // Debug logging
+        console.log("🗺️ Bus tracked:", busId);
+        console.log("Route points received:", data.points?.length || 0);
+        console.log("Start time:", data.startTime);
+        if (data.points && data.points.length > 0) {
+          console.log("First point:", data.points[0]);
+          console.log("Route point offsets:", data.points.map((p: any) => p.minuteOffset));
+        }
 
         const mode = data.estimate?.mode;
         if (mode === "not_started") {
@@ -520,36 +680,49 @@ export default function BusTrackingTab() {
               : idx === routePoints.length - 1
                 ? "end"
                 : "mid";
-          const time = scheduleStartTime
-            ? pointTime(scheduleStartTime, pt.minuteOffset)
-            : undefined;
+          
+          // Calculate offset color based on progression through route
+          const maxOffset = Math.max(...routePoints.map(p => p.minuteOffset), 1);
+          const offsetPercent = pt.minuteOffset / maxOffset;
+          const offsetColor = getOffsetColor(offsetPercent);
+          
+          // Calculate time at this point: startTime + minuteOffset
+          const time = pointTime(scheduleStartTime, pt.minuteOffset);
+          
           return (
             <Marker
               key={`stop-${pt.sequence}`}
               coordinate={{ latitude: pt.lat, longitude: pt.lng }}
-              anchor={{ x: 0.5, y: 1 }}
-              tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={true}
             >
-              <StopMarker type={type} sequence={pt.sequence} time={time} />
+              <StopMarker type={type} time={time} offsetColor={offsetColor} />
             </Marker>
           );
         })}
 
-        {Object.values(busLocations).map((loc) => (
-          <Marker
-            key={`bus-${loc.busId}`}
-            coordinate={{ latitude: loc.lat, longitude: loc.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}
-            title={`Bus ${buses.find((b) => b.id === loc.busId)?.busNumber ?? loc.busId}`}
-            description={
-              loc.isLive
-                ? "Live location"
-                : `Estimated - ${(loc.confidence * 100).toFixed(0)}% confidence`
-            }
-          >
-            <BusMarkerDot isLive={loc.isLive} confidence={loc.confidence} />
-          </Marker>
-        ))}
+        {Object.values(busLocations).map((loc) => {
+          // If sharing GPS, show user's location; otherwise show estimated/calculated position
+          const displayLoc = isSharingGps && userGpsLocation ? userGpsLocation : loc;
+          
+          return (
+            <Marker
+              key={`bus-${loc.busId}`}
+              coordinate={{ latitude: displayLoc.lat, longitude: displayLoc.lng }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              title={`Bus ${buses.find((b) => b.id === loc.busId)?.busNumber ?? loc.busId}`}
+              description={
+                isSharingGps
+                  ? "Your location (sharing)"
+                  : loc.isLive
+                    ? "Live location"
+                    : `Estimated - ${(loc.confidence * 100).toFixed(0)}% confidence`
+              }
+            >
+              <BusMarkerDot isLive={isSharingGps ? false : loc.isLive} confidence={isSharingGps ? 1 : loc.confidence} />
+            </Marker>
+          );
+        })}
       </MapView>
 
       <View
@@ -569,28 +742,34 @@ export default function BusTrackingTab() {
             <View
               style={[
                 styles.liveBadge,
-                activeBusLocation.isLive
+                isSharingGps
                   ? styles.liveBadgeGreen
-                  : styles.liveBadgeYellow,
+                  : activeBusLocation.isLive
+                    ? styles.liveBadgeGreen
+                    : styles.liveBadgeYellow,
               ]}
             >
               <View
                 style={[
                   styles.liveDot,
-                  activeBusLocation.isLive
+                  isSharingGps
                     ? styles.liveDotGreen
-                    : styles.liveDotYellow,
+                    : activeBusLocation.isLive
+                      ? styles.liveDotGreen
+                      : styles.liveDotYellow,
                 ]}
               />
               <Text
                 style={[
                   styles.liveBadgeText,
-                  activeBusLocation.isLive
+                  isSharingGps
                     ? styles.liveBadgeTextGreen
-                    : styles.liveBadgeTextYellow,
+                    : activeBusLocation.isLive
+                      ? styles.liveBadgeTextGreen
+                      : styles.liveBadgeTextYellow,
                 ]}
               >
-                {activeBusLocation.isLive ? "Live" : "Estimated"}
+                {isSharingGps ? "Sharing Location" : activeBusLocation.isLive ? "Live" : "Estimated"}
               </Text>
             </View>
           )}

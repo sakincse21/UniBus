@@ -18,7 +18,16 @@ async function start() {
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: ["http://192.168.10.108:3000", "http://localhost:3000", "http://localhost:8081", "http://192.168.1.10:3000", "http://192.168.1.7:3000", "http://192.168.10.191:8081"],
+      origin: [
+        "http://192.168.10.108:3000",
+        "http://localhost:3000",
+        "http://localhost:8081",
+        "http://192.168.1.10:3000",
+        "http://192.168.1.7:3000",
+        "http://192.168.10.191:8081",
+        "http://192.168.10.119:8081",
+        "http://192.168.10.249:8081",
+      ],
       credentials: true,
     },
   });

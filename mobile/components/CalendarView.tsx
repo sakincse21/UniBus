@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCalendarStore } from "@/store/calendarStore";
@@ -33,8 +34,21 @@ const MONTH_NAMES = [
   "December",
 ];
 
+// Utility function to format date to local YYYY-MM-DD format
+const formatLocalDate = (date: Date): string => {
+  return date.getFullYear() + '-' + 
+    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+    String(date.getDate()).padStart(2, '0');
+};
+
 const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  
+  // Calculate cell size based on screen width
+  // screenWidth - padding (32px) - gaps (24px for 6 gaps of 4px) / 7 cells
+  const cellSize = Math.floor((screenWidth - 32 - 24) / 7);
+  
   const {
     events,
     isLoading,
@@ -71,9 +85,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
   const eventsByDate = events.reduce(
     (acc, event) => {
       try {
-        const dateKey = new Date(event.startDateTime)
-          .toISOString()
-          .split("T")[0];
+        const dateKey = formatLocalDate(new Date(event.startDateTime));
         if (!acc[dateKey]) {
           acc[dateKey] = [];
         }
@@ -86,7 +98,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
     {} as Record<string, ICalendarEvent[]>,
   );
 
-  const selectedDateKey = selectedDate.toISOString().split("T")[0];
+  const selectedDateKey = formatLocalDate(selectedDate);
   const selectedDateEvents = eventsByDate[selectedDateKey] || [];
 
   const generateCalendarDays = () => {
@@ -160,10 +172,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
       currentMonth.getMonth(),
       day,
     );
-    return (
-      date.toISOString().split("T")[0] ===
-      selectedDate.toISOString().split("T")[0]
-    );
+    return formatLocalDate(date) === formatLocalDate(selectedDate);
   };
 
   const isToday = (day: number | null) => {
@@ -174,9 +183,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
       currentMonth.getMonth(),
       day,
     );
-    return (
-      date.toISOString().split("T")[0] === today.toISOString().split("T")[0]
-    );
+    return formatLocalDate(date) === formatLocalDate(today);
   };
 
   const getEventDotColor = (event: ICalendarEvent) => {
@@ -199,7 +206,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
       currentMonth.getMonth(),
       day,
     );
-    const dateKey = date.toISOString().split("T")[0];
+    const dateKey = formatLocalDate(date);
     return eventsByDate[dateKey] && eventsByDate[dateKey].length > 0;
   };
 
@@ -210,7 +217,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
       currentMonth.getMonth(),
       day,
     );
-    const dateKey = date.toISOString().split("T")[0];
+    const dateKey = formatLocalDate(date);
     const dayEvents = eventsByDate[dateKey] || [];
     const colors = dayEvents.map((event) => {
       switch (event.type) {
@@ -307,7 +314,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
           <View className="px-4 pt-4">
             <View className="flex-row mb-2 gap-1">
               {DAYS_OF_WEEK.map((day) => (
-                <View key={day} className="flex-1 items-center py-2">
+                <View 
+                  key={day} 
+                  style={{ width: cellSize, height: cellSize }}
+                  className="items-center justify-center"
+                >
                   <Text className="text-xs font-semibold text-gray-600">
                     {day}
                   </Text>
@@ -326,7 +337,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
                         return (
                           <TouchableOpacity
                             key={`${weekIndex}-${dayIndex}`}
-                            className={`flex-1 aspect-square rounded-lg items-center justify-center border ${
+                            style={{ width: cellSize, height: cellSize }}
+                            className={`rounded-lg items-center justify-center border overflow-hidden ${
                               day === null
                                 ? "bg-white border-transparent"
                                 : isDateSelected(day)
@@ -340,7 +352,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
                             onPress={() => handleDayPress(day)}
                           >
                             {day !== null && (
-                              <View className="items-center justify-center w-full h-full">
+                              <View className="items-center justify-center w-full h-full px-1">
                                 <Text
                                   className={`text-sm font-bold ${
                                     isDateSelected(day)
@@ -349,18 +361,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
                                         ? "text-blue-600"
                                         : "text-gray-900"
                                   }`}
+                                  numberOfLines={1}
                                 >
                                   {day}
                                 </Text>
                                 {eventColors.length > 0 &&
                                   !isDateSelected(day) && (
-                                    <View className="flex-row gap-0.5 mt-1">
+                                    <View className="flex-row gap-0.5 mt-0.5">
                                       {eventColors
                                         .slice(0, 3)
                                         .map((color, idx) => (
                                           <View
                                             key={idx}
-                                            className={`w-1.5 h-1.5 rounded-full ${color}`}
+                                            className={`w-1 h-1 rounded-full ${color}`}
                                           />
                                         ))}
                                     </View>
@@ -388,8 +401,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
                   month: "short",
                   day: "numeric",
                 });
-                const isToday_ =
-                  new Date().toISOString().split("T")[0] === dateKey;
+                const isToday_ = formatLocalDate(new Date()) === dateKey;
 
                 return (
                   <View key={dateKey} className="mb-5">
