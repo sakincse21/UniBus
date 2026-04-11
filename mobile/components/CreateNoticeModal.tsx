@@ -317,7 +317,7 @@ export default function CreateNoticeModal({
           });
 
           try {
-            await noticeAPI.uploadAttachments(formData);
+            await noticeAPI.uploadAttachments(noticeId, attachments);
           } catch (attachmentError) {
             console.error("Error uploading attachments:", attachmentError);
             // Notice was created successfully, just warn about attachments

@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { authAPI } from "@/lib/api";
+import { authAPI, userAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { IUser } from "@/interfaces";
 import {
@@ -20,11 +20,11 @@ import {
   Input,
   Button,
 } from "@gluestack-ui/themed";
-import type { ViewProps } from "react-native";
 
 export default function LoginScreen() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const refreshProfile = useAuthStore((state) => state.refreshProfile);
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
@@ -61,37 +61,33 @@ export default function LoginScreen() {
       if (response.data.success) {
         const { id, email: userEmail, role, token } = response.data.data;
 
-        const user: IUser = {
+        // Initial user without batch
+        const initialUser: IUser = {
           user_id: id,
           name: email,
           email: userEmail,
           role: role as IUser["role"],
         };
 
-        // Store login first to get token
-        await login(user, token);
+        await login(initialUser, token);
 
-        // Fetch full profile to get batch info
+        // Fetch full profile to get batch
         try {
-          const { userAPI } = await import("@/lib/api");
           const profileResponse = await userAPI.getProfile();
           if (profileResponse.data.success && profileResponse.data.data) {
             const fullProfile = profileResponse.data.data;
-            // Update user with batch info if available
-            if (fullProfile.batch) {
-              user.batch = {
-                id: fullProfile.batch.id,
-                name: fullProfile.batch.name,
-              };
-              // Re-login with updated user that includes batch info
-              await login(user, token);
-            }
+            const updatedUser = {
+              ...initialUser,
+              name: fullProfile.name || initialUser.name,
+              batch: fullProfile.batch,
+            };
+            await login(updatedUser, token);
           }
         } catch (profileError) {
           console.warn("Failed to fetch full profile:", profileError);
-          // Continue anyway - login was successful
         }
 
+        await refreshProfile();
         router.replace("/(tabs)");
       } else {
         Alert.alert("Error", response.data.message || "Login failed");
@@ -128,7 +124,6 @@ export default function LoginScreen() {
             gap: 16,
           }}
         >
-          {/* Header */}
           <VStack style={{ alignItems: "center", marginBottom: 16, gap: 12 }}>
             <Heading
               style={{
@@ -147,9 +142,7 @@ export default function LoginScreen() {
             </Text>
           </VStack>
 
-          {/* Form Fields */}
           <VStack style={{ gap: 12 }}>
-            {/* Email */}
             <FormControl isInvalid={!!errors.email}>
               <FormControl.Label>
                 <Text
@@ -182,7 +175,6 @@ export default function LoginScreen() {
               )}
             </FormControl>
 
-            {/* Password */}
             <FormControl isInvalid={!!errors.password}>
               <FormControl.Label>
                 <Text
@@ -215,7 +207,6 @@ export default function LoginScreen() {
             </FormControl>
           </VStack>
 
-          {/* Login Button */}
           <Button
             onPress={handleLogin}
             isDisabled={isLoading}
@@ -237,7 +228,6 @@ export default function LoginScreen() {
             )}
           </Button>
 
-          {/* Sign Up Link */}
           <VStack style={{ alignItems: "center", gap: 4 }}>
             <Text style={{ fontSize: 14, color: "#4b5563" }}>
               Don't have an account?

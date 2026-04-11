@@ -1,230 +1,180 @@
-import { Platform } from "react-native";
+import * as Notifications from "expo-notifications";
+import { Platform, Alert } from "react-native";
 import { IRoutineSlot } from "@/interfaces";
 
-// ── Notification setup ────────────────────────────────────────────────────────
-// Note: Full push notifications require a development build
-// Expo Go does not support Android Push notifications (removed in SDK 53)
+// Configure notification handler
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
-export async function requestNotificationPermissions(): Promise<boolean> {
+// Request notification permissions
+export const requestNotificationPermissions = async (): Promise<boolean> => {
   try {
-    if (Platform.OS === "web" || process.env.NODE_ENV === "development") {
-      console.log(
-        "Push notifications are limited in Expo Go. Use a development build for production.",
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== "granted") {
+      Alert.alert(
+        "Permission Needed",
+        "Please allow notifications to receive class reminders",
       );
       return false;
     }
-    // Full implementation would use expo-notifications here
-    return false;
-  } catch (error) {
-    console.debug(
-      "Notification permissions setup skipped (Expo Go limitation)",
-    );
-    return false;
-  }
-}
 
-// ── Calendar setup ────────────────────────────────────────────────────────────
-
-export async function requestCalendarPermissions(): Promise<boolean> {
-  try {
-    const Calendar = await import("expo-calendar").catch(() => null);
-    if (!Calendar) {
-      console.debug("Calendar module not available");
-      return false;
-    }
-    const { status } = await Calendar.requestCalendarPermissionsAsync();
-    return status === "granted";
-  } catch (error) {
-    console.debug("Calendar permissions setup skipped");
-    return false;
-  }
-}
-
-async function getOrCreateCalendarId(): Promise<string | null> {
-  try {
-    const CalendarModule = await import("expo-calendar").catch(() => null);
-    if (!CalendarModule) {
-      console.debug("Calendar module not available");
-      return null;
-    }
-    const calendars = await CalendarModule.getCalendarsAsync(
-      CalendarModule.EntityTypes.EVENT,
-    );
-    const existing = calendars.find((c: any) => c.title === "UniBus Routine");
-
-    if (existing) return existing.id;
-
+    // Configure Android channel
     if (Platform.OS === "android") {
-      const defaultCalendar = calendars.find(
-        (c: any) => c.accessLevel === CalendarModule.CalendarAccessLevel.OWNER,
-      );
-      if (!defaultCalendar) return null;
-
-      const newCalendarId = await CalendarModule.createCalendarAsync({
-        title: "UniBus Routine",
-        color: "#2563eb",
-        entityType: CalendarModule.EntityTypes.EVENT,
-        sourceId: defaultCalendar.source.id,
-        source: defaultCalendar.source,
-        name: "UniBus Routine",
-        ownerAccount: defaultCalendar.source.name,
-        accessLevel: CalendarModule.CalendarAccessLevel.OWNER,
+      await Notifications.setNotificationChannelAsync("routine-reminders", {
+        name: "Class Reminders",
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#2563eb",
+        enableVibrate: true,
+        enableLights: true,
       });
-      return newCalendarId;
     }
 
-    // iOS
-    const defaultSource = calendars.find(
-      (c: any) => c.source?.type === CalendarModule.SourceType.LOCAL,
-    )?.source;
-
-    if (!defaultSource) return null;
-
-    const newCalendarId = await CalendarModule.createCalendarAsync({
-      title: "UniBus Routine",
-      color: "#2563eb",
-      entityType: CalendarModule.EntityTypes.EVENT,
-      sourceId: defaultSource.id,
-      source: defaultSource,
-      name: "UniBus Routine",
-      accessLevel: CalendarModule.CalendarAccessLevel.OWNER,
-    });
-    return newCalendarId;
+    return true;
   } catch (error) {
-    console.debug("Error creating calendar:", error);
-    return null;
+    console.error("Notification permission error:", error);
+    return false;
   }
-}
-
-// ── Day helpers ───────────────────────────────────────────────────────────────
-
-const DAY_MAP: Record<string, number> = {
-  sunday: 0,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
 };
 
-function getNextDateForDay(dayName: string): Date {
-  const targetDay = DAY_MAP[dayName];
-  if (targetDay === undefined) throw new Error(`Invalid day: ${dayName}`);
-
-  const now = new Date();
-  const currentDay = now.getDay();
-  let daysUntil = targetDay - currentDay;
-  if (daysUntil <= 0) daysUntil += 7;
-
-  const nextDate = new Date(now);
-  nextDate.setDate(now.getDate() + daysUntil);
-  return nextDate;
-}
-
-function parseTimeToDate(date: Date, time: string): Date {
-  const [hours, minutes] = time.split(":").map(Number);
-  const result = new Date(date);
-  result.setHours(hours, minutes, 0, 0);
-  return result;
-}
-
-// ── Schedule weekly local notifications ───────────────────────────────────────
-
-/**
- * Schedule weekly reminders for routine slots.
- * Note: Full scheduling requires a development build. This is a stub for Expo Go.
- */
-export async function scheduleWeeklyReminders(
-  slots: IRoutineSlot[],
-): Promise<string[]> {
-  console.debug(
-    "Reminder scheduling not available in Expo Go. Use a development build for notifications.",
-  );
-  return [];
-}
-
-/**
- * Cancel all scheduled routine notifications.
- */
-export async function cancelAllReminders(): Promise<void> {
-  console.debug("Reminder cancellation not available in Expo Go.");
-}
-
-// ── Optional: Add to device calendar ──────────────────────────────────────────
-
-/**
- * Create recurring calendar events for the routine.
- * Note: Full calendar integration requires a development build.
- * Returns the number of events created.
- */
-export async function addRoutineToCalendar(
-  slots: IRoutineSlot[],
-): Promise<number> {
+// Cancel all scheduled notifications
+export const cancelAllReminders = async (): Promise<void> => {
   try {
-    const hasPermission = await requestCalendarPermissions();
-    if (!hasPermission) {
-      console.debug("Calendar permission not granted");
-      return 0;
-    }
-
-    const calendarId = await getOrCreateCalendarId();
-    if (!calendarId) {
-      console.debug("Could not create calendar");
-      return 0;
-    }
-
-    const CalendarModule = await import("expo-calendar").catch(() => null);
-    if (!CalendarModule) {
-      console.debug("Calendar module not available");
-      return 0;
-    }
-
-    let count = 0;
-
-    for (const slot of slots) {
-      const nextDate = getNextDateForDay(slot.day);
-
-      if (slot.firstHalfStart) {
-        const startDate = parseTimeToDate(nextDate, slot.firstHalfStart);
-        const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000); // 2h block
-
-        await CalendarModule.createEventAsync(calendarId, {
-          title: `First Half${slot.note ? ` — ${slot.note}` : ""}`,
-          startDate,
-          endDate,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          alarms: [{ relativeOffset: -10 }], // 10 min before
-          recurrenceRule: {
-            frequency: CalendarModule.Frequency.WEEKLY,
-            interval: 1,
-          },
-        });
-        count++;
-      }
-
-      if (slot.secondHalfStart) {
-        const startDate = parseTimeToDate(nextDate, slot.secondHalfStart);
-        const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
-
-        await CalendarModule.createEventAsync(calendarId, {
-          title: `Second Half${slot.note ? ` — ${slot.note}` : ""}`,
-          startDate,
-          endDate,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          alarms: [{ relativeOffset: -10 }],
-          recurrenceRule: {
-            frequency: CalendarModule.Frequency.WEEKLY,
-            interval: 1,
-          },
-        });
-        count++;
-      }
-    }
-
-    return count;
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    console.log("All reminders cancelled");
   } catch (error) {
-    console.debug("Calendar event creation failed:", error);
-    return 0;
+    console.error("Cancel reminders error:", error);
   }
-}
+};
+
+// Schedule weekly reminders for routine
+export const scheduleWeeklyReminders = async (
+  routine: IRoutineSlot[],
+): Promise<number> => {
+  // Cancel existing reminders first
+  await cancelAllReminders();
+
+  const hasPermission = await requestNotificationPermissions();
+  if (!hasPermission) return 0;
+
+  let scheduledCount = 0;
+  const now = new Date();
+
+  const dayMap: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
+
+  for (const slot of routine) {
+    const targetDay = dayMap[slot.day];
+    if (targetDay === undefined) continue;
+
+    // Calculate next occurrence
+    const today = now.getDay();
+    let daysUntil = targetDay - today;
+    if (daysUntil <= 0) daysUntil += 7;
+
+    const triggerDate = new Date(now);
+    triggerDate.setDate(now.getDate() + daysUntil);
+
+    // First half reminder (10 minutes before)
+    const [firstHour, firstMin] = slot.firstHalfStart.split(":").map(Number);
+    const firstReminderTime = new Date(triggerDate);
+    firstReminderTime.setHours(firstHour, firstMin, 0, 0);
+    firstReminderTime.setMinutes(firstReminderTime.getMinutes() - 10);
+
+    if (firstReminderTime > now) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "📚 Class Starting Soon",
+          body: `${slot.day.charAt(0).toUpperCase() + slot.day.slice(1)} class at ${slot.firstHalfStart}${slot.note ? ` - ${slot.note}` : ""}`,
+          data: { type: "routine", day: slot.day },
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: {
+          date: firstReminderTime,
+          channelId: "routine-reminders",
+        },
+      });
+      scheduledCount++;
+    }
+
+    // Second half reminder (10 minutes before)
+    if (slot.secondHalfStart) {
+      const [secondHour, secondMin] = slot.secondHalfStart
+        .split(":")
+        .map(Number);
+      const secondReminderTime = new Date(triggerDate);
+      secondReminderTime.setHours(secondHour, secondMin, 0, 0);
+      secondReminderTime.setMinutes(secondReminderTime.getMinutes() - 10);
+
+      if (secondReminderTime > now) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "📚 Afternoon Class Starting Soon",
+            body: `${slot.day.charAt(0).toUpperCase() + slot.day.slice(1)} afternoon class at ${slot.secondHalfStart}`,
+            data: { type: "routine", day: slot.day },
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+          },
+          trigger: {
+            date: secondReminderTime,
+            channelId: "routine-reminders",
+          },
+        });
+        scheduledCount++;
+      }
+    }
+  }
+
+  console.log(`Scheduled ${scheduledCount} reminders`);
+  return scheduledCount;
+};
+
+// Schedule single notification for notice
+export const scheduleNoticeReminder = async (
+  title: string,
+  body: string,
+  date: Date,
+): Promise<string | null> => {
+  const hasPermission = await requestNotificationPermissions();
+  if (!hasPermission) return null;
+
+  if (date <= new Date()) return null;
+
+  const identifier = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `📢 ${title}`,
+      body: body,
+      data: { type: "notice" },
+      sound: true,
+    },
+    trigger: {
+      date: date,
+      channelId: "routine-reminders",
+    },
+  });
+
+  return identifier;
+};

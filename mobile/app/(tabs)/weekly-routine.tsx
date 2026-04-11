@@ -14,11 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { useRoutineStore } from "@/store/routineStore";
 import { IRoutineSlot } from "@/interfaces";
-import {
-  scheduleWeeklyReminders,
-  cancelAllReminders,
-  addRoutineToCalendar,
-} from "@/lib/reminders";
+import { scheduleWeeklyReminders, cancelAllReminders } from "@/lib/reminders";
+import { addRoutineToCalendar } from "@/lib/calendar";
 
 const DAY_ORDER = [
   "saturday",

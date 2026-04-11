@@ -1,12 +1,33 @@
 import axios from "axios";
-import config from "./config";
+import Constants from "expo-constants";
+import * as FileSystem from "expo-file-system";
 import storage from "./storage";
+
+// Get config from app.json extra
+const getApiBaseUrl = (): string => {
+  const expoConfig = Constants.expoConfig?.extra?.apiBaseUrl;
+  if (expoConfig) return expoConfig;
+  return process.env.API_BASE_URL || "http://localhost:5000/api/v1";
+};
+
+const getSocketUrl = (): string => {
+  const expoConfig = Constants.expoConfig?.extra?.socketUrl;
+  if (expoConfig) return expoConfig;
+  return process.env.SOCKET_URL || "http://localhost:5000";
+};
+
+export const config = {
+  API_BASE_URL: getApiBaseUrl(),
+  SOCKET_URL: getSocketUrl(),
+};
 
 const api = axios.create({
   baseURL: config.API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
+    Accept: "application/json",
   },
+  timeout: 30000,
 });
 
 // Request interceptor - add token
@@ -32,11 +53,18 @@ api.interceptors.response.use(
   },
 );
 
+// Helper to convert file URI to blob for upload
+export const fileUriToBlob = async (uri: string): Promise<Blob> => {
+  const response = await fetch(uri);
+  return await response.blob();
+};
+
 export const authAPI = {
   login: (email: string, password: string) =>
     api.post("/auth/login", { email, password }),
   register: (name: string, email: string, password: string) =>
     api.post("/auth/register", { name, email, password }),
+  getSocketToken: () => api.get("/auth/socket-token"),
 };
 
 export const noticeAPI = {
@@ -53,20 +81,33 @@ export const noticeAPI = {
     api.get(`/attachment/download/${attachmentId}`, {
       responseType: "blob",
     }),
-  uploadAttachments: (formData: FormData) =>
-    api.post("/attachment/upload", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }),
+  uploadAttachments: (
+    noticeId: number,
+    files: { uri: string; name: string; type: string }[],
+  ) => {
+    const formData = new FormData();
+    formData.append("noticeId", noticeId.toString());
+
+    files.forEach((file) => {
+      formData.append("attachments", {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as any);
+    });
+
+    return api.post("/attachment/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        Accept: "application/json",
+      },
+    });
+  },
 };
 
 export const busAPI = {
   getBuses: () => api.get("/bus"),
   requestTracking: (busId: number) => api.post(`/tracking/request/${busId}`),
-};
-
-export const batchAPI = {
-  getAllBatches: () => api.get("/batch"),
-  getBatchById: (id: number) => api.get(`/batch/${id}`),
 };
 
 export const locationAPI = {
@@ -80,45 +121,25 @@ export const userAPI = {
 };
 
 export const routineAPI = {
-  /** Upload routine image for AI analysis. Returns editable draft slots. */
   uploadImage: (formData: FormData) =>
     api.post("/routine/upload", formData, {
       headers: { "Content-Type": "multipart/form-data" },
+      timeout: 60000,
     }),
-
-  /** Save confirmed routine slots (replaces all existing) */
   confirmRoutine: (slots: any[]) => api.post("/routine/confirm", { slots }),
-
-  /** Get current user's saved routine */
   getMyRoutine: () => api.get("/routine"),
-
-  /** Update a single routine slot */
   updateSlot: (id: number, data: any) => api.patch(`/routine/${id}`, data),
-
-  /** Delete all routine entries */
   deleteRoutine: () => api.delete("/routine"),
 };
 
-// Calendar API
 export const calendarAPI = {
-  /** Get aggregated calendar events for next N days */
   getCalendarEvents: (days: number = 30) =>
     api.get(`/calendar/events?days=${days}`),
-
-  /** Create personal calendar event */
   createFixture: (data: any) => api.post("/calendar/fixtures", data),
-
-  /** Get personal calendar events */
   getFixtures: () => api.get("/calendar/fixtures"),
-
-  /** Update personal calendar event */
   updateFixture: (id: number, data: any) =>
     api.put(`/calendar/fixtures/${id}`, data),
-
-  /** Delete personal calendar event */
   deleteFixture: (id: number) => api.delete(`/calendar/fixtures/${id}`),
-
-  /** Delete a notice (with role-based permission) */
   deleteNotice: (id: number) => api.delete(`/calendar/notice/${id}`),
 };
 
