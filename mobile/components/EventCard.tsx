@@ -16,13 +16,13 @@ export const EventCard: React.FC<EventCardProps> = ({
   const getEventColor = (type: string) => {
     switch (type) {
       case "notice":
-        return "bg-blue-50 border-l-4 border-blue-500";
+        return "bg-blue-100 border-l-4 border-blue-600";
       case "routine":
-        return "bg-purple-50 border-l-4 border-purple-500";
+        return "bg-purple-100 border-l-4 border-purple-600";
       case "personal":
-        return "bg-green-50 border-l-4 border-green-500";
+        return "bg-green-100 border-l-4 border-green-600";
       default:
-        return "bg-gray-50 border-l-4 border-gray-500";
+        return "bg-gray-100 border-l-4 border-gray-500";
     }
   };
 
@@ -89,24 +89,21 @@ export const EventCard: React.FC<EventCardProps> = ({
 
           <View className="mt-2 px-6 space-y-1">
             <Text className="text-xs text-gray-700 font-medium">
-              ⏰ {getTimeString()}
+              Time: {getTimeString()}
             </Text>
 
-            {/* Event metadata (forAll, batch, etc) */}
             {getMetadataDisplay() && (
               <Text className="text-xs text-gray-600 font-medium">
-                👥 {getMetadataDisplay()}
+                Audience: {getMetadataDisplay()}
               </Text>
             )}
 
-            {/* Created by */}
             {event.metadata?.createdBy && (
               <Text className="text-xs text-gray-500">
-                ✍️ by {event.metadata.createdBy}
+                Created by: {event.metadata.createdBy}
               </Text>
             )}
 
-            {/* Confidence level for routine events */}
             {event.metadata?.confidence !== undefined && (
               <Text
                 className={`text-xs font-medium ${
@@ -117,14 +114,13 @@ export const EventCard: React.FC<EventCardProps> = ({
                       : "text-red-600"
                 }`}
               >
-                🎯 {Math.round(event.metadata.confidence * 100)}% confidence
+                Confidence: {Math.round(event.metadata.confidence * 100)}%
               </Text>
             )}
 
-            {/* Note */}
             {event.metadata?.note && (
               <Text className="text-xs text-gray-600 italic">
-                📝 {event.metadata.note}
+                Note: {event.metadata.note}
               </Text>
             )}
           </View>

@@ -4,7 +4,6 @@ import { IRoutineSlot, ICalendarEvent } from "@/interfaces";
 
 let defaultCalendarId: string | null = null;
 
-// Request calendar permissions
 export const requestCalendarPermissions = async (): Promise<boolean> => {
   try {
     const { status } = await Calendar.requestCalendarPermissionsAsync();
@@ -19,7 +18,6 @@ export const requestCalendarPermissions = async (): Promise<boolean> => {
   }
 };
 
-// Get or create default calendar for UniBus
 const getDefaultCalendar = async (): Promise<string | null> => {
   if (defaultCalendarId) return defaultCalendarId;
 
@@ -28,13 +26,11 @@ const getDefaultCalendar = async (): Promise<string | null> => {
       Calendar.EntityTypes.EVENT,
     );
 
-    // Find existing UniBus calendar
     let unibusCalendar = calendars.find(
       (cal) => cal.title === "UniBus Schedule",
     );
 
     if (!unibusCalendar) {
-      // Create new calendar
       const defaultSource = calendars.find(
         (cal) => cal.source && cal.source.name === "Default",
       )?.source;
@@ -64,7 +60,6 @@ const getDefaultCalendar = async (): Promise<string | null> => {
   return null;
 };
 
-// Add routine to native calendar
 export const addRoutineToCalendar = async (
   routine: IRoutineSlot[],
 ): Promise<number> => {
@@ -83,21 +78,20 @@ export const addRoutineToCalendar = async (
   let addedCount = 0;
   const now = new Date();
 
-  for (const slot of routine) {
-    const dayMap: Record<string, number> = {
-      sunday: 0,
-      monday: 1,
-      tuesday: 2,
-      wednesday: 3,
-      thursday: 4,
-      friday: 5,
-      saturday: 6,
-    };
+  const dayMap: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
 
+  for (const slot of routine) {
     const targetDay = dayMap[slot.day];
     if (targetDay === undefined) continue;
 
-    // Get next occurrence of this day
     const today = now.getDay();
     let daysUntil = targetDay - today;
     if (daysUntil <= 0) daysUntil += 7;
@@ -105,11 +99,9 @@ export const addRoutineToCalendar = async (
     const eventDate = new Date(now);
     eventDate.setDate(now.getDate() + daysUntil);
 
-    // Parse times
     const [firstHour, firstMin] = slot.firstHalfStart.split(":").map(Number);
     const [secondHour, secondMin] = slot.secondHalfStart.split(":").map(Number);
 
-    // First half event
     const startFirst = new Date(eventDate);
     startFirst.setHours(firstHour, firstMin, 0, 0);
 
@@ -123,11 +115,11 @@ export const addRoutineToCalendar = async (
           notes: slot.note || "Class session",
           startDate: startFirst,
           endDate: endFirst,
-          alarms: [{ relativeOffset: -10 }], // 10 minutes before
+          alarms: [{ relativeOffset: -10 }],
         });
         addedCount++;
       } catch (error) {
-        console.error("Failed to add first half event:", error);
+        console.error("Failed to add event:", error);
       }
     }
   }
@@ -135,7 +127,6 @@ export const addRoutineToCalendar = async (
   return addedCount;
 };
 
-// Add single notice to native calendar
 export const addNoticeToCalendar = async (
   title: string,
   description: string,
@@ -189,30 +180,5 @@ export const addNoticeToCalendar = async (
   } catch (error) {
     console.error("Failed to add notice to calendar:", error);
     return false;
-  }
-};
-
-// Remove all UniBus calendar events (optional)
-export const removeAllUnibusEvents = async (): Promise<void> => {
-  const calendarId = await getDefaultCalendar();
-  if (!calendarId) return;
-
-  try {
-    const events = await Calendar.getEventsAsync(
-      [calendarId],
-      new Date(2000, 0, 1),
-      new Date(2030, 11, 31),
-    );
-
-    for (const event of events) {
-      if (
-        event.title?.startsWith("Class:") ||
-        event.title?.includes("Notice:")
-      ) {
-        await Calendar.deleteEventAsync(event.id);
-      }
-    }
-  } catch (error) {
-    console.error("Remove events error:", error);
   }
 };

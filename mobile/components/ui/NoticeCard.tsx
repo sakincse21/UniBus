@@ -24,14 +24,12 @@ export default function NoticeCard({ notice, onPress }: NoticeCardProps) {
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     });
   };
 
   const getTargetLabel = () => {
-    if (notice.forAll) return "For All";
-    if (notice.forTeachers) return "For Teachers";
+    if (notice.forAll) return "All";
+    if (notice.forTeachers) return "Teachers";
     if (notice.targetBatch?.name) return `Batch ${notice.targetBatch.name}`;
     return "General";
   };
@@ -41,7 +39,7 @@ export default function NoticeCard({ notice, onPress }: NoticeCardProps) {
       case "approved":
         return "bg-green-100 text-green-700";
       case "pending":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-amber-100 text-amber-700";
       case "rejected":
         return "bg-red-100 text-red-700";
       default:
@@ -52,28 +50,26 @@ export default function NoticeCard({ notice, onPress }: NoticeCardProps) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="bg-white rounded-xl p-4 mb-3 border border-gray-100 shadow-sm active:bg-gray-50"
+      className="bg-white rounded-lg p-4 mb-3 border border-gray-200"
       activeOpacity={0.7}
     >
-      <View className="flex-row justify-between items-start gap-2 mb-2">
+      <View className="flex-row justify-between items-start mb-2">
         <Text
-          className="text-base font-bold text-gray-900 flex-1"
+          className="text-base font-semibold text-gray-900 flex-1"
           numberOfLines={2}
         >
           {notice.title}
         </Text>
-        <View
-          className={`${getStatusColor()} px-2 py-1 rounded-full flex-shrink-0`}
-        >
+        <View className={`${getStatusColor()} px-2 py-0.5 rounded ml-2`}>
           <Text className="text-xs font-medium capitalize">
             {notice.status}
           </Text>
         </View>
       </View>
 
-      <View className="flex-row gap-2 mb-3">
-        <View className="bg-blue-50 px-2.5 py-1 rounded-full">
-          <Text className="text-xs text-blue-600 font-medium">
+      <View className="mb-3">
+        <View className="bg-gray-100 px-2 py-0.5 rounded self-start">
+          <Text className="text-xs text-gray-600 font-medium">
             {getTargetLabel()}
           </Text>
         </View>
@@ -84,7 +80,7 @@ export default function NoticeCard({ notice, onPress }: NoticeCardProps) {
       </Text>
 
       <View className="flex-row justify-between items-center pt-2 border-t border-gray-100">
-        <View className="flex-1">
+        <View>
           <Text className="text-xs text-gray-500">
             {formatDate(notice.createdAt)}
           </Text>
@@ -92,7 +88,7 @@ export default function NoticeCard({ notice, onPress }: NoticeCardProps) {
             By: {notice.createdBy?.name || "Unknown"}
           </Text>
         </View>
-        <Text className="text-blue-600 text-xs font-medium">Details →</Text>
+        <Text className="text-blue-600 text-xs font-medium">Details</Text>
       </View>
     </TouchableOpacity>
   );

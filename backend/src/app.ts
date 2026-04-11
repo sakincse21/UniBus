@@ -14,6 +14,7 @@ app.use(
       "http://localhost:8081",
       "http://192.168.1.10:3000",
       "http://192.168.1.7:3000",
+      "http://192.168.10.191:8081"
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],

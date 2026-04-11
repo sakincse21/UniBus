@@ -14,14 +14,12 @@ import NoticeCard from "@/components/ui/NoticeCard";
 import NoticeDetailModal from "@/components/NoticeDetailModal";
 import CreateNoticeModal from "@/components/CreateNoticeModal";
 import { useAuthStore } from "@/store/authStore";
-import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type NoticeFilter = "accessible" | "pending" | "forTeachers" | "myBatch";
+type NoticeFilter = "accessible" | "forTeachers" | "myBatch";
 
 export default function NoticesTab() {
-  const router = useRouter();
-  const { user, refreshProfile } = useAuthStore();
+  const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
   const [notices, setNotices] = useState<INotice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,10 +29,20 @@ export default function NoticesTab() {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [filterType, setFilterType] = useState<NoticeFilter>("accessible");
   const [pendingNotices, setPendingNotices] = useState<INotice[]>([]);
+  const [showPending, setShowPending] = useState(false);
 
-  useEffect(() => {
-    refreshProfile();
-  }, []);
+  const canApproveNotices =
+    user?.role === "admin" || user?.role === "teacher" || user?.role === "cr";
+  const canCreateNotice =
+    user?.role === "admin" ||
+    user?.role === "teacher" ||
+    user?.role === "cr" ||
+    user?.role === "student";
+  const hasBatch = !!user?.batch;
+  const isStudent = user?.role === "student";
+  const isTeacher = user?.role === "teacher";
+  const isCR = user?.role === "cr";
+  const isAdmin = user?.role === "admin";
 
   const fetchNotices = useCallback(async () => {
     try {
@@ -43,13 +51,7 @@ export default function NoticesTab() {
         setNotices(approvedResponse.data.data || []);
       }
 
-      // Fetch pending notices for approvers or students
-      if (
-        user?.role === "admin" ||
-        user?.role === "teacher" ||
-        user?.role === "cr" ||
-        user?.role === "student"
-      ) {
+      if (canApproveNotices) {
         try {
           const pendingResponse = await noticeAPI.getPendingNotices();
           if (pendingResponse.data.success) {
@@ -65,7 +67,7 @@ export default function NoticesTab() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user?.role]);
+  }, [canApproveNotices]);
 
   useEffect(() => {
     fetchNotices();
@@ -99,34 +101,20 @@ export default function NoticesTab() {
   };
 
   const getFilteredNotices = (): INotice[] => {
+    if (showPending && canApproveNotices) {
+      return pendingNotices;
+    }
+
     switch (filterType) {
       case "forTeachers":
         return notices.filter((n) => n.forTeachers === true);
-
       case "myBatch":
-        // Show notices targeting user's specific batch
         const userBatchId = user?.batch?.id;
         if (!userBatchId) return [];
         return notices.filter(
           (n) =>
             n.targetBatch?.id === userBatchId && !n.forAll && !n.forTeachers,
         );
-
-      case "pending":
-        if (user?.role === "student") {
-          return pendingNotices.filter(
-            (n) => n.createdBy?.user_id === user?.user_id,
-          );
-        }
-        if (
-          user?.role === "admin" ||
-          user?.role === "teacher" ||
-          user?.role === "cr"
-        ) {
-          return pendingNotices;
-        }
-        return [];
-
       case "accessible":
       default:
         return notices;
@@ -153,13 +141,8 @@ export default function NoticesTab() {
     fetchNotices();
   };
 
-  const canCreateNotice =
-    user?.role === "admin" ||
-    user?.role === "teacher" ||
-    user?.role === "cr" ||
-    user?.role === "student";
-
   const filteredNotices = getFilteredNotices();
+  const hasPendingNotices = canApproveNotices && pendingNotices.length > 0;
 
   if (isLoading) {
     return (
@@ -171,11 +154,10 @@ export default function NoticesTab() {
 
   return (
     <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
-      {/* Header */}
       <View className="px-4 py-4 bg-white border-b border-gray-100">
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
-            <Text className="text-3xl font-bold text-gray-900">Notices</Text>
+            <Text className="text-2xl font-bold text-gray-900">Notices</Text>
             {user?.batch?.name && (
               <Text className="text-sm text-gray-500 mt-1">
                 Batch: {user.batch.name}
@@ -185,97 +167,90 @@ export default function NoticesTab() {
           {canCreateNotice && (
             <TouchableOpacity
               onPress={() => setCreateModalVisible(true)}
-              className="bg-blue-600 rounded-xl px-4 py-2.5 active:bg-blue-700"
+              className="bg-blue-600 rounded-lg px-4 py-2"
             >
-              <Text className="text-white font-semibold">+ Create</Text>
+              <Text className="text-white font-semibold">Create</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Filter Tabs */}
       <View className="bg-white border-b border-gray-100">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{
             paddingHorizontal: 16,
-            paddingVertical: 10,
+            paddingVertical: 12,
             gap: 8,
           }}
         >
           <TouchableOpacity
-            onPress={() => setFilterType("accessible")}
-            className={`px-4 py-2 rounded-full ${
-              filterType === "accessible" ? "bg-blue-600" : "bg-gray-100"
-            }`}
+            onPress={() => {
+              setShowPending(false);
+              setFilterType("accessible");
+            }}
+            className={`px-4 py-2 rounded-lg ${!showPending && filterType === "accessible" ? "bg-blue-600" : "bg-gray-100"}`}
           >
             <Text
-              className={`text-sm font-semibold ${
-                filterType === "accessible" ? "text-white" : "text-gray-700"
-              }`}
+              className={`text-sm font-medium ${!showPending && filterType === "accessible" ? "text-white" : "text-gray-700"}`}
             >
-              📢 All
+              All
             </Text>
           </TouchableOpacity>
 
-          {(user?.role === "teacher" || user?.role === "admin") && (
+          {/* Teachers Only - for admin and teacher roles */}
+          {(isTeacher || isAdmin) && (
             <TouchableOpacity
-              onPress={() => setFilterType("forTeachers")}
-              className={`px-4 py-2 rounded-full ${
-                filterType === "forTeachers" ? "bg-blue-600" : "bg-gray-100"
-              }`}
+              onPress={() => {
+                setShowPending(false);
+                setFilterType("forTeachers");
+              }}
+              className={`px-4 py-2 rounded-lg ${!showPending && filterType === "forTeachers" ? "bg-blue-600" : "bg-gray-100"}`}
             >
               <Text
-                className={`text-sm font-semibold ${
-                  filterType === "forTeachers" ? "text-white" : "text-gray-700"
-                }`}
+                className={`text-sm font-medium ${!showPending && filterType === "forTeachers" ? "text-white" : "text-gray-700"}`}
               >
-                👨‍🏫 Teachers
+                Teachers
               </Text>
             </TouchableOpacity>
           )}
 
-          {user?.batch && (user?.role === "cr" || user?.role === "student") && (
+          {/* My Batch - for students and CR who have a batch */}
+          {hasBatch && (isStudent || isCR) && (
             <TouchableOpacity
-              onPress={() => setFilterType("myBatch")}
-              className={`px-4 py-2 rounded-full ${
-                filterType === "myBatch" ? "bg-blue-600" : "bg-gray-100"
-              }`}
+              onPress={() => {
+                setShowPending(false);
+                setFilterType("myBatch");
+              }}
+              className={`px-4 py-2 rounded-lg ${!showPending && filterType === "myBatch" ? "bg-blue-600" : "bg-gray-100"}`}
             >
               <Text
-                className={`text-sm font-semibold ${
-                  filterType === "myBatch" ? "text-white" : "text-gray-700"
-                }`}
+                className={`text-sm font-medium ${!showPending && filterType === "myBatch" ? "text-white" : "text-gray-700"}`}
               >
-                📚 Batch {user.batch.name}
+                My Batch
               </Text>
             </TouchableOpacity>
           )}
 
-          {(user?.role === "admin" ||
-            user?.role === "teacher" ||
-            user?.role === "cr" ||
-            user?.role === "student") && (
+          {/* Pending - only for admin, teacher, CR */}
+          {canApproveNotices && (
             <TouchableOpacity
-              onPress={() => setFilterType("pending")}
-              className={`px-4 py-2 rounded-full ${
-                filterType === "pending" ? "bg-amber-600" : "bg-amber-50"
-              }`}
+              onPress={() => {
+                setShowPending(true);
+              }}
+              className={`px-4 py-2 rounded-lg ${showPending ? "bg-amber-600" : "bg-gray-100"}`}
             >
               <Text
-                className={`text-sm font-semibold ${
-                  filterType === "pending" ? "text-white" : "text-amber-700"
-                }`}
+                className={`text-sm font-medium ${showPending ? "text-white" : "text-amber-700"}`}
               >
-                ⏳ {user?.role === "student" ? "My Pending" : "Pending"}
+                Pending {hasPendingNotices ? `(${pendingNotices.length})` : ""}
               </Text>
             </TouchableOpacity>
           )}
         </ScrollView>
       </View>
 
-      {/* Notices List */}
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
@@ -290,16 +265,11 @@ export default function NoticesTab() {
       >
         {filteredNotices.length === 0 ? (
           <View className="items-center py-16">
-            <Text className="text-5xl mb-3">📋</Text>
-            <Text className="text-gray-900 text-lg font-semibold">
-              No notices found
-            </Text>
-            <Text className="text-gray-500 text-sm mt-2 text-center">
-              {filterType === "myBatch"
-                ? `No notices for your batch yet`
-                : filterType === "pending"
-                  ? "No pending notices"
-                  : "Check back later for updates"}
+            <Text className="text-gray-400 text-base">No notices found</Text>
+            <Text className="text-gray-400 text-sm mt-2">
+              {showPending
+                ? "No pending notices to review"
+                : "Check back later for updates"}
             </Text>
           </View>
         ) : (
@@ -313,7 +283,6 @@ export default function NoticesTab() {
         )}
       </ScrollView>
 
-      {/* Notice Detail Modal */}
       <NoticeDetailModal
         visible={detailModalVisible}
         notice={selectedNotice}
@@ -322,7 +291,6 @@ export default function NoticesTab() {
         onApprove={handleNoticeApprove}
       />
 
-      {/* Create Notice Modal */}
       <CreateNoticeModal
         visible={createModalVisible}
         onClose={() => setCreateModalVisible(false)}

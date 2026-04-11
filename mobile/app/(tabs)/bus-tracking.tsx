@@ -12,6 +12,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Dimensions,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
@@ -22,23 +23,16 @@ import BottomSheet, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { busAPI, locationAPI } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
-import type {
-  IBus,
-  IBusLiveLocation,
-  IRoutePoint,
-} from "@/interfaces";
+import type { IBus, IBusLiveLocation, IRoutePoint } from "@/interfaces";
 import type { Socket } from "socket.io-client";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DEFAULT_REGION = {
   latitude: 22.9,
   longitude: 89.5,
   latitudeDelta: 0.08,
   longitudeDelta: 0.08,
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function to12h(time24: string): string {
   const [hh, mm] = time24.split(":").map(Number);
@@ -54,31 +48,9 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
   const h = Math.floor(totalMin / 60) % 24;
   const m = Math.floor(totalMin % 60);
   return to12h(
-    `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`
+    `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
   );
 }
-
-// Normalize route points if offsets seem incorrect (all 0 or missing)
-function normalizeRoutePoints(pts: any[]): any[] {
-  if (!pts || pts.length === 0) return pts;
-  
-  // Check if all offsets are 0 or the same
-  const offsets = pts.map((p) => p.minuteOffset ?? 0);
-  const uniqueOffsets = new Set(offsets.filter((o) => o !== undefined && o !== null));
-  
-  // If all offsets are 0 or missing, auto-generate them
-  if (uniqueOffsets.size === 0 || (uniqueOffsets.size === 1 && offsets[0] === 0)) {
-    console.warn("🔧 Auto-generating minuteOffsets for route points (original offsets were all 0)");
-    return pts.map((p, idx) => ({
-      ...p,
-      minuteOffset: idx * 5, // 5 minutes spacing between points
-    }));
-  }
-  
-  return pts;
-}
-
-// ─── Stop Marker (rich, matches web UI) ──────────────────────────────────────
 
 function StopMarker({
   type,
@@ -91,7 +63,8 @@ function StopMarker({
 }) {
   const bgColor =
     type === "start" ? "#22C55E" : type === "end" ? "#EF4444" : "#3B82F6";
-  const label = type === "start" ? "S" : type === "end" ? "E" : String(sequence);
+  const label =
+    type === "start" ? "S" : type === "end" ? "E" : String(sequence);
   const size = type === "mid" ? 22 : 26;
 
   return (
@@ -99,18 +72,18 @@ function StopMarker({
       {time ? (
         <View
           style={{
-            backgroundColor: "rgba(255,255,255,0.94)",
+            backgroundColor: "rgba(255,255,255,0.95)",
             paddingHorizontal: 6,
             paddingVertical: 2,
-            borderRadius: 6,
+            borderRadius: 4,
             marginBottom: 3,
             shadowColor: "#000",
-            shadowOpacity: 0.18,
-            shadowRadius: 4,
-            elevation: 4,
+            shadowOpacity: 0.1,
+            shadowRadius: 2,
+            elevation: 2,
           }}
         >
-          <Text style={{ fontSize: 9, fontWeight: "700", color: "#0f172a" }}>
+          <Text style={{ fontSize: 9, fontWeight: "600", color: "#1f2937" }}>
             {time}
           </Text>
         </View>
@@ -121,25 +94,23 @@ function StopMarker({
           height: size,
           borderRadius: size / 2,
           backgroundColor: bgColor,
-          borderWidth: 2.5,
+          borderWidth: 2,
           borderColor: "#fff",
           alignItems: "center",
           justifyContent: "center",
           shadowColor: "#000",
-          shadowOpacity: 0.25,
-          shadowRadius: 5,
-          elevation: 5,
+          shadowOpacity: 0.2,
+          shadowRadius: 3,
+          elevation: 3,
         }}
       >
-        <Text style={{ color: "#fff", fontSize: 10, fontWeight: "800" }}>
+        <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
           {label}
         </Text>
       </View>
     </View>
   );
 }
-
-// ─── Bus Marker ───────────────────────────────────────────────────────────────
 
 function BusMarkerDot({
   isLive,
@@ -156,8 +127,6 @@ function BusMarkerDot({
   );
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
-
 export default function BusTrackingTab() {
   const insets = useSafeAreaInsets();
 
@@ -168,16 +137,15 @@ export default function BusTrackingTab() {
   >({});
   const [routePoints, setRoutePoints] = useState<IRoutePoint[]>([]);
   const [scheduleStartTime, setScheduleStartTime] = useState<string | null>(
-    null
+    null,
   );
   const [loadingBuses, setLoadingBuses] = useState(true);
   const [trackingBusId, setTrackingBusId] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // ── Live GPS sharing state (when user is the tracker) ──────────────────────
   const [isSharingGps, setIsSharingGps] = useState(false);
   const [sharingForBusId, setSharingForBusId] = useState<number | null>(null);
-  const isSharingRef = useRef(false);           // stable ref for socket callbacks
+  const isSharingRef = useRef(false);
   const sharingBusIdRef = useRef<number | null>(null);
   const gpsSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
 
@@ -185,15 +153,13 @@ export default function BusTrackingTab() {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const socketRef = useRef<Socket | null>(null);
 
-  const snapPoints = useMemo(() => ["18%", "52%", "90%"], []);
+  const snapPoints = useMemo(() => ["15%", "45%", "85%"], []);
 
-  // ── Toast helper ────────────────────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3500);
+    setTimeout(() => setToastMsg(null), 3000);
   }, []);
 
-  // ── Stop sharing GPS (tracker role) ─────────────────────────────────────────
   const stopSharingGps = useCallback(
     async (reason?: string) => {
       gpsSubscriptionRef.current?.remove();
@@ -208,10 +174,9 @@ export default function BusTrackingTab() {
       }
       if (reason) showToast(reason);
     },
-    [showToast]
+    [showToast],
   );
 
-  // ── Accept tracking request & start GPS watch ────────────────────────────────
   const acceptTracking = useCallback(
     async (busId: number) => {
       const socket = socketRef.current;
@@ -226,7 +191,7 @@ export default function BusTrackingTab() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
-          showToast("Location permission required to share bus position");
+          showToast("Location permission required");
           return;
         }
 
@@ -246,19 +211,18 @@ export default function BusTrackingTab() {
               lat: pos.coords.latitude,
               lng: pos.coords.longitude,
             });
-          }
+          },
         );
 
         gpsSubscriptionRef.current = sub;
-        showToast("Now sharing your location as bus tracker 🚌");
+        showToast("Now sharing bus location");
       } catch {
         showToast("Failed to start GPS tracking");
       }
     },
-    [showToast]
+    [showToast],
   );
 
-  // ── Location + buses on mount ────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -270,7 +234,6 @@ export default function BusTrackingTab() {
             accuracy: Location.Accuracy.Balanced,
           });
           if (!cancelled) {
-            // Center map on user's GPS location
             mapRef.current?.animateToRegion(
               {
                 latitude: loc.coords.latitude,
@@ -278,7 +241,7 @@ export default function BusTrackingTab() {
                 latitudeDelta: 0.08,
                 longitudeDelta: 0.08,
               },
-              1200
+              1200,
             );
             locationAPI
               .updateLocation(loc.coords.latitude, loc.coords.longitude)
@@ -303,7 +266,6 @@ export default function BusTrackingTab() {
     };
   }, []);
 
-  // ── Socket: live updates + tracking notifications ───────────────────────────
   useEffect(() => {
     let mounted = true;
 
@@ -329,28 +291,16 @@ export default function BusTrackingTab() {
               confidence,
             },
           }));
-
-          mapRef.current?.animateToRegion(
-            {
-              latitude: lat,
-              longitude: lng,
-              latitudeDelta: 0.04,
-              longitudeDelta: 0.04,
-            },
-            800
-          );
         });
 
-        // ── Tracking-request notification (are you on this bus?) ─────────────
         socket.on("bus_tracking_request", (data: any) => {
           if (!mounted) return;
-          // Already sharing GPS for this bus — keep sending, skip alert
-          if (isSharingRef.current && sharingBusIdRef.current === data.busId) return;
-          // Already busy tracking another bus — don't interrupt
+          if (isSharingRef.current && sharingBusIdRef.current === data.busId)
+            return;
           if (isSharingRef.current) return;
 
           Alert.alert(
-            "Are you on the bus? 🚌",
+            "Bus Tracking Request",
             "A tracking request was received for a bus near your location. Are you currently riding it?",
             [
               { text: "No", style: "cancel" },
@@ -358,36 +308,32 @@ export default function BusTrackingTab() {
                 text: "Yes, I'm on it",
                 onPress: () => acceptTracking(data.busId),
               },
-            ]
+            ],
           );
         });
 
-        // Tracking session confirmed
         socket.on("tracking_started", (_data: any) => {
           if (!mounted) return;
-          showToast("Live tracking confirmed ✅");
+          showToast("Live tracking confirmed");
         });
 
-        // Rejected (another user is already tracking)
         socket.on("tracking_rejected", (_data: any) => {
           if (!mounted) return;
           stopSharingGps("Another user is already tracking this bus");
         });
 
-        // Session expired (schedule ended)
         socket.on("tracking_expired", (data: any) => {
           if (!mounted) return;
           if (isSharingRef.current && sharingBusIdRef.current === data.busId) {
-            stopSharingGps("Tracking session expired (schedule ended)");
+            stopSharingGps("Tracking session expired");
           }
         });
 
-        // Off-route: server detected user is >250m from the route
         socket.on("tracking_off_route", (data: any) => {
           if (!mounted) return;
           if (isSharingRef.current && sharingBusIdRef.current === data.busId) {
             stopSharingGps(
-              `Off-route detected (${data.dist}m away). Tracking stopped.`
+              `Off-route detected (${data.dist}m away). Tracking stopped.`,
             );
           }
         });
@@ -402,13 +348,11 @@ export default function BusTrackingTab() {
       socketRef.current?.off("tracking_rejected");
       socketRef.current?.off("tracking_expired");
       socketRef.current?.off("tracking_off_route");
-      // Clean up GPS subscription
       gpsSubscriptionRef.current?.remove();
       gpsSubscriptionRef.current = null;
     };
   }, [acceptTracking, showToast, stopSharingGps]);
 
-  // ── Handle track / stop ─────────────────────────────────────────────────────
   const handleTrackBus = useCallback(
     async (busId: number) => {
       if (activeBusId === busId) {
@@ -420,6 +364,7 @@ export default function BusTrackingTab() {
           delete next[busId];
           return next;
         });
+        bottomSheetRef.current?.snapToIndex(1);
         return;
       }
 
@@ -435,13 +380,9 @@ export default function BusTrackingTab() {
 
         const mode = data.estimate?.mode;
         if (mode === "not_started") {
-          showToast(
-            `Bus hasn't started yet · ${data.estimate.startTime} – ${data.estimate.endTime}`
-          );
+          showToast(`Bus starts at ${data.estimate.startTime}`);
         } else if (mode === "ended") {
-          showToast(
-            `Route ended for today · ${data.estimate.startTime} – ${data.estimate.endTime}`
-          );
+          showToast(`Route ended for today`);
         } else if (data.isLive) {
           showToast("Live tracking active");
         } else if (mode === "estimated") {
@@ -467,32 +408,29 @@ export default function BusTrackingTab() {
               latitudeDelta: 0.06,
               longitudeDelta: 0.06,
             },
-            900
+            900,
           );
         }
 
         bottomSheetRef.current?.snapToIndex(0);
       } catch (err: any) {
-        const msg =
-          err?.response?.data?.message ?? "Failed to start tracking.";
+        const msg = err?.response?.data?.message ?? "Failed to start tracking.";
         Alert.alert("Tracking Error", msg);
       }
 
       setTrackingBusId(null);
     },
-    [activeBusId, showToast]
+    [activeBusId, showToast],
   );
 
-  // ── Derived ──────────────────────────────────────────────────────────────────
   const polylineCoords = useMemo(
     () => routePoints.map((p) => ({ latitude: p.lat, longitude: p.lng })),
-    [routePoints]
+    [routePoints],
   );
 
   const activeBusLocation = activeBusId ? busLocations[activeBusId] : null;
   const activeBus = buses.find((b) => b.id === activeBusId);
 
-  // ── Bus card renderer ────────────────────────────────────────────────────────
   const renderBusCard = useCallback(
     ({ item }: { item: IBus }) => {
       const isActive = activeBusId === item.id;
@@ -501,24 +439,15 @@ export default function BusTrackingTab() {
 
       return (
         <View style={[styles.busCard, isActive && styles.busCardActive]}>
-          <View style={styles.busCardLeft}>
-            <View
-              style={[
-                styles.busNumberPill,
-                isActive && styles.busNumberPillActive,
-              ]}
-            >
+          <View style={styles.busCardInfo}>
+            <View style={styles.busNumberContainer}>
               <Text
-                style={[
-                  styles.busNumberText,
-                  isActive && styles.busNumberTextActive,
-                ]}
+                style={[styles.busNumber, isActive && styles.busNumberActive]}
               >
                 {item.busNumber}
               </Text>
             </View>
-
-            {loc ? (
+            {loc && (
               <View
                 style={[
                   styles.statusBadge,
@@ -533,26 +462,26 @@ export default function BusTrackingTab() {
                 />
                 <Text
                   style={[
-                    styles.statusLabel,
-                    loc.isLive ? styles.labelGreen : styles.labelYellow,
+                    styles.statusText,
+                    loc.isLive
+                      ? styles.statusLiveText
+                      : styles.statusEstimatedText,
                   ]}
                 >
                   {loc.isLive ? "Live" : "Est."}
                 </Text>
               </View>
-            ) : null}
+            )}
           </View>
-
           <TouchableOpacity
-            style={[styles.actionBtn, isActive && styles.actionBtnStop]}
+            style={[styles.trackButton, isActive && styles.trackButtonActive]}
             onPress={() => handleTrackBus(item.id)}
             disabled={!isActive && trackingBusId !== null}
-            activeOpacity={0.75}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.actionBtnText}>
+              <Text style={styles.trackButtonText}>
                 {isActive ? "Stop" : "Track"}
               </Text>
             )}
@@ -560,13 +489,11 @@ export default function BusTrackingTab() {
         </View>
       );
     },
-    [activeBusId, busLocations, trackingBusId, handleTrackBus]
+    [activeBusId, busLocations, trackingBusId, handleTrackBus],
   );
 
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.root}>
-      {/* ── Full-screen Map ── */}
+    <View style={styles.container}>
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
@@ -576,7 +503,6 @@ export default function BusTrackingTab() {
         showsCompass={false}
         toolbarEnabled={false}
       >
-        {/* Route polyline */}
         {polylineCoords.length > 1 && (
           <Polyline
             coordinates={polylineCoords}
@@ -587,14 +513,13 @@ export default function BusTrackingTab() {
           />
         )}
 
-        {/* Route stop markers */}
-        {normalizeRoutePoints(routePoints).map((pt, idx) => {
+        {routePoints.map((pt, idx) => {
           const type =
             idx === 0
               ? "start"
               : idx === routePoints.length - 1
-              ? "end"
-              : "mid";
+                ? "end"
+                : "mid";
           const time = scheduleStartTime
             ? pointTime(scheduleStartTime, pt.minuteOffset)
             : undefined;
@@ -610,7 +535,6 @@ export default function BusTrackingTab() {
           );
         })}
 
-        {/* Bus location markers */}
         {Object.values(busLocations).map((loc) => (
           <Marker
             key={`bus-${loc.busId}`}
@@ -620,7 +544,7 @@ export default function BusTrackingTab() {
             description={
               loc.isLive
                 ? "Live location"
-                : `Estimated · ${(loc.confidence * 100).toFixed(0)}% confidence`
+                : `Estimated - ${(loc.confidence * 100).toFixed(0)}% confidence`
             }
           >
             <BusMarkerDot isLive={loc.isLive} confidence={loc.confidence} />
@@ -628,26 +552,26 @@ export default function BusTrackingTab() {
         ))}
       </MapView>
 
-      {/* ── Floating header ── */}
       <View
         pointerEvents="none"
-        style={[styles.headerOverlay, { top: insets.top + 8 }]}
+        style={[styles.headerOverlay, { top: insets.top + 12 }]}
       >
         <View style={styles.headerCard}>
-          <View>
-            <Text style={styles.headerTitle}>Live Bus Tracking</Text>
-            {activeBus && (
-              <Text style={styles.headerSub}>Tracking {activeBus.busNumber}</Text>
-            )}
-          </View>
-
+          <Text style={styles.headerTitle}>Live Bus Tracking</Text>
+          {activeBus && (
+            <View style={styles.activeBusBadge}>
+              <Text style={styles.activeBusText}>
+                Tracking: {activeBus.busNumber}
+              </Text>
+            </View>
+          )}
           {activeBusLocation && (
             <View
               style={[
-                styles.livePill,
+                styles.liveBadge,
                 activeBusLocation.isLive
-                  ? styles.livePillGreen
-                  : styles.livePillYellow,
+                  ? styles.liveBadgeGreen
+                  : styles.liveBadgeYellow,
               ]}
             >
               <View
@@ -660,10 +584,10 @@ export default function BusTrackingTab() {
               />
               <Text
                 style={[
-                  styles.livePillText,
+                  styles.liveBadgeText,
                   activeBusLocation.isLive
-                    ? styles.livePillTextGreen
-                    : styles.livePillTextYellow,
+                    ? styles.liveBadgeTextGreen
+                    : styles.liveBadgeTextYellow,
                 ]}
               >
                 {activeBusLocation.isLive ? "Live" : "Estimated"}
@@ -673,7 +597,6 @@ export default function BusTrackingTab() {
         </View>
       </View>
 
-      {/* ── Toast notification ── */}
       {toastMsg ? (
         <View
           pointerEvents="none"
@@ -683,75 +606,74 @@ export default function BusTrackingTab() {
         </View>
       ) : null}
 
-      {/* ── GPS Sharing footer (when this user is the bus tracker) ── */}
       {isSharingGps && (
-        <View style={[styles.gpsFooter, { bottom: insets.bottom + 8 }]}>
+        <View style={[styles.gpsFooter, { bottom: insets.bottom + 12 }]}>
           <View style={styles.gpsPulse} />
           <Text style={styles.gpsFooterText}>
-            Sharing location · Bus {sharingForBusId}
+            Sharing location - Bus {sharingForBusId}
           </Text>
           <TouchableOpacity
-            style={styles.gpsStopBtn}
+            style={styles.gpsStopButton}
             onPress={() => stopSharingGps("Tracking stopped")}
-            activeOpacity={0.8}
           >
             <Text style={styles.gpsStopText}>Stop</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* ── Draggable Bottom Sheet ── */}
       <BottomSheet
         ref={bottomSheetRef}
         snapPoints={snapPoints}
         index={1}
-        backgroundStyle={styles.sheetBg}
-        handleIndicatorStyle={styles.sheetHandle}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetHandle}
         enablePanDownToClose={false}
       >
-        {/* Sheet header */}
-        <BottomSheetView style={styles.sheetHeader}>
-          <View style={styles.sheetHeaderRow}>
-            <Text style={styles.sheetTitle}>
+        <BottomSheetView style={styles.bottomSheetHeader}>
+          <View style={styles.bottomSheetHeaderRow}>
+            <Text style={styles.bottomSheetTitle}>
               {loadingBuses
-                ? "Loading..."
-                : `${buses.length} Bus${buses.length !== 1 ? "es" : ""} Available`}
+                ? "Loading Buses..."
+                : `Buses Available (${buses.length})`}
             </Text>
             {activeBus && (
               <TouchableOpacity
-                style={styles.clearBtn}
+                style={styles.clearButton}
                 onPress={() => handleTrackBus(activeBus.id)}
               >
-                <Text style={styles.clearBtnText}>Clear map</Text>
+                <Text style={styles.clearButtonText}>Clear Map</Text>
               </TouchableOpacity>
             )}
           </View>
-          {!activeBus && !loadingBuses && (
-            <Text style={styles.sheetHint}>
-              Tap Track on a bus to see it on the map
+          {!activeBus && !loadingBuses && buses.length > 0 && (
+            <Text style={styles.bottomSheetHint}>
+              Tap Track to see bus on map
+            </Text>
+          )}
+          {!loadingBuses && buses.length === 0 && (
+            <Text style={styles.bottomSheetHint}>
+              No buses available at the moment
             </Text>
           )}
         </BottomSheetView>
 
         <View style={styles.divider} />
 
-        {/* List / Loading / Empty */}
         {loadingBuses ? (
-          <BottomSheetView style={styles.loaderWrap}>
+          <BottomSheetView style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#3B82F6" />
-            <Text style={styles.loaderText}>Fetching buses…</Text>
+            <Text style={styles.loadingText}>Fetching buses...</Text>
           </BottomSheetView>
         ) : buses.length === 0 ? (
-          <BottomSheetView style={styles.emptyWrap}>
-            <Text style={styles.emptyIcon}>🚌</Text>
+          <BottomSheetView style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No buses available</Text>
           </BottomSheetView>
         ) : (
-          <BottomSheetFlatList<IBus>
+          <BottomSheetFlatList
             data={buses}
             keyExtractor={(item: IBus) => item.id.toString()}
             renderItem={renderBusCard}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={styles.busList}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -760,15 +682,11 @@ export default function BusTrackingTab() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  root: {
+  container: {
     flex: 1,
     backgroundColor: "#F1F5F9",
   },
-
-  // Header overlay
   headerOverlay: {
     position: "absolute",
     left: 16,
@@ -780,136 +698,157 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "rgba(255,255,255,0.96)",
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerTitle: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "600",
     color: "#0F172A",
-    letterSpacing: -0.2,
   },
-  headerSub: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 2,
+  activeBusBadge: {
+    backgroundColor: "#DBEAFE",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  livePill: {
+  activeBusText: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#1D4ED8",
+  },
+  liveBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
   },
-  livePillGreen: { backgroundColor: "#DCFCE7" },
-  livePillYellow: { backgroundColor: "#FEF9C3" },
-  liveDot: { width: 7, height: 7, borderRadius: 4 },
-  liveDotGreen: { backgroundColor: "#16A34A" },
-  liveDotYellow: { backgroundColor: "#CA8A04" },
-  livePillText: { fontSize: 12, fontWeight: "700" },
-  livePillTextGreen: { color: "#15803D" },
-  livePillTextYellow: { color: "#A16207" },
-
-  // Toast
+  liveBadgeGreen: {
+    backgroundColor: "#DCFCE7",
+  },
+  liveBadgeYellow: {
+    backgroundColor: "#FEF9C3",
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  liveDotGreen: {
+    backgroundColor: "#16A34A",
+  },
+  liveDotYellow: {
+    backgroundColor: "#CA8A04",
+  },
+  liveBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  liveBadgeTextGreen: {
+    color: "#15803D",
+  },
+  liveBadgeTextYellow: {
+    color: "#A16207",
+  },
   toast: {
     position: "absolute",
     alignSelf: "center",
     zIndex: 30,
-    backgroundColor: "rgba(15,23,42,0.88)",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 24,
+    backgroundColor: "rgba(15,23,42,0.9)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     maxWidth: "80%",
   },
   toastText: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
     textAlign: "center",
   },
-
-  // Bottom sheet
-  sheetBg: {
+  bottomSheetBg: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
+    shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  sheetHandle: {
+  bottomSheetHandle: {
     backgroundColor: "#CBD5E1",
-    width: 44,
+    width: 40,
     height: 4,
   },
-  sheetHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 14,
+  bottomSheetHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
-  sheetHeaderRow: {
+  bottomSheetHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 6,
   },
-  sheetTitle: {
+  bottomSheetTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#0F172A",
-    letterSpacing: -0.3,
   },
-  sheetHint: {
+  bottomSheetHint: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: "#64748B",
     marginTop: 4,
   },
-  clearBtn: {
+  clearButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: "#FEE2E2",
-    borderRadius: 10,
+    borderRadius: 8,
   },
-  clearBtnText: {
+  clearButtonText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#DC2626",
   },
   divider: {
     height: 1,
-    backgroundColor: "#F1F5F9",
-    marginHorizontal: 20,
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: 16,
     marginBottom: 8,
   },
-
-  // Loading / empty states
-  loaderWrap: {
+  loadingContainer: {
     alignItems: "center",
-    paddingTop: 48,
-    gap: 12,
-  },
-  loaderText: { fontSize: 14, color: "#94A3B8" },
-  emptyWrap: {
-    alignItems: "center",
-    paddingTop: 48,
+    paddingTop: 40,
     gap: 10,
   },
-  emptyIcon: { fontSize: 40 },
-  emptyText: { fontSize: 15, color: "#94A3B8", fontWeight: "500" },
-
-  // Bus cards
-  listContent: {
+  loadingText: {
+    fontSize: 13,
+    color: "#94A3B8",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingTop: 40,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#94A3B8",
+    fontWeight: "500",
+  },
+  busList: {
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 48,
+    paddingTop: 8,
+    paddingBottom: 40,
     gap: 10,
   },
   busCard: {
@@ -917,126 +856,144 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "#F8FAFC",
-    borderRadius: 18,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   busCardActive: {
     borderColor: "#3B82F6",
     backgroundColor: "#EFF6FF",
   },
-  busCardLeft: {
+  busCardInfo: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     flex: 1,
   },
-  busNumberPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+  busNumberContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: "#E2E8F0",
-    borderRadius: 12,
+    borderRadius: 8,
   },
-  busNumberPillActive: { backgroundColor: "#DBEAFE" },
-  busNumberText: {
+  busNumber: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#334155",
-    letterSpacing: 0.3,
   },
-  busNumberTextActive: { color: "#1D4ED8" },
+  busNumberActive: {
+    color: "#1D4ED8",
+  },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  statusLive: { backgroundColor: "#DCFCE7" },
-  statusEstimated: { backgroundColor: "#FEF9C3" },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  dotGreen: { backgroundColor: "#16A34A" },
-  dotYellow: { backgroundColor: "#CA8A04" },
-  statusLabel: { fontSize: 11, fontWeight: "700" },
-  labelGreen: { color: "#15803D" },
-  labelYellow: { color: "#A16207" },
-
-  // Action button
-  actionBtn: {
+  statusLive: {
+    backgroundColor: "#DCFCE7",
+  },
+  statusEstimated: {
+    backgroundColor: "#FEF9C3",
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  dotGreen: {
+    backgroundColor: "#16A34A",
+  },
+  dotYellow: {
+    backgroundColor: "#CA8A04",
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  statusLiveText: {
+    color: "#15803D",
+  },
+  statusEstimatedText: {
+    color: "#A16207",
+  },
+  trackButton: {
     backgroundColor: "#3B82F6",
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 9,
-    minWidth: 72,
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    minWidth: 70,
     alignItems: "center",
-    justifyContent: "center",
   },
-  actionBtnStop: { backgroundColor: "#EF4444" },
-  actionBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-
-  // GPS sharing footer
+  trackButtonActive: {
+    backgroundColor: "#EF4444",
+  },
+  trackButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   gpsFooter: {
     position: "absolute",
     left: 16,
     right: 16,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(15,23,42,0.93)",
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: "rgba(15,23,42,0.95)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     zIndex: 25,
-    gap: 10,
+    gap: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowRadius: 8,
+    elevation: 8,
   },
   gpsPulse: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: "#22C55E",
   },
   gpsFooterText: {
     flex: 1,
     color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "500",
   },
-  gpsStopBtn: {
+  gpsStopButton: {
     backgroundColor: "#EF4444",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
   },
   gpsStopText: {
     color: "#fff",
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "600",
   },
-
-  // Map markers
   busMarkerWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.95)",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.22,
-    shadowRadius: 5,
-    elevation: 6,
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   busMarkerCore: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
 });

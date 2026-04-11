@@ -16,23 +16,22 @@ Notifications.setNotificationHandler({
 // Request notification permissions
 export const requestNotificationPermissions = async (): Promise<boolean> => {
   try {
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
-
+    
     if (existingStatus !== "granted") {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-
+    
     if (finalStatus !== "granted") {
       Alert.alert(
         "Permission Needed",
-        "Please allow notifications to receive class reminders",
+        "Please allow notifications to receive class reminders"
       );
       return false;
     }
-
+    
     // Configure Android channel
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("routine-reminders", {
@@ -44,7 +43,7 @@ export const requestNotificationPermissions = async (): Promise<boolean> => {
         enableLights: true,
       });
     }
-
+    
     return true;
   } catch (error) {
     console.error("Notification permission error:", error);
@@ -64,45 +63,40 @@ export const cancelAllReminders = async (): Promise<void> => {
 
 // Schedule weekly reminders for routine
 export const scheduleWeeklyReminders = async (
-  routine: IRoutineSlot[],
+  routine: IRoutineSlot[]
 ): Promise<number> => {
   // Cancel existing reminders first
   await cancelAllReminders();
-
+  
   const hasPermission = await requestNotificationPermissions();
   if (!hasPermission) return 0;
-
+  
   let scheduledCount = 0;
   const now = new Date();
-
+  
   const dayMap: Record<string, number> = {
-    sunday: 0,
-    monday: 1,
-    tuesday: 2,
-    wednesday: 3,
-    thursday: 4,
-    friday: 5,
-    saturday: 6,
+    sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+    thursday: 4, friday: 5, saturday: 6,
   };
-
+  
   for (const slot of routine) {
     const targetDay = dayMap[slot.day];
     if (targetDay === undefined) continue;
-
+    
     // Calculate next occurrence
     const today = now.getDay();
     let daysUntil = targetDay - today;
     if (daysUntil <= 0) daysUntil += 7;
-
+    
     const triggerDate = new Date(now);
     triggerDate.setDate(now.getDate() + daysUntil);
-
+    
     // First half reminder (10 minutes before)
     const [firstHour, firstMin] = slot.firstHalfStart.split(":").map(Number);
     const firstReminderTime = new Date(triggerDate);
     firstReminderTime.setHours(firstHour, firstMin, 0, 0);
     firstReminderTime.setMinutes(firstReminderTime.getMinutes() - 10);
-
+    
     if (firstReminderTime > now) {
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -119,16 +113,14 @@ export const scheduleWeeklyReminders = async (
       });
       scheduledCount++;
     }
-
+    
     // Second half reminder (10 minutes before)
     if (slot.secondHalfStart) {
-      const [secondHour, secondMin] = slot.secondHalfStart
-        .split(":")
-        .map(Number);
+      const [secondHour, secondMin] = slot.secondHalfStart.split(":").map(Number);
       const secondReminderTime = new Date(triggerDate);
       secondReminderTime.setHours(secondHour, secondMin, 0, 0);
       secondReminderTime.setMinutes(secondReminderTime.getMinutes() - 10);
-
+      
       if (secondReminderTime > now) {
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -147,7 +139,7 @@ export const scheduleWeeklyReminders = async (
       }
     }
   }
-
+  
   console.log(`Scheduled ${scheduledCount} reminders`);
   return scheduledCount;
 };
@@ -156,13 +148,13 @@ export const scheduleWeeklyReminders = async (
 export const scheduleNoticeReminder = async (
   title: string,
   body: string,
-  date: Date,
+  date: Date
 ): Promise<string | null> => {
   const hasPermission = await requestNotificationPermissions();
   if (!hasPermission) return null;
-
+  
   if (date <= new Date()) return null;
-
+  
   const identifier = await Notifications.scheduleNotificationAsync({
     content: {
       title: `📢 ${title}`,
@@ -175,6 +167,6 @@ export const scheduleNoticeReminder = async (
       channelId: "routine-reminders",
     },
   });
-
+  
   return identifier;
 };

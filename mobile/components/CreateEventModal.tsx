@@ -8,7 +8,9 @@ import {
   ScrollView,
   Switch,
   ActivityIndicator,
+  Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 interface CreateEventModalProps {
   visible: boolean;
@@ -25,15 +27,24 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [isAllDay, setIsAllDay] = useState(true);
-  const [startDate, setStartDate] = useState(
-    initialDate
-      ? `${initialDate.getFullYear()}-${String(initialDate.getMonth() + 1).padStart(2, "0")}-${String(initialDate.getDate()).padStart(2, "0")}`
-      : "",
+  const [isAllDay, setIsAllDay] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(
+    initialDate || new Date(),
   );
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("10:00");
+  const [startTime, setStartTime] = useState<Date>(() => {
+    const date = new Date();
+    date.setHours(9, 0, 0, 0);
+    return date;
+  });
+  const [endTime, setEndTime] = useState<Date>(() => {
+    const date = new Date();
+    date.setHours(10, 0, 0, 0);
+    return date;
+  });
   const [isLoading, setIsLoading] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   const handleCreate = async () => {
     if (!title.trim()) {
@@ -41,22 +52,24 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       return;
     }
 
-    if (!startDate.trim()) {
-      alert("Please select a date");
-      return;
-    }
-
     setIsLoading(true);
     try {
-      let startDateTime = "";
-      let endDateTime = "";
+      let startDateTime: string;
+      let endDateTime: string;
 
       if (isAllDay) {
-        startDateTime = `${startDate}T00:00:00`;
-        endDateTime = `${startDate}T23:59:59`;
+        const dateStr = selectedDate.toISOString().split("T")[0];
+        startDateTime = `${dateStr}T00:00:00`;
+        endDateTime = `${dateStr}T23:59:59`;
       } else {
-        startDateTime = `${startDate}T${startTime}:00`;
-        endDateTime = `${startDate}T${endTime}:00`;
+        const dateStr = selectedDate.toISOString().split("T")[0];
+        const startHour = startTime.getHours().toString().padStart(2, "0");
+        const startMin = startTime.getMinutes().toString().padStart(2, "0");
+        const endHour = endTime.getHours().toString().padStart(2, "0");
+        const endMin = endTime.getMinutes().toString().padStart(2, "0");
+
+        startDateTime = `${dateStr}T${startHour}:${startMin}:00`;
+        endDateTime = `${dateStr}T${endHour}:${endMin}:00`;
       }
 
       await onCreate({
@@ -67,42 +80,61 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         endDateTime,
       });
 
-      // Reset form
       setTitle("");
       setDescription("");
-      setIsAllDay(true);
-      setStartDate(
-        initialDate
-          ? `${initialDate.getFullYear()}-${String(initialDate.getMonth() + 1).padStart(2, "0")}-${String(initialDate.getDate()).padStart(2, "0")}`
-          : "",
-      );
-      setStartTime("09:00");
-      setEndTime("10:00");
+      setIsAllDay(false);
+      setSelectedDate(initialDate || new Date());
+      const defaultStart = new Date();
+      defaultStart.setHours(9, 0, 0, 0);
+      setStartTime(defaultStart);
+      const defaultEnd = new Date();
+      defaultEnd.setHours(10, 0, 0, 0);
+      setEndTime(defaultEnd);
       onClose();
     } catch (error) {
       console.error("Error creating event:", error);
+      alert("Failed to create event");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const formatDate = (date: Date): string => {
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatTime = (date: Date): string => {
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View className="flex-1 bg-black/50 justify-end">
-        <View className="bg-white rounded-t-3xl p-6 max-h-[90%]">
+        <View className="bg-white rounded-t-3xl p-6 max-h-[85%]">
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-lg font-bold">Create Event</Text>
+            <Text className="text-lg font-bold text-gray-900">
+              Create Event
+            </Text>
             <TouchableOpacity onPress={onClose}>
-              <Text className="text-2xl text-gray-500">✕</Text>
+              <Text className="text-2xl text-gray-500">×</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Title */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold mb-2">Title</Text>
+              <Text className="text-sm font-semibold text-gray-700 mb-2">
+                Title
+              </Text>
               <TextInput
-                className="border border-gray-300 rounded-lg p-3"
+                className="border border-gray-300 rounded-lg p-3 text-gray-900"
                 placeholder="Event title"
                 value={title}
                 onChangeText={setTitle}
@@ -110,11 +142,12 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               />
             </View>
 
-            {/* Description */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold mb-2">Description</Text>
+              <Text className="text-sm font-semibold text-gray-700 mb-2">
+                Description
+              </Text>
               <TextInput
-                className="border border-gray-300 rounded-lg p-3 h-24"
+                className="border border-gray-300 rounded-lg p-3 h-24 text-gray-900"
                 placeholder="Event description (optional)"
                 value={description}
                 onChangeText={setDescription}
@@ -123,9 +156,10 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               />
             </View>
 
-            {/* All Day Toggle */}
             <View className="flex-row justify-between items-center mb-4 border-b border-gray-200 pb-4">
-              <Text className="text-sm font-semibold">All Day</Text>
+              <Text className="text-sm font-semibold text-gray-700">
+                All Day
+              </Text>
               <Switch
                 value={isAllDay}
                 onValueChange={setIsAllDay}
@@ -133,56 +167,63 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               />
             </View>
 
-            {/* Date */}
             <View className="mb-4">
-              <Text className="text-sm font-semibold mb-2">Date</Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg p-3"
-                placeholder="YYYY-MM-DD"
-                value={startDate}
-                onChangeText={setStartDate}
-                editable={!isLoading}
-              />
+              <Text className="text-sm font-semibold text-gray-700 mb-2">
+                Date
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                className="border border-gray-300 rounded-lg p-3 bg-gray-50"
+                disabled={isLoading}
+              >
+                <Text className="text-gray-900">
+                  {formatDate(selectedDate)}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Time Inputs (if not all day) */}
             {!isAllDay && (
               <>
                 <View className="mb-4">
-                  <Text className="text-sm font-semibold mb-2">Start Time</Text>
-                  <TextInput
-                    className="border border-gray-300 rounded-lg p-3"
-                    placeholder="HH:mm"
-                    value={startTime}
-                    onChangeText={setStartTime}
-                    editable={!isLoading}
-                  />
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">
+                    Start Time
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowStartTimePicker(true)}
+                    className="border border-gray-300 rounded-lg p-3 bg-gray-50"
+                    disabled={isLoading}
+                  >
+                    <Text className="text-gray-900">
+                      {formatTime(startTime)}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
                 <View className="mb-4">
-                  <Text className="text-sm font-semibold mb-2">End Time</Text>
-                  <TextInput
-                    className="border border-gray-300 rounded-lg p-3"
-                    placeholder="HH:mm"
-                    value={endTime}
-                    onChangeText={setEndTime}
-                    editable={!isLoading}
-                  />
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">
+                    End Time
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowEndTimePicker(true)}
+                    className="border border-gray-300 rounded-lg p-3 bg-gray-50"
+                    disabled={isLoading}
+                  >
+                    <Text className="text-gray-900">{formatTime(endTime)}</Text>
+                  </TouchableOpacity>
                 </View>
               </>
             )}
 
-            {/* Action Buttons */}
             <View className="flex-row gap-3 mt-6">
               <TouchableOpacity
-                className="flex-1 bg-gray-200 rounded-lg p-3 justify-center items-center"
+                className="flex-1 bg-gray-200 rounded-lg p-3 items-center"
                 onPress={onClose}
                 disabled={isLoading}
               >
                 <Text className="font-semibold text-gray-700">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className="flex-1 bg-blue-500 rounded-lg p-3 justify-center items-center"
+                className="flex-1 bg-blue-600 rounded-lg p-3 items-center"
                 onPress={handleCreate}
                 disabled={isLoading}
               >
@@ -196,6 +237,48 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           </ScrollView>
         </View>
       </View>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "calendar"}
+          onChange={(event, date) => {
+            if (event.type === "set" && date) {
+              setSelectedDate(date);
+            }
+            setShowDatePicker(false);
+          }}
+        />
+      )}
+
+      {showStartTimePicker && (
+        <DateTimePicker
+          value={startTime}
+          mode="time"
+          display={Platform.OS === "ios" ? "spinner" : "spinner"}
+          onChange={(event, date) => {
+            if (event.type === "set" && date) {
+              setStartTime(date);
+            }
+            setShowStartTimePicker(false);
+          }}
+        />
+      )}
+
+      {showEndTimePicker && (
+        <DateTimePicker
+          value={endTime}
+          mode="time"
+          display={Platform.OS === "ios" ? "spinner" : "spinner"}
+          onChange={(event, date) => {
+            if (event.type === "set" && date) {
+              setEndTime(date);
+            }
+            setShowEndTimePicker(false);
+          }}
+        />
+      )}
     </Modal>
   );
 };

@@ -1,36 +1,15 @@
 import axios from "axios";
-import Constants from "expo-constants";
-import * as FileSystem from "expo-file-system";
+import config from "./config";
 import storage from "./storage";
-
-// Get config from app.json extra
-const getApiBaseUrl = (): string => {
-  const expoConfig = Constants.expoConfig?.extra?.apiBaseUrl;
-  if (expoConfig) return expoConfig;
-  return process.env.API_BASE_URL || "http://localhost:5000/api/v1";
-};
-
-const getSocketUrl = (): string => {
-  const expoConfig = Constants.expoConfig?.extra?.socketUrl;
-  if (expoConfig) return expoConfig;
-  return process.env.SOCKET_URL || "http://localhost:5000";
-};
-
-export const config = {
-  API_BASE_URL: getApiBaseUrl(),
-  SOCKET_URL: getSocketUrl(),
-};
 
 const api = axios.create({
   baseURL: config.API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
-    Accept: "application/json",
   },
-  timeout: 30000,
+  timeout: 60000,
 });
 
-// Request interceptor - add token
 api.interceptors.request.use(
   async (config) => {
     const token = await storage.getToken();
@@ -42,7 +21,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// Response interceptor - handle errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -53,18 +31,11 @@ api.interceptors.response.use(
   },
 );
 
-// Helper to convert file URI to blob for upload
-export const fileUriToBlob = async (uri: string): Promise<Blob> => {
-  const response = await fetch(uri);
-  return await response.blob();
-};
-
 export const authAPI = {
   login: (email: string, password: string) =>
     api.post("/auth/login", { email, password }),
   register: (name: string, email: string, password: string) =>
     api.post("/auth/register", { name, email, password }),
-  getSocketToken: () => api.get("/auth/socket-token"),
 };
 
 export const noticeAPI = {
@@ -81,14 +52,11 @@ export const noticeAPI = {
     api.get(`/attachment/download/${attachmentId}`, {
       responseType: "blob",
     }),
-  uploadAttachments: (
-    noticeId: number,
-    files: { uri: string; name: string; type: string }[],
-  ) => {
+  uploadAttachments: (noticeId: number, files: any[]) => {
     const formData = new FormData();
     formData.append("noticeId", noticeId.toString());
 
-    files.forEach((file) => {
+    files.forEach((file, index) => {
       formData.append("attachments", {
         uri: file.uri,
         name: file.name,
@@ -99,8 +67,8 @@ export const noticeAPI = {
     return api.post("/attachment/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
-        Accept: "application/json",
       },
+      timeout: 120000,
     });
   },
 };
@@ -108,6 +76,11 @@ export const noticeAPI = {
 export const busAPI = {
   getBuses: () => api.get("/bus"),
   requestTracking: (busId: number) => api.post(`/tracking/request/${busId}`),
+};
+
+export const batchAPI = {
+  getAllBatches: () => api.get("/batch"),
+  getBatchById: (id: number) => api.get(`/batch/${id}`),
 };
 
 export const locationAPI = {

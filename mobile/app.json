@@ -23,7 +23,12 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.unibus.mobile"
+      "package": "com.unibus.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
+      ]
     },
     "scheme": "unibus",
     "web": {
@@ -59,7 +64,11 @@
     },
     "extra": {
       "apiBaseUrl": "http://192.168.10.191:5000/api/v1",
-      "socketUrl": "http://192.168.10.191:5000"
+      "socketUrl": "http://192.168.10.191:5000",
+      "router": {},
+      "eas": {
+        "projectId": "80949995-3dff-40be-a5ec-b0f90e6ea163"
+      }
     }
   }
 }
