@@ -68,7 +68,30 @@ export default function LoginScreen() {
           role: role as IUser["role"],
         };
 
+        // Store login first to get token
         await login(user, token);
+
+        // Fetch full profile to get batch info
+        try {
+          const { userAPI } = await import("@/lib/api");
+          const profileResponse = await userAPI.getProfile();
+          if (profileResponse.data.success && profileResponse.data.data) {
+            const fullProfile = profileResponse.data.data;
+            // Update user with batch info if available
+            if (fullProfile.batch) {
+              user.batch = {
+                id: fullProfile.batch.id,
+                name: fullProfile.batch.name,
+              };
+              // Re-login with updated user that includes batch info
+              await login(user, token);
+            }
+          }
+        } catch (profileError) {
+          console.warn("Failed to fetch full profile:", profileError);
+          // Continue anyway - login was successful
+        }
+
         router.replace("/(tabs)");
       } else {
         Alert.alert("Error", response.data.message || "Login failed");

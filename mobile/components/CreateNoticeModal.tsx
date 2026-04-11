@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -10,13 +10,11 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  FlatList,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { noticeAPI, batchAPI } from "@/lib/api";
+import { noticeAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
-import { useRouter } from "expo-router";
 
 type AudienceType = "all" | "teachers" | "batch" | "myBatch";
 
@@ -25,11 +23,6 @@ interface AttachedFile {
   name: string;
   size: number;
   type: string;
-}
-
-interface BatchOption {
-  id: number;
-  name: string;
 }
 
 interface CreateNoticeModalProps {
@@ -44,21 +37,29 @@ export default function CreateNoticeModal({
   onSuccess,
 }: CreateNoticeModalProps) {
   const { user } = useAuthStore();
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [audience, setAudience] = useState<AudienceType>("all");
+
+  // Role checks - moved up so we can use them for initial state
+  const isAdmin = user?.role === "admin";
+  const isTeacher = user?.role === "teacher";
+  const isCR = user?.role === "cr";
+  const isStudent = user?.role === "student";
+  const userBatchId = user?.batch?.id;
+  const userBatchName = user?.batch?.name;
+
+  // Initial audience: CR and Student must use myBatch, others default to all
+  // Teachers should NOT use myBatch - they only post for All, Teachers, or specific Batch
+  const initialAudience: AudienceType = isCR || isStudent ? "myBatch" : "all";
+
+  const [audience, setAudience] = useState<AudienceType>(initialAudience);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [selectedBatchName, setSelectedBatchName] = useState<string | null>(
-    null,
-  );
+  const [selectedBatchName, setSelectedBatchName] = useState<string>("");
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [isPickerVisible, setIsPickerVisible] = useState(false);
-  const [availableBatches, setAvailableBatches] = useState<BatchOption[]>([]);
-  const [showBatchPicker, setShowBatchPicker] = useState(false);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isStartTimePickerVisible, setIsStartTimePickerVisible] =
     useState(false);
@@ -71,49 +72,42 @@ export default function CreateNoticeModal({
     attachments?: string;
   }>({});
 
-  const canPostForAll = user?.role === "admin" || user?.role === "teacher";
-  const canPostForTeachers = user?.role === "admin" || user?.role === "teacher";
-  const canPostForBatch =
-    (user?.role === "admin" ||
-      user?.role === "teacher" ||
-      user?.role === "cr" ||
-      user?.role === "student") &&
-    user?.batch;
-  const isAdmin = user?.role === "admin";
-  const isTeacher = user?.role === "teacher";
+  // Backend role-based audience access:
+  // - ADMIN/TEACHER: can post to all, teachers, or specific batch
+  // - CR: can ONLY post for their own batch (auto-approved)
+  // - STUDENT: can ONLY post for their own batch (pending approval)
 
-  // Initialize available batches from API
-  useEffect(() => {
-    if (isAdmin || isTeacher) {
-      const fetchBatches = async () => {
-        try {
-          const response = await batchAPI.getAllBatches();
-          if (response.data.success) {
-            setAvailableBatches(response.data.data || []);
-          }
-        } catch (error) {
-          console.error("Error fetching batches:", error);
-          // Fall back to mock data if API fails
-          setAvailableBatches([
-            { id: 1, name: "CSE 2021" },
-            { id: 2, name: "CSE 2022" },
-            { id: 3, name: "CSE 2023" },
-            { id: 4, name: "CSE 2024" },
-            { id: 5, name: "CSE 2025" },
-          ]);
-        }
-      };
-      fetchBatches();
+  const canPostForAll = isAdmin || isTeacher;
+  const canPostForTeachers = isAdmin || isTeacher;
+  const canPostForSpecificBatch = isAdmin || isTeacher;
+  const canPostForMyBatch = isCR || isStudent; // Allow even without profile batch - they can enter manually
+
+  // For CR and Student: they MUST post for their batch
+  const forceBatchPosting = isCR || isStudent;
+
+  // Determine if notice will be auto-approved
+  const willAutoApprove = isAdmin || isTeacher || isCR;
+  const isPending = isStudent;
+
+  // Validate audience option availability
+  const isAudienceDisabled = (type: AudienceType): boolean => {
+    // Student restrictions: ONLY their batch - disable all other options
+    if (isStudent) {
+      return type !== "myBatch"; // Only myBatch is allowed, everything else disabled
     }
-  }, [isAdmin, isTeacher]);
 
-  // Disable audience options based on role
-  const isAudienceDisabled = (type: AudienceType) => {
-    if (type === "all" && !canPostForAll) return true;
-    if (type === "teachers" && !canPostForTeachers) return true;
-    if (type === "myBatch" && !canPostForBatch) return true;
-    if (type === "batch" && !(isAdmin || isTeacher)) return true;
-    return false;
+    // CR restrictions: ONLY their batch - disable all other options
+    if (isCR) {
+      return type !== "myBatch"; // Only myBatch is allowed, everything else disabled
+    }
+
+    // Admin & Teacher: can access all options
+    if (isAdmin || isTeacher) {
+      if (type === "myBatch") return !userBatchId; // only if they have a batch
+      return false; // All other types (all, teachers, batch) are allowed
+    }
+
+    return true; // Default: disable
   };
 
   const pickFile = async () => {
@@ -194,24 +188,58 @@ export default function CreateNoticeModal({
   const validateForm = (): boolean => {
     const newErrors: typeof errors = {};
 
+    // Title is required
     if (!title.trim()) {
       newErrors.title = "Title is required";
     }
+    // Content is required
     if (!content.trim()) {
       newErrors.content = "Content is required";
     }
 
-    if (audience === "all" && (!canPostForAll || user?.role === "student")) {
-      newErrors.audience = "You cannot post for all users with your role";
-    } else if (
-      audience === "teachers" &&
-      (!canPostForTeachers || user?.role === "student")
-    ) {
-      newErrors.audience = "You cannot post for teachers with your role";
-    } else if (audience === "myBatch" && (!canPostForBatch || !user?.batch)) {
-      newErrors.audience = "You must belong to a batch to post for your batch";
-    } else if (audience === "batch" && !selectedBatchName) {
-      newErrors.batch = "Please select a batch";
+    // Audience validation based on role (matching backend restrictions)
+    if (isStudent) {
+      // Students MUST post for their batch only
+      if (audience !== "myBatch") {
+        newErrors.audience = "Students can only post for their own batch";
+      }
+      // Must have a batch (from profile or manual input)
+      const hasBatch = userBatchName || selectedBatchName.trim();
+      if (!hasBatch) {
+        newErrors.audience = "Please enter your batch";
+      }
+    } else if (isCR) {
+      // CR MUST post for their batch only
+      if (audience !== "myBatch") {
+        newErrors.audience = "CR can only post for their own batch";
+      }
+      // Must have a batch (from profile or manual input)
+      const hasBatch = userBatchName || selectedBatchName.trim();
+      if (!hasBatch) {
+        newErrors.audience = "Please enter your batch";
+      }
+    } else if (isAdmin || isTeacher) {
+      // Admin/Teacher: validate selected audience
+      if (audience === "batch" && !selectedBatchName.trim()) {
+        newErrors.batch = "Please enter a batch name";
+      } else if (audience === "myBatch" && !userBatchId) {
+        newErrors.audience =
+          "You must belong to a batch to post for your batch";
+      }
+    }
+
+    // Validate date format if provided (YYYY-MM-DD)
+    if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+      newErrors.audience = "Invalid date format (use YYYY-MM-DD)";
+    }
+
+    // Validate time format if provided (HH:MM, 24-hour)
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (startTime && !timeRegex.test(startTime)) {
+      newErrors.audience = "Invalid start time format (use HH:MM)";
+    }
+    if (endTime && !timeRegex.test(endTime)) {
+      newErrors.audience = "Invalid end time format (use HH:MM)";
     }
 
     setErrors(newErrors);
@@ -226,6 +254,25 @@ export default function CreateNoticeModal({
     setIsLoading(true);
     try {
       // Step 1: Create the notice
+      // Validate audience and batch before sending
+      if (isStudent && audience !== "myBatch") {
+        Alert.alert("Error", "Students can only post for their own batch");
+        setIsLoading(false);
+        return;
+      }
+      if (isCR && audience !== "myBatch") {
+        Alert.alert("Error", "CR can only post for their own batch");
+        setIsLoading(false);
+        return;
+      }
+
+      // For students/CR, they must have a batch either from profile or manual entry
+      if ((isStudent || isCR) && !userBatchName && !selectedBatchName.trim()) {
+        Alert.alert("Error", `${isStudent ? "Students" : "CR"} must have a batch to create notices`);
+        setIsLoading(false);
+        return;
+      }
+
       const payload: any = {
         title: title.trim(),
         content: content.trim(),
@@ -233,9 +280,9 @@ export default function CreateNoticeModal({
         forTeachers: audience === "teachers",
         targetBatchId:
           audience === "batch"
-            ? selectedBatchName
+            ? selectedBatchName.trim()
             : audience === "myBatch"
-              ? user?.batch?.name
+              ? userBatchName || selectedBatchName.trim() // Prefer profile batch, then manual entry
               : undefined,
       };
 
@@ -293,9 +340,14 @@ export default function CreateNoticeModal({
       }
     } catch (error: any) {
       const errorMessage =
-        error.response?.data?.message || "Failed to create notice";
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to create notice";
+      console.error(
+        "Full error:",
+        JSON.stringify(error.response?.data || error),
+      );
       Alert.alert("Error", errorMessage);
-      console.error("Failed to create notice:", error);
     } finally {
       setIsLoading(false);
     }
@@ -308,7 +360,7 @@ export default function CreateNoticeModal({
     setStartTime("");
     setEndTime("");
     setAudience("all");
-    setSelectedBatchName(null);
+    setSelectedBatchName("");
     setAttachments([]);
     setErrors({});
   };
@@ -327,7 +379,7 @@ export default function CreateNoticeModal({
       case "myBatch":
         return `Batch ${user?.batch?.name || ""}`;
       case "batch":
-        return `Specific Batch (${selectedBatchName || "Select"})`;
+        return `Specific Batch (${selectedBatchName || "Enter name"})`;
       default:
         return "";
     }
@@ -363,70 +415,86 @@ export default function CreateNoticeModal({
           contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* Status Info - Minimal */}
+          {isPending && (
+            <View className="mb-4 p-2 rounded-lg bg-yellow-50 border border-yellow-200">
+              <Text className="text-xs text-yellow-800">
+                ⏳ Notice will be pending approval
+              </Text>
+            </View>
+          )}
+          {willAutoApprove && (
+            <View className="mb-4 p-2 rounded-lg bg-green-50 border border-green-200">
+              <Text className="text-xs text-green-800">
+                ✓ Will be published immediately
+              </Text>
+            </View>
+          )}
+
           {/* Audience Selection */}
           <View className="mb-6">
             <Text className="text-sm font-semibold text-gray-900 mb-3">
               Who should see this?
             </Text>
             <View className="gap-2">
-              {/* All Users Option */}
-              <TouchableOpacity
-                onPress={() => !isAudienceDisabled("all") && setAudience("all")}
-                disabled={isAudienceDisabled("all")}
-                className={`p-3 rounded-lg border-2 ${
-                  audience === "all"
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 bg-gray-50"
-                } ${isAudienceDisabled("all") ? "opacity-50" : ""}`}
-              >
-                <View className="flex-row items-center">
-                  <View className="mr-3 h-6 w-6 rounded-full border-2 border-blue-500 items-center justify-center">
-                    {audience === "all" && (
-                      <View className="h-3 w-3 rounded-full bg-blue-500" />
-                    )}
+              {/* All Users Option - Admin/Teacher only */}
+              {canPostForAll && (
+                <TouchableOpacity
+                  onPress={() =>
+                    !isAudienceDisabled("all") && setAudience("all")
+                  }
+                  disabled={isAudienceDisabled("all")}
+                  className={`p-3 rounded-lg border-2 ${
+                    audience === "all"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 bg-gray-50"
+                  }`}
+                >
+                  <View className="flex-row items-center">
+                    <View className="mr-3 h-6 w-6 rounded-full border-2 border-blue-500 items-center justify-center">
+                      {audience === "all" && (
+                        <View className="h-3 w-3 rounded-full bg-blue-500" />
+                      )}
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-sm font-semibold text-gray-900">
+                        All Users
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text className="text-sm font-semibold text-gray-900">
-                      All Users
-                    </Text>
-                    <Text className="text-xs text-gray-500">
-                      Everyone will see this
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              )}
 
-              {/* Teachers Option */}
-              <TouchableOpacity
-                onPress={() =>
-                  !isAudienceDisabled("teachers") && setAudience("teachers")
-                }
-                disabled={isAudienceDisabled("teachers")}
-                className={`p-3 rounded-lg border-2 ${
-                  audience === "teachers"
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 bg-gray-50"
-                } ${isAudienceDisabled("teachers") ? "opacity-50" : ""}`}
-              >
-                <View className="flex-row items-center">
-                  <View className="mr-3 h-6 w-6 rounded-full border-2 border-blue-500 items-center justify-center">
-                    {audience === "teachers" && (
-                      <View className="h-3 w-3 rounded-full bg-blue-500" />
-                    )}
+              {/* Teachers Option - Admin/Teacher only */}
+              {canPostForTeachers && (
+                <TouchableOpacity
+                  onPress={() =>
+                    !isAudienceDisabled("teachers") && setAudience("teachers")
+                  }
+                  disabled={isAudienceDisabled("teachers")}
+                  className={`p-3 rounded-lg border-2 ${
+                    audience === "teachers"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 bg-gray-50"
+                  }`}
+                >
+                  <View className="flex-row items-center">
+                    <View className="mr-3 h-6 w-6 rounded-full border-2 border-blue-500 items-center justify-center">
+                      {audience === "teachers" && (
+                        <View className="h-3 w-3 rounded-full bg-blue-500" />
+                      )}
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-sm font-semibold text-gray-900">
+                        Teachers Only
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text className="text-sm font-semibold text-gray-900">
-                      Teachers Only
-                    </Text>
-                    <Text className="text-xs text-gray-500">
-                      Only teachers will see this
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              )}
 
-              {/* My Batch Option */}
-              {canPostForBatch && (
+              {/* My Batch Option - Student/CR/Admin only (not Teacher) */}
+              {canPostForMyBatch && (
                 <TouchableOpacity
                   onPress={() =>
                     !isAudienceDisabled("myBatch") && setAudience("myBatch")
@@ -444,20 +512,22 @@ export default function CreateNoticeModal({
                         <View className="h-3 w-3 rounded-full bg-blue-500" />
                       )}
                     </View>
-                    <View>
+                    <View className="flex-1">
                       <Text className="text-sm font-semibold text-gray-900">
-                        My Batch ({user?.batch?.name})
+                        {userBatchName ? `Batch ${userBatchName}` : "My Batch"}
                       </Text>
-                      <Text className="text-xs text-gray-500">
-                        Only your batch will see this
-                      </Text>
+                      {!userBatchName && (
+                        <Text className="text-xs text-amber-600 mt-1">
+                          (Enter batch below)
+                        </Text>
+                      )}
                     </View>
                   </View>
                 </TouchableOpacity>
               )}
 
-              {/* Specific Batch Option (Admin/Teachers only) */}
-              {(isAdmin || isTeacher) && (
+              {/* Specific Batch Option - Admin/Teacher only */}
+              {canPostForSpecificBatch && (
                 <TouchableOpacity
                   onPress={() =>
                     !isAudienceDisabled("batch") && setAudience("batch")
@@ -477,10 +547,7 @@ export default function CreateNoticeModal({
                     </View>
                     <View className="flex-1">
                       <Text className="text-sm font-semibold text-gray-900">
-                        Select Specific Batch
-                      </Text>
-                      <Text className="text-xs text-gray-500">
-                        Only selected batch will see this
+                        Specific Batch
                       </Text>
                     </View>
                   </View>
@@ -494,37 +561,31 @@ export default function CreateNoticeModal({
             )}
           </View>
 
-          {/* Batch Picker - Show when batch audience selected */}
-          {audience === "batch" && (isAdmin || isTeacher) && (
-            <View className="mb-5 bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <Text className="text-xs font-medium text-gray-700 mb-2">
-                Select Target Batch
+          {/* Batch Name Input - Show when batch audience selected OR when CR/Student lacks profile batch */}
+          {((audience === "batch" && (isAdmin || isTeacher)) ||
+            ((isCR || isStudent) && !userBatchName)) && (
+            <View className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <Text className="text-sm font-semibold text-gray-900 mb-2">
+                📚 Batch Name
               </Text>
-              <View className="gap-2">
-                {availableBatches.map((batch) => (
-                  <TouchableOpacity
-                    key={batch.id}
-                    onPress={() => setSelectedBatchName(batch.name)}
-                    className={`p-3 rounded-lg border ${
-                      selectedBatchName === batch.name
-                        ? "border-blue-500 bg-blue-100"
-                        : "border-blue-200 bg-white"
-                    }`}
-                  >
-                    <Text
-                      className={`text-sm font-medium ${
-                        selectedBatchName === batch.name
-                          ? "text-blue-900"
-                          : "text-gray-800"
-                      }`}
-                    >
-                      {batch.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TextInput
+                className={`p-3 border rounded-lg text-gray-900 bg-white ${
+                  errors.batch ? "border-red-500" : "border-gray-300"
+                }`}
+                placeholder="e.g., 2021 or 2022"
+                placeholderTextColor="#9CA3AF"
+                value={selectedBatchName}
+                onChangeText={setSelectedBatchName}
+                editable={!isLoading}
+                maxLength={50}
+              />
+              <Text className="text-xs text-gray-600 mt-2">
+                {isCR || isStudent
+                  ? "Enter the batch name for your posts"
+                  : "Enter batch name to target specific batch"}
+              </Text>
               {errors.batch && (
-                <Text className="text-red-500 text-xs mt-2">
+                <Text className="text-red-500 text-xs mt-2 font-medium">
                   {errors.batch}
                 </Text>
               )}
@@ -534,7 +595,7 @@ export default function CreateNoticeModal({
           {/* Title Input */}
           <View className="mb-5">
             <Text className="text-sm font-semibold text-gray-900 mb-2">
-              Title *
+              Title
             </Text>
             <TextInput
               className={`p-3 border rounded-lg text-gray-900 ${
@@ -558,7 +619,7 @@ export default function CreateNoticeModal({
           {/* Content Input */}
           <View className="mb-5">
             <Text className="text-sm font-semibold text-gray-900 mb-2">
-              Content *
+              Content
             </Text>
             <TextInput
               className={`p-3 border rounded-lg text-gray-900 ${
@@ -651,9 +712,6 @@ export default function CreateNoticeModal({
             <Text className="mb-3 text-sm font-semibold text-gray-900">
               📎 Attachments (Optional)
             </Text>
-            <Text className="mb-3 text-xs text-gray-600">
-              Max 5 files, 10MB each. Supports: Images, Documents, PDFs, etc.
-            </Text>
 
             {attachments.length > 0 && (
               <View className="mb-4 gap-2">
@@ -703,23 +761,6 @@ export default function CreateNoticeModal({
               </View>
             )}
           </View>
-
-          {/* Info Box */}
-          {user?.role === "student" && (
-            <View className="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-3">
-              <Text className="text-xs font-medium text-blue-900">
-                ℹ️ Your notice will be submitted for approval
-              </Text>
-            </View>
-          )}
-
-          {user?.role === "admin" || user?.role === "teacher" ? (
-            <View className="mb-5 rounded-lg border border-green-200 bg-green-50 p-3">
-              <Text className="text-xs font-medium text-green-900">
-                ✓ Your notice will be published immediately
-              </Text>
-            </View>
-          ) : null}
         </ScrollView>
 
         {/* Footer - Action Buttons */}
@@ -743,7 +784,11 @@ export default function CreateNoticeModal({
           >
             {isLoading && <ActivityIndicator size="small" color="white" />}
             <Text className="text-center font-semibold text-white">
-              {isLoading ? "Creating..." : "Create Notice"}
+              {isLoading
+                ? "Creating..."
+                : isStudent
+                  ? "Submit for Approval"
+                  : "Create & Publish"}
             </Text>
           </TouchableOpacity>
         </View>

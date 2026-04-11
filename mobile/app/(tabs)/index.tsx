@@ -17,7 +17,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type NoticeFilter = "all" | "forAll" | "forTeachers" | "myBatch";
+type NoticeFilter = "accessible" | "pending" | "forTeachers" | "myBatch";
 
 export default function NoticesTab() {
   const router = useRouter();
@@ -29,13 +29,32 @@ export default function NoticesTab() {
   const [selectedNotice, setSelectedNotice] = useState<INotice | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [filterType, setFilterType] = useState<NoticeFilter>("all");
+  const [filterType, setFilterType] = useState<NoticeFilter>("accessible");
+  const [pendingNotices, setPendingNotices] = useState<INotice[]>([]);
 
   const fetchNotices = async () => {
     try {
-      const response = await noticeAPI.getNotices();
-      if (response.data.success) {
-        setNotices(response.data.data || []);
+      // Always fetch approved notices
+      const approvedResponse = await noticeAPI.getNotices();
+      if (approvedResponse.data.success) {
+        setNotices(approvedResponse.data.data || []);
+      }
+
+      // Fetch pending notices if user can approve or is a student
+      if (
+        user?.role === "admin" ||
+        user?.role === "teacher" ||
+        user?.role === "cr" ||
+        user?.role === "student"
+      ) {
+        try {
+          const pendingResponse = await noticeAPI.getPendingNotices();
+          if (pendingResponse.data.success) {
+            setPendingNotices(pendingResponse.data.data || []);
+          }
+        } catch (err) {
+          console.error("Failed to fetch pending notices:", err);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch notices:", error);
@@ -53,7 +72,9 @@ export default function NoticesTab() {
     const setupSocket = async () => {
       socket = await getSocket();
       socket.on("notice_published", (notice: INotice) => {
+        // Add to notices and remove from pending if present
         setNotices((prev) => [notice, ...prev]);
+        setPendingNotices((prev) => prev.filter((n) => n.id !== notice.id));
       });
     };
 
@@ -72,9 +93,9 @@ export default function NoticesTab() {
   };
 
   const getFilteredNotices = (): INotice[] => {
+    // Backend already filters by role (getVisibleNotices returns only approved notices accessible to the user)
+    // This gives additional local filtering
     switch (filterType) {
-      case "forAll":
-        return notices.filter((n) => n.forAll);
       case "forTeachers":
         return notices.filter((n) => n.forTeachers);
       case "myBatch":
@@ -84,8 +105,25 @@ export default function NoticesTab() {
             !n.forAll &&
             !n.forTeachers,
         );
-      case "all":
+      case "pending":
+        // Show pending notices for admin/teacher/cr (all pending)
+        // For students, show only their own pending notices
+        if (user?.role === "student") {
+          // Students only see their own pending notices (by author)
+          return pendingNotices.filter((n) => n.createdBy?.user_id === user?.user_id);
+        }
+        // Admin/teacher/cr see all pending notices
+        if (
+          user?.role === "admin" ||
+          user?.role === "teacher" ||
+          user?.role === "cr"
+        ) {
+          return pendingNotices;
+        }
+        return [];
+      case "accessible":
       default:
+        // Shows all accessible notices (already filtered by backend)
         return notices;
     }
   };
@@ -97,7 +135,14 @@ export default function NoticesTab() {
 
   const handleNoticeDelete = (noticeId: number) => {
     setNotices((prev) => prev.filter((n) => n.id !== noticeId));
+    setPendingNotices((prev) => prev.filter((n) => n.id !== noticeId));
     setDetailModalVisible(false);
+  };
+
+  const handleNoticeApprove = (noticeId: number) => {
+    // Remove from pending and refresh to get updated data
+    setPendingNotices((prev) => prev.filter((n) => n.id !== noticeId));
+    fetchNotices();
   };
 
   const handleCreateSuccess = () => {
@@ -150,39 +195,34 @@ export default function NoticesTab() {
             gap: 8,
           }}
         >
+          {/* All Accessible Notices (Dynamic based on role) */}
           <TouchableOpacity
-            onPress={() => setFilterType("all")}
+            onPress={() => {
+              setFilterType("accessible");
+            }}
             className={`px-4 py-2 rounded-full ${
-              filterType === "all" ? "bg-blue-600" : "bg-gray-100"
+              filterType === "accessible" ? "bg-blue-600" : "bg-gray-100"
             }`}
           >
             <Text
               className={`text-sm font-semibold ${
-                filterType === "all" ? "text-white" : "text-gray-700"
+                filterType === "accessible" ? "text-white" : "text-gray-700"
               }`}
             >
-              All
+              {user?.role === "admin"
+                ? "All"
+                : user?.role === "teacher"
+                  ? "Assigned"
+                  : "For All"}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setFilterType("forAll")}
-            className={`px-4 py-2 rounded-full ${
-              filterType === "forAll" ? "bg-blue-600" : "bg-gray-100"
-            }`}
-          >
-            <Text
-              className={`text-sm font-semibold ${
-                filterType === "forAll" ? "text-white" : "text-gray-700"
-              }`}
-            >
-              For All
-            </Text>
-          </TouchableOpacity>
-
+          {/* Teacher-specific: Teachers Only */}
           {(user?.role === "teacher" || user?.role === "admin") && (
             <TouchableOpacity
-              onPress={() => setFilterType("forTeachers")}
+              onPress={() => {
+                setFilterType("forTeachers");
+              }}
               className={`px-4 py-2 rounded-full ${
                 filterType === "forTeachers" ? "bg-blue-600" : "bg-gray-100"
               }`}
@@ -192,14 +232,17 @@ export default function NoticesTab() {
                   filterType === "forTeachers" ? "text-white" : "text-gray-700"
                 }`}
               >
-                Teachers
+                For Teachers
               </Text>
             </TouchableOpacity>
           )}
 
-          {user?.batch && (
+          {/* Batch-specific: My Batch Notices (only for CR) */}
+          {user?.batch && user?.role === "cr" && (
             <TouchableOpacity
-              onPress={() => setFilterType("myBatch")}
+              onPress={() => {
+                setFilterType("myBatch");
+              }}
               className={`px-4 py-2 rounded-full ${
                 filterType === "myBatch" ? "bg-blue-600" : "bg-gray-100"
               }`}
@@ -209,7 +252,30 @@ export default function NoticesTab() {
                   filterType === "myBatch" ? "text-white" : "text-gray-700"
                 }`}
               >
-                My Batch
+                Batch {user.batch.name}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Pending Notices - for approvers (admin/teacher/cr) and students (their own) */}
+          {(user?.role === "admin" ||
+            user?.role === "teacher" ||
+            user?.role === "cr" ||
+            user?.role === "student") && (
+            <TouchableOpacity
+              onPress={() => {
+                setFilterType("pending");
+              }}
+              className={`px-4 py-2 rounded-full ${
+                filterType === "pending" ? "bg-blue-600" : "bg-gray-100"
+              }`}
+            >
+              <Text
+                className={`text-sm font-semibold ${
+                  filterType === "pending" ? "text-white" : "text-gray-700"
+                }`}
+              >
+                ⏳ {user?.role === "student" ? "My Pending" : "Pending"}
               </Text>
             </TouchableOpacity>
           )}
@@ -236,7 +302,7 @@ export default function NoticesTab() {
               No notices found
             </Text>
             <Text className="text-gray-500 text-sm mt-2">
-              {filterType === "all"
+              {filterType === "accessible"
                 ? "Check back later for updates"
                 : `No notices for this category`}
             </Text>
@@ -258,6 +324,7 @@ export default function NoticesTab() {
         notice={selectedNotice}
         onClose={() => setDetailModalVisible(false)}
         onDelete={handleNoticeDelete}
+        onApprove={handleNoticeApprove}
       />
 
       {/* Create Notice Modal */}

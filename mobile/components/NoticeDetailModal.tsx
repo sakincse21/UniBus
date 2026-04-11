@@ -11,12 +11,14 @@ import {
 } from "react-native";
 import { INotice } from "@/interfaces";
 import { noticeAPI } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 
 interface NoticeDetailModalProps {
   visible: boolean;
   notice: INotice | null;
   onClose: () => void;
   onDelete?: (noticeId: number) => void;
+  onApprove?: (noticeId: number) => void;
 }
 
 interface Attachment {
@@ -31,9 +33,12 @@ export default function NoticeDetailModal({
   notice,
   onClose,
   onDelete,
+  onApprove,
 }: NoticeDetailModalProps) {
+  const { user } = useAuthStore();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (visible && notice) {
@@ -68,8 +73,15 @@ export default function NoticeDetailModal({
     }
   };
 
+  const canDeleteNotice = () => {
+    // Only admin, teacher, or CR can delete notices
+    return (
+      user?.role === "admin" || user?.role === "teacher" || user?.role === "cr"
+    );
+  };
+
   const handleDeleteNotice = () => {
-    if (!notice) return;
+    if (!notice || !canDeleteNotice()) return;
     Alert.alert(
       "Delete Notice",
       "Are you sure you want to delete this notice?",
@@ -89,6 +101,66 @@ export default function NoticeDetailModal({
           },
         },
       ],
+    );
+  };
+
+  const handleApproveNotice = () => {
+    if (!notice || notice.status !== "pending") return;
+    Alert.alert(
+      "Approve Notice",
+      "Are you sure you want to approve this notice?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Approve",
+          style: "default",
+          onPress: async () => {
+            setIsProcessing(true);
+            try {
+              await noticeAPI.approveNotice(notice.id);
+              Alert.alert("Success", "Notice approved");
+              onApprove?.(notice.id);
+              onClose();
+            } catch (error: any) {
+              const errorMessage =
+                error.response?.data?.message || "Failed to approve notice";
+              Alert.alert("Error", errorMessage);
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRejectNotice = () => {
+    if (!notice || notice.status !== "pending") return;
+    Alert.prompt(
+      "Reject Notice",
+      "Enter rejection reason (optional):",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async (_reason?: string) => {
+            setIsProcessing(true);
+            try {
+              await noticeAPI.rejectNotice(notice.id);
+              Alert.alert("Success", "Notice rejected");
+              onClose();
+            } catch (error: any) {
+              const errorMessage =
+                error.response?.data?.message || "Failed to reject notice";
+              Alert.alert("Error", errorMessage);
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+        },
+      ],
+      "plain-text",
     );
   };
 
@@ -143,9 +215,14 @@ export default function NoticeDetailModal({
           <Text className="text-lg font-bold text-gray-900">
             Notice Details
           </Text>
-          <TouchableOpacity onPress={handleDeleteNotice}>
-            <Text className="text-red-600 text-base font-semibold">Delete</Text>
-          </TouchableOpacity>
+          {canDeleteNotice() && (
+            <TouchableOpacity onPress={handleDeleteNotice}>
+              <Text className="text-red-600 text-base font-semibold">
+                Delete
+              </Text>
+            </TouchableOpacity>
+          )}
+          {!canDeleteNotice() && <View className="w-12" />}
         </View>
 
         <ScrollView className="flex-1 p-4">
@@ -259,6 +336,46 @@ export default function NoticeDetailModal({
               </Text>
             </View>
           ) : null}
+
+          {/* Approval Actions - Only for pending notices and approvers */}
+          {notice.status === "pending" &&
+            (user?.role === "admin" ||
+              user?.role === "teacher" ||
+              user?.role === "cr") && (
+              <View className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <Text className="text-yellow-900 font-semibold mb-3">
+                  Pending Approval
+                </Text>
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    onPress={handleApproveNotice}
+                    disabled={isProcessing}
+                    className="flex-1 bg-green-600 rounded-lg py-3"
+                  >
+                    {isProcessing && notice.status === "pending" ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text className="text-white font-semibold text-center">
+                        ✓ Approve
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleRejectNotice}
+                    disabled={isProcessing}
+                    className="flex-1 bg-red-600 rounded-lg py-3"
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text className="text-white font-semibold text-center">
+                        ✕ Reject
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
         </ScrollView>
       </View>
     </Modal>

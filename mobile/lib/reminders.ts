@@ -8,13 +8,17 @@ import { IRoutineSlot } from "@/interfaces";
 export async function requestNotificationPermissions(): Promise<boolean> {
   try {
     if (Platform.OS === "web" || process.env.NODE_ENV === "development") {
-      console.log("Push notifications are limited in Expo Go. Use a development build for production.");
+      console.log(
+        "Push notifications are limited in Expo Go. Use a development build for production.",
+      );
       return false;
     }
     // Full implementation would use expo-notifications here
     return false;
   } catch (error) {
-    console.debug("Notification permissions setup skipped (Expo Go limitation)");
+    console.debug(
+      "Notification permissions setup skipped (Expo Go limitation)",
+    );
     return false;
   }
 }
@@ -95,21 +99,21 @@ async function getOrCreateCalendarId(): Promise<string | null> {
 // ── Day helpers ───────────────────────────────────────────────────────────────
 
 const DAY_MAP: Record<string, number> = {
-  sunday: 1,
-  monday: 2,
-  tuesday: 3,
-  wednesday: 4,
-  thursday: 5,
-  friday: 6,
-  saturday: 7,
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
 };
 
 function getNextDateForDay(dayName: string): Date {
   const targetDay = DAY_MAP[dayName];
-  if (!targetDay) throw new Error(`Invalid day: ${dayName}`);
+  if (targetDay === undefined) throw new Error(`Invalid day: ${dayName}`);
 
   const now = new Date();
-  const currentDay = now.getDay() + 1; // 1=Sun..7=Sat
+  const currentDay = now.getDay();
   let daysUntil = targetDay - currentDay;
   if (daysUntil <= 0) daysUntil += 7;
 
@@ -134,7 +138,9 @@ function parseTimeToDate(date: Date, time: string): Date {
 export async function scheduleWeeklyReminders(
   slots: IRoutineSlot[],
 ): Promise<string[]> {
-  console.debug("Reminder scheduling not available in Expo Go. Use a development build for notifications.");
+  console.debug(
+    "Reminder scheduling not available in Expo Go. Use a development build for notifications.",
+  );
   return [];
 }
 
