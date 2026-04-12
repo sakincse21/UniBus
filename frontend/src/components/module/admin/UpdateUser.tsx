@@ -46,12 +46,17 @@ export const updateUserSchema = z.object({
 );
 
 const UpdateUserForm = ({user}:{user: IUser|null}) => {
+  const defaultRole: "student" | "teacher" | "cr" =
+    user?.role === "teacher" || user?.role === "cr" || user?.role === "student"
+      ? user.role
+      : "student";
+
   const form = useForm<z.infer<typeof updateUserSchema>>({
     resolver: zodResolver(updateUserSchema),
     defaultValues: {
       name: user?.name,
       email: user?.email,
-      role: (user?.role || "student") as "student" | "teacher" | "cr",
+      role: defaultRole,
       batchNumber: user?.batch?.name || ""
     },
   });

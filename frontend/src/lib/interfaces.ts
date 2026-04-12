@@ -2,6 +2,11 @@ export interface IUser {
   user_id: string;
   name: string;
   email: string;
+  role?: "admin" | "teacher" | "student" | "cr";
+  batch?: {
+    id: number;
+    name: string;
+  } | null;
   starttime: string | null;
   endtime: string | null;
   createdAt: string;
