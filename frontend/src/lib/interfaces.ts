@@ -14,6 +14,13 @@ export interface IRegUser {
   password: string;
 }
 
+export interface IRoutePoint {
+  sequence: number;
+  lat: number;
+  lng: number;
+  minuteOffset: number;
+}
+
 // Calendar Types
 export interface ICalendarEventSource {
   noticeId?: number;

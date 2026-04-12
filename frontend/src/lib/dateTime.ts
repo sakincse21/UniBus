@@ -80,15 +80,11 @@ export function getBangladeshDateKey(value: string | Date): string {
     return value;
   }
 
-  const parts = getFormatParts(
-    value,
-    {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    },
-    "en-CA",
-  );
+  const parts = getFormatParts(value, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }, "en-CA");
 
   return `${getPart(parts, "year")}-${getPart(parts, "month")}-${getPart(parts, "day")}`;
 }
@@ -103,30 +99,4 @@ export function formatDateForApi(value: Date): string {
   const day = String(value.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-}
-
-export function formatLocalDateTime(date: Date, time: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(time.getHours()).padStart(2, "0");
-  const minutes = String(time.getMinutes()).padStart(2, "0");
-
-  return `${year}-${month}-${day}T${hours}:${minutes}:00`;
-}
-
-export function formatLocalDateAllDay(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}T00:00:00`;
-}
-
-export function formatLocalDateEndOfDay(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}T23:59:59`;
 }

@@ -3,7 +3,7 @@ import { Notice, NoticeStatus } from "../notice/notice.entity";
 import { Routine, DayOfWeek } from "../routine/routine.entity";
 import { UserFixture } from "./calendar.entity";
 import { User, UserRole } from "../user/user.entity";
-import { parseLocalDate } from "../../utils/dateUtils";
+import { parseLocalDate, parseLocalDateTime } from "../../utils/dateUtils";
 
 export interface CalendarEvent {
   id: string;
@@ -12,6 +12,8 @@ export interface CalendarEvent {
   description?: string;
   startDateTime: Date;
   endDateTime?: Date;
+  startTime?: string;
+  endTime?: string;
   isAllDay?: boolean;
   source: {
     noticeId?: number;
@@ -131,25 +133,52 @@ async function getNoticeEvents(
 
   const notices = await qb.getMany();
 
-  return notices.map((notice) => ({
-    id: `notice-${notice.id}`,
-    type: "notice",
-    title: notice.title,
-    description: notice.content,
-    startDateTime: parseLocalDate(notice.eventDate!),
-    endDateTime: parseLocalDate(notice.eventDate!),
-    isAllDay: true,
-    source: { noticeId: notice.id },
-    metadata: {
-      forAll: notice.forAll,
-      forTeachers: notice.forTeachers,
-      batchId: notice.targetBatch?.id,
-      batchName: notice.targetBatch?.name,
-      noticeContent: notice.content,
-      createdBy: notice.createdBy?.name,
-      canDelete: canDeleteNotice(notice, user),
-    },
-  }));
+  const normalizeNoticeTime = (time?: string): string | undefined => {
+    if (!time) return undefined;
+
+    const trimmed = time.trim();
+    const match = trimmed.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+
+    if (!match) {
+      return undefined;
+    }
+
+    return `${match[1]}:${match[2]}:00`;
+  };
+
+  return notices.map((notice) => {
+    const normalizedStartTime = normalizeNoticeTime(notice.startTime);
+    const normalizedEndTime = normalizeNoticeTime(notice.endTime);
+    const hasTimeRange = Boolean(normalizedStartTime && normalizedEndTime);
+    const startDateTime = hasTimeRange
+      ? parseLocalDateTime(`${notice.eventDate!}T${normalizedStartTime!}`)
+      : parseLocalDate(notice.eventDate!);
+    const endDateTime = hasTimeRange
+      ? parseLocalDateTime(`${notice.eventDate!}T${normalizedEndTime!}`)
+      : parseLocalDate(notice.eventDate!);
+
+    return {
+      id: `notice-${notice.id}`,
+      type: "notice",
+      title: notice.title,
+      description: notice.content,
+      startDateTime,
+      endDateTime,
+      startTime: normalizedStartTime?.slice(0, 5),
+      endTime: normalizedEndTime?.slice(0, 5),
+      isAllDay: !hasTimeRange,
+      source: { noticeId: notice.id },
+      metadata: {
+        forAll: notice.forAll,
+        forTeachers: notice.forTeachers,
+        batchId: notice.targetBatch?.id,
+        batchName: notice.targetBatch?.name,
+        noticeContent: notice.content,
+        createdBy: notice.createdBy?.name,
+        canDelete: canDeleteNotice(notice, user),
+      },
+    };
+  });
 }
 
 /**

@@ -58,17 +58,18 @@ export const noticeAPI = {
     const formData = new FormData();
     formData.append("noticeId", noticeId.toString());
 
-    files.forEach((file, index) => {
+    // Append files directly - axios will handle multipart encoding
+    files.forEach((file) => {
       formData.append("attachments", {
         uri: file.uri,
         name: file.name,
-        type: file.type,
+        type: file.type || "application/octet-stream",
       } as any);
     });
 
     return api.post("/attachment/upload", formData, {
       headers: {
-        "Content-Type": "multipart/form-data",
+        "Content-Type": undefined, // Override default JSON header to allow FormData multipart
       },
       timeout: 120000,
     });
@@ -98,7 +99,7 @@ export const userAPI = {
 export const routineAPI = {
   uploadImage: (formData: FormData) =>
     api.post("/routine/upload", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
+      headers: { "Content-Type": undefined }, // Let axios handle multipart encoding
       timeout: 60000,
     }),
   confirmRoutine: (slots: any[]) => api.post("/routine/confirm", { slots }),

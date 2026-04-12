@@ -12,10 +12,11 @@ import {
 import { INotice } from "@/interfaces";
 import { noticeAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
+import { addNoticeToCalendar } from "@/lib/calendar";
 import {
-  addNoticeToCalendar,
-  requestCalendarPermissions,
-} from "@/lib/calendar";
+  formatBangladeshDate,
+  formatBangladeshDateTime,
+} from "@/lib/dateFormatter";
 
 interface NoticeDetailModalProps {
   visible: boolean;
@@ -216,14 +217,7 @@ export default function NoticeDetailModal({
   if (!notice) return null;
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatBangladeshDateTime(dateString);
   };
 
   const getTargetLabel = () => {
@@ -325,13 +319,7 @@ export default function NoticeDetailModal({
                   <View className="flex-row justify-between">
                     <Text className="text-blue-700 text-sm">Date</Text>
                     <Text className="text-blue-900 font-medium text-sm">
-                      {notice.eventDate &&
-                        new Date(notice.eventDate).toLocaleDateString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
+                      {notice.eventDate && formatBangladeshDate(notice.eventDate)}
                     </Text>
                   </View>
 
@@ -402,7 +390,7 @@ export default function NoticeDetailModal({
                           {attachment.fileName}
                         </Text>
                         <Text className="text-xs text-gray-500 mt-0.5">
-                          {new Date(attachment.uploadedAt).toLocaleDateString()}
+                          {formatBangladeshDate(attachment.uploadedAt)}
                         </Text>
                       </View>
                       <Text className="text-blue-600 text-lg">↓</Text>

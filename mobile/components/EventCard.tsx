@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { ICalendarEvent } from "@/interfaces";
+import { formatBangladeshTime } from "@/lib/dateFormatter";
 
 interface EventCardProps {
   event: ICalendarEvent;
@@ -44,13 +45,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       return "All Day";
     }
     try {
-      const start = new Date(event.startDateTime);
-      const time = start.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-      return time;
+      return formatBangladeshTime(event.startDateTime);
     } catch {
       return "";
     }

@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { INotice } from "@/interfaces";
+import { formatBangladesh } from "@/lib/dateFormatter";
 
 interface NoticeCardProps {
   notice: INotice;
@@ -21,7 +22,7 @@ export default function NoticeCard({ notice, onPress }: NoticeCardProps) {
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
 
-    return date.toLocaleDateString("en-US", {
+    return formatBangladesh(date, {
       month: "short",
       day: "numeric",
     });

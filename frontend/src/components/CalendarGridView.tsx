@@ -15,6 +15,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Calendar, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import {
+  formatBangladesh,
+  formatBangladeshMonthYear,
+  formatBangladeshTime,
+  getBangladeshDateKey,
+} from "@/lib/dateTime";
 
 interface CalendarDay {
   date: Date;
@@ -25,13 +31,6 @@ interface CalendarDay {
 interface CalendarWeek {
   days: CalendarDay[];
 }
-
-// Utility function to format date to local YYYY-MM-DD format
-const formatLocalDate = (date: Date): string => {
-  return date.getFullYear() + '-' + 
-    String(date.getMonth() + 1).padStart(2, '0') + '-' +
-    String(date.getDate()).padStart(2, '0');
-};
 
 export default function CalendarGridView() {
   const [events, setEvents] = useState<ICalendarEvent[]>([]);
@@ -85,18 +84,10 @@ export default function CalendarGridView() {
 
       for (let i = 0; i < 7; i++) {
         const date = new Date(currentDateIterator);
-        // Use local date formatting to maintain timezone context
-        const dateStr = date.getFullYear() + '-' + 
-          String(date.getMonth() + 1).padStart(2, '0') + '-' +
-          String(date.getDate()).padStart(2, '0');
+        const dateStr = getBangladeshDateKey(date);
         
-        // Also convert event date to local format for proper comparison
         const dayEvents = events.filter((e) => {
-          const eventDate = new Date(e.startDateTime);
-          const eventDateStr = eventDate.getFullYear() + '-' +
-            String(eventDate.getMonth() + 1).padStart(2, '0') + '-' +
-            String(eventDate.getDate()).padStart(2, '0');
-          return eventDateStr === dateStr;
+          return getBangladeshDateKey(e.startDateTime) === dateStr;
         });
 
         week.days.push({
@@ -172,7 +163,7 @@ export default function CalendarGridView() {
   };
 
   const openFixtureDialog = (date: Date) => {
-    const dateStr = formatLocalDate(date);
+    const dateStr = getBangladeshDateKey(date);
     setFixtureData((prev) => ({
       ...prev,
       startDateTime: `${dateStr}T08:00`,
@@ -205,18 +196,11 @@ export default function CalendarGridView() {
   };
 
   const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatBangladeshTime(dateStr);
   };
 
   const weeks = generateCalendarWeeks();
-  const monthName = currentDate.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthName = formatBangladeshMonthYear(currentDate);
 
   if (loading) {
     return (
@@ -349,20 +333,22 @@ export default function CalendarGridView() {
         <DialogContent className="sm:max-w-md max-h-96 overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {selectedDate?.toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
+              {selectedDate
+                ? formatBangladesh(selectedDate, {
+                    weekday: "long",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : ""}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             {selectedDate && events
               .filter((e) => {
-                const eventDateStr = formatLocalDate(new Date(e.startDateTime));
-                const selectedDateStr = formatLocalDate(selectedDate);
+                const eventDateStr = getBangladeshDateKey(e.startDateTime);
+                const selectedDateStr = getBangladeshDateKey(selectedDate);
                 return eventDateStr === selectedDateStr;
               })
               .length === 0 ? (
@@ -375,8 +361,8 @@ export default function CalendarGridView() {
                 {selectedDate &&
                   events
                     .filter((e) => {
-                      const eventDateStr = formatLocalDate(new Date(e.startDateTime));
-                      const selectedDateStr = formatLocalDate(selectedDate);
+                      const eventDateStr = getBangladeshDateKey(e.startDateTime);
+                      const selectedDateStr = getBangladeshDateKey(selectedDate);
                       return eventDateStr === selectedDateStr;
                     })
                     .map((event) => (
@@ -501,7 +487,8 @@ export default function CalendarGridView() {
           <div key={weekIdx} className="grid grid-cols-7 gap-0 border-b">
             {week.days.map((day, dayIdx) => {
               const isToday =
-                new Date().toDateString() === day.date.toDateString();
+                getBangladeshDateKey(new Date()) ===
+                getBangladeshDateKey(day.date);
               const isCurrentMonth = day.isCurrentMonth;
 
               return (

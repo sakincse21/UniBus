@@ -17,4 +17,5 @@ export const env = {
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
   SMTP_FROM: process.env.SMTP_FROM || "noreply@unibus.com",
+  OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "nvidia/nemotron-nano-12b-v2-vl:free",
 };

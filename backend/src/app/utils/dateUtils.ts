@@ -1,63 +1,146 @@
 /**
- * Timezone-aware date parsing utilities
- * Handles datetime-local input from frontend browsers which send local time strings
+ * Bangladesh timezone utilities.
+ *
+ * We keep the API contract simple:
+ * - date-only values use YYYY-MM-DD
+ * - date-time values use YYYY-MM-DDTHH:mm[:ss] and represent Asia/Dhaka local time
  */
 
-/**
- * Parse a datetime-local string (e.g., "2026-04-16T10:00") accounting for timezone offset
- * Browser datetime-local inputs represent local time, so we need to convert them properly
- * 
- * @param dateTimeString - ISO-like string from datetime-local input (e.g., "2026-04-16T10:00")
- * @returns Date object representing the correct UTC time
- */
-export function parseLocalDateTime(dateTimeString: string): Date {
-  // Parse the datetime-local string
-  const [dateStr, timeStr] = dateTimeString.split("T");
-  const [yearStr, monthStr, dayStr] = dateStr.split("-");
-  const [hourStr, minStr] = timeStr.split(":");
+export const BANGLADESH_TIME_ZONE = "Asia/Dhaka";
+export const BANGLADESH_OFFSET_MINUTES = 6 * 60;
+const BANGLADESH_OFFSET_MS = BANGLADESH_OFFSET_MINUTES * 60 * 1000;
 
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthStr, 10) - 1; // JavaScript months are 0-indexed
-  const day = parseInt(dayStr, 10);
-  const hour = parseInt(hourStr, 10);
-  const min = parseInt(minStr, 10);
+const DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DATE_TIME_REGEX =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
 
-  // Create a local date (this is how the browser interprets datetime-local)
-  const localDate = new Date(year, month, day, hour, min, 0);
-
-  // Get the timezone offset in minutes
-  const offsetMs = localDate.getTimezoneOffset() * 60 * 1000;
-
-  // Convert to UTC by accounting for timezone offset
-  // If timezone offset is positive (e.g., UTC-5), we need to ADD to get UTC
-  // If timezone offset is negative (e.g., UTC+5), we need to SUBTRACT from to get UTC
-  const utcDate = new Date(localDate.getTime() + offsetMs);
-
-  return utcDate;
+function toBangladeshPseudoDate(date: Date): Date {
+  return new Date(date.getTime() + BANGLADESH_OFFSET_MS);
 }
 
-/**
- * Parse a date string (e.g., "2026-04-16") accounting for timezone offset
- * This ensures the date represents midnight local time (start of day)
- * 
- * @param dateString - Date string in format YYYY-MM-DD
- * @returns Date object representing start of day in UTC
- */
+function createDateFromBangladeshParts(
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+  millisecond = 0,
+): Date {
+  return new Date(
+    Date.UTC(year, month, day, hour, minute, second, millisecond) -
+      BANGLADESH_OFFSET_MS,
+  );
+}
+
+function getValidatedDateMatch(dateString: string): RegExpMatchArray {
+  const match = dateString.match(DATE_REGEX);
+
+  if (!match) {
+    throw new Error(`Invalid date string: ${dateString}`);
+  }
+
+  return match;
+}
+
+function getValidatedDateTimeMatch(dateTimeString: string): RegExpMatchArray {
+  const match = dateTimeString.match(DATE_TIME_REGEX);
+
+  if (!match) {
+    throw new Error(`Invalid datetime string: ${dateTimeString}`);
+  }
+
+  return match;
+}
+
+export function parseLocalDateTime(dateTimeString: string): Date {
+  const match = getValidatedDateTimeMatch(dateTimeString);
+  const [, yearStr, monthStr, dayStr, hourStr, minuteStr, secondStr] = match;
+
+  return createDateFromBangladeshParts(
+    parseInt(yearStr, 10),
+    parseInt(monthStr, 10) - 1,
+    parseInt(dayStr, 10),
+    parseInt(hourStr, 10),
+    parseInt(minuteStr, 10),
+    parseInt(secondStr ?? "0", 10),
+  );
+}
+
 export function parseLocalDate(dateString: string): Date {
-  const [yearStr, monthStr, dayStr] = dateString.split("-");
+  const match = getValidatedDateMatch(dateString);
+  const [, yearStr, monthStr, dayStr] = match;
 
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthStr, 10) - 1; // JavaScript months are 0-indexed
-  const day = parseInt(dayStr, 10);
+  return createDateFromBangladeshParts(
+    parseInt(yearStr, 10),
+    parseInt(monthStr, 10) - 1,
+    parseInt(dayStr, 10),
+  );
+}
 
-  // Create a local date at midnight
-  const localDate = new Date(year, month, day, 0, 0, 0);
+export function parseLocalDateEndOfDay(dateString: string): Date {
+  const match = getValidatedDateMatch(dateString);
+  const [, yearStr, monthStr, dayStr] = match;
 
-  // Get the timezone offset in minutes
-  const offsetMs = localDate.getTimezoneOffset() * 60 * 1000;
+  return createDateFromBangladeshParts(
+    parseInt(yearStr, 10),
+    parseInt(monthStr, 10) - 1,
+    parseInt(dayStr, 10),
+    23,
+    59,
+    59,
+    999,
+  );
+}
 
-  // Convert to UTC
-  const utcDate = new Date(localDate.getTime() + offsetMs);
+export function formatBangladeshDateKey(date: Date): string {
+  const bangladeshDate = toBangladeshPseudoDate(date);
+  const year = bangladeshDate.getUTCFullYear();
+  const month = String(bangladeshDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(bangladeshDate.getUTCDate()).padStart(2, "0");
 
-  return utcDate;
+  return `${year}-${month}-${day}`;
+}
+
+export function getBangladeshDayOfWeek(date: Date): number {
+  return toBangladeshPseudoDate(date).getUTCDay();
+}
+
+export function getBangladeshStartOfDay(date: Date): Date {
+  const bangladeshDate = toBangladeshPseudoDate(date);
+
+  return createDateFromBangladeshParts(
+    bangladeshDate.getUTCFullYear(),
+    bangladeshDate.getUTCMonth(),
+    bangladeshDate.getUTCDate(),
+  );
+}
+
+export function getBangladeshEndOfDay(date: Date): Date {
+  const bangladeshDate = toBangladeshPseudoDate(date);
+
+  return createDateFromBangladeshParts(
+    bangladeshDate.getUTCFullYear(),
+    bangladeshDate.getUTCMonth(),
+    bangladeshDate.getUTCDate(),
+    23,
+    59,
+    59,
+    999,
+  );
+}
+
+export function addBangladeshDays(date: Date, days: number): Date {
+  const bangladeshDate = toBangladeshPseudoDate(date);
+  bangladeshDate.setUTCDate(bangladeshDate.getUTCDate() + days);
+
+  return createDateFromBangladeshParts(
+    bangladeshDate.getUTCFullYear(),
+    bangladeshDate.getUTCMonth(),
+    bangladeshDate.getUTCDate(),
+    bangladeshDate.getUTCHours(),
+    bangladeshDate.getUTCMinutes(),
+    bangladeshDate.getUTCSeconds(),
+    bangladeshDate.getUTCMilliseconds(),
+  );
 }

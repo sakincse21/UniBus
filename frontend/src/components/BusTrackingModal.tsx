@@ -146,6 +146,8 @@ export default function BusTrackingModal() {
     setIsTracking(true);
 
     if (!navigator.geolocation) {
+      socket.emit("stop_tracking", { busId });
+      setIsTracking(false);
       toast.error("Geolocation is not supported by your browser");
       return;
     }
@@ -160,6 +162,8 @@ export default function BusTrackingModal() {
       },
       (err) => {
         console.error("Geo watch error:", err);
+        socket.emit("stop_tracking", { busId });
+        setIsTracking(false);
         toast.error("Location access error: " + err.message);
       },
       { enableHighAccuracy: true },

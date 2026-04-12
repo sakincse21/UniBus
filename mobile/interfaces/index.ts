@@ -65,6 +65,7 @@ export interface IBusEstimate {
 export interface IBusTrackingResponse {
   isLive: boolean;
   points: IRoutePoint[];
+  routeId?: number | null;
   startTime: string | null;
   notifiedUsers: number;
   estimate: IBusEstimate | null;
@@ -122,6 +123,8 @@ export interface ICalendarEvent {
   description?: string;
   startDateTime: string; // ISO date string
   endDateTime?: string; // ISO date string
+  startTime?: string; // HH:mm
+  endTime?: string; // HH:mm
   isAllDay?: boolean;
   source: ICalendarEventSource;
   metadata?: ICalendarEventMetadata;

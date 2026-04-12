@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useRole } from "@/components/RoleProvider";
 import { toast } from "sonner";
+import { formatBangladesh, formatBangladeshDate } from "@/lib/dateTime";
 
 export default function NoticeDetailPage() {
   const params = useParams();
@@ -156,7 +157,7 @@ export default function NoticeDetailPage() {
             <div className="flex-1">
               <CardTitle className="text-2xl font-bold">{notice.title}</CardTitle>
               <span className="text-sm text-muted-foreground whitespace-nowrap ml-0 mt-1 block">
-                {new Date(notice.createdAt).toLocaleDateString("en-US", {
+                {formatBangladesh(notice.createdAt, {
                   month: "long",
                   day: "numeric",
                   year: "numeric",
@@ -189,7 +190,7 @@ export default function NoticeDetailPage() {
               </p>
               {notice.eventDate && (
                 <p className="text-xs mt-1">
-                  Event Date: {notice.eventDate}
+                  Event Date: {formatBangladeshDate(notice.eventDate)}
                 </p>
               )}
             </div>

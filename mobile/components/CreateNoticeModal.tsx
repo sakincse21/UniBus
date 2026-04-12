@@ -15,6 +15,11 @@ import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { noticeAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
+import {
+  formatBangladeshDate,
+  formatDateForApi,
+  parseApiDate,
+} from "@/lib/dateFormatter";
 
 type AudienceType = "all" | "teachers" | "batch" | "myBatch";
 
@@ -128,8 +133,7 @@ export default function CreateNoticeModal({
   const handleDateConfirm = (event: any, date?: Date) => {
     setIsDatePickerVisible(false);
     if (date) {
-      const formattedDate = date.toISOString().split("T")[0];
-      setEventDate(formattedDate);
+      setEventDate(formatDateForApi(date));
     }
   };
 
@@ -551,13 +555,7 @@ export default function CreateNoticeModal({
                 className="rounded border border-blue-300 bg-blue-50 p-3"
               >
                 <Text className="text-sm text-gray-900">
-                  {eventDate
-                    ? new Date(eventDate).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : "Select Date"}
+                  {eventDate ? formatBangladeshDate(eventDate) : "Select Date"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -674,7 +672,7 @@ export default function CreateNoticeModal({
 
       {isDatePickerVisible && (
         <DateTimePicker
-          value={eventDate ? new Date(eventDate) : new Date()}
+          value={eventDate ? parseApiDate(eventDate) : new Date()}
           mode="date"
           display="spinner"
           onChange={handleDateConfirm}

@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
+const MODEL = env.OPENROUTER_MODEL;
 // const MODEL = "google/gemma-3-27b-it:free";
 
 export interface RoutineSlot {

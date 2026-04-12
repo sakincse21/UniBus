@@ -1,6 +1,7 @@
 import * as Calendar from "expo-calendar";
-import { Platform, Alert } from "react-native";
-import { IRoutineSlot, ICalendarEvent } from "@/interfaces";
+import { Alert } from "react-native";
+import { IRoutineSlot } from "@/interfaces";
+import { parseApiDate } from "@/lib/dateFormatter";
 
 let defaultCalendarId: string | null = null;
 
@@ -147,7 +148,7 @@ export const addNoticeToCalendar = async (
   if (!calendarId) return false;
 
   try {
-    const date = new Date(eventDate);
+    const date = parseApiDate(eventDate);
 
     let startDate: Date;
     let endDate: Date;

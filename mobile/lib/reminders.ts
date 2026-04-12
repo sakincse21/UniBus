@@ -27,7 +27,7 @@ export const requestNotificationPermissions = async (): Promise<boolean> => {
     if (finalStatus !== "granted") {
       Alert.alert(
         "Permission Needed",
-        "Please allow notifications to receive class reminders"
+        "Please allow notifications to receive class reminders and bus tracking alerts."
       );
       return false;
     }
@@ -38,6 +38,15 @@ export const requestNotificationPermissions = async (): Promise<boolean> => {
         name: "Class Reminders",
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#2563eb",
+        enableVibrate: true,
+        enableLights: true,
+      });
+
+      await Notifications.setNotificationChannelAsync("bus-tracking-requests", {
+        name: "Bus Tracking Alerts",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 300, 150, 300],
         lightColor: "#2563eb",
         enableVibrate: true,
         enableLights: true,
@@ -168,5 +177,37 @@ export const scheduleNoticeReminder = async (
     },
   });
   
+  return identifier;
+};
+
+export const sendBusTrackingRequestNotification = async (
+  busId: number,
+  estimate?: { lat?: number; lng?: number },
+  routeId?: number | null,
+): Promise<string | null> => {
+  const hasPermission = await requestNotificationPermissions();
+  if (!hasPermission) return null;
+
+  const body =
+    estimate?.lat != null && estimate?.lng != null
+      ? `Someone nearby requested Bus ${busId}. Estimated near ${estimate.lat.toFixed(4)}, ${estimate.lng.toFixed(4)}.`
+      : `Someone nearby requested Bus ${busId}. Are you on the bus?`;
+
+  const identifier = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `Bus ${busId} location requested`,
+      body,
+      data: {
+        type: "bus-tracking-request",
+        busId,
+        routeId: routeId ?? null,
+        estimate,
+      },
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.MAX,
+    },
+    trigger: null,
+  });
+
   return identifier;
 };

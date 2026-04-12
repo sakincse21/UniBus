@@ -15,17 +15,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Calendar, Clock, Trash2 } from "lucide-react";
+import {
+  formatBangladesh,
+  formatBangladeshTime,
+  getBangladeshDateKey,
+  parseApiDate,
+} from "@/lib/dateTime";
 
 interface GroupedEvents {
   [date: string]: ICalendarEvent[];
 }
-
-// Utility function to format date to local YYYY-MM-DD format
-const formatLocalDate = (date: Date): string => {
-  return date.getFullYear() + '-' + 
-    String(date.getMonth() + 1).padStart(2, '0') + '-' +
-    String(date.getDate()).padStart(2, '0');
-};
 
 export default function CalendarView() {
   const [events, setEvents] = useState<ICalendarEvent[]>([]);
@@ -63,7 +62,7 @@ export default function CalendarView() {
     const grouped: GroupedEvents = {};
 
     events.forEach((event) => {
-      const dateStr = formatLocalDate(new Date(event.startDateTime));
+      const dateStr = getBangladeshDateKey(event.startDateTime);
 
       if (!grouped[dateStr]) {
         grouped[dateStr] = [];
@@ -141,11 +140,7 @@ export default function CalendarView() {
   };
 
   const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatBangladeshTime(dateStr);
   };
 
   if (loading) {
@@ -299,11 +294,11 @@ export default function CalendarView() {
       ) : (
         <div className="space-y-6">
           {sortedDates.map((dateStr) => {
-            const date = new Date(dateStr);
-            const dayName = date.toLocaleDateString("en-US", {
+            const date = parseApiDate(dateStr);
+            const dayName = formatBangladesh(date, {
               weekday: "long",
             });
-            const formattedDate = date.toLocaleDateString("en-US", {
+            const formattedDate = formatBangladesh(date, {
               month: "short",
               day: "numeric",
               year: "numeric",

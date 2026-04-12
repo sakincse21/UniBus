@@ -73,7 +73,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
   const radiusUsers = locations.filter((u) => {
     if (!u.user) return false;
     const d = haversine(estimate.lat as number, estimate.lng as number, u.lat, u.lng);
-    return d <= 7000;
+    return d <= 500;
   });
 
   radiusUsers.forEach((u) => {

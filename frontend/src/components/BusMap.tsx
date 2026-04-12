@@ -11,8 +11,9 @@ import {
   MarkerTooltip,
   useMap,
 } from "@/components/ui/map";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket";
+import type { IRoutePoint } from "@/lib/interfaces";
 
 // Auto-centers the map on the user's current GPS location when the map first loads.
 function AutoLocate() {
@@ -66,6 +67,54 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
   );
 }
 
+function interpolatePosition(
+  p1: { lat: number; lng: number },
+  p2: { lat: number; lng: number },
+  ratio: number,
+): { lat: number; lng: number } {
+  return {
+    lat: p1.lat + (p2.lat - p1.lat) * ratio,
+    lng: p1.lng + (p2.lng - p1.lng) * ratio,
+  };
+}
+
+function calculateEstimatedPosition(
+  routePoints: IRoutePoint[],
+  startTime: string | null,
+): { lat: number; lng: number } | null {
+  if (!routePoints || routePoints.length === 0 || !startTime) return null;
+
+  const [sh, sm] = startTime.split(":").map(Number);
+  const startMin = sh * 60 + sm;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const elapsed = nowMin - startMin;
+
+  if (elapsed < 0) {
+    return { lat: routePoints[0].lat, lng: routePoints[0].lng };
+  }
+
+  const lastOffset = routePoints[routePoints.length - 1].minuteOffset;
+  if (elapsed > lastOffset) {
+    return null;
+  }
+
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    const p1 = routePoints[i];
+    const p2 = routePoints[i + 1];
+
+    if (elapsed >= p1.minuteOffset && elapsed <= p2.minuteOffset) {
+      const segmentDuration = p2.minuteOffset - p1.minuteOffset;
+      const ratio =
+        segmentDuration > 0 ? (elapsed - p1.minuteOffset) / segmentDuration : 0;
+
+      return interpolatePosition(p1, p2, ratio);
+    }
+  }
+
+  return { lat: routePoints[0].lat, lng: routePoints[0].lng };
+}
+
 // Normalize route points if offsets seem incorrect (all 0 or missing)
 function normalizeRoutePoints(pts: any[]): any[] {
   if (!pts || pts.length === 0) return pts;
@@ -91,13 +140,25 @@ export default function BusMap({
   points,
   startTime,
   routeId,
+  activeBusId,
 }: {
   points: any[];
   startTime?: string | null;
   routeId?: number | null;
+  activeBusId?: number | null;
 }) {
   const [locations, setLocations] = useState<Record<number, BusLocation>>({});
-  const [route, setRoute] = useState<Array<[number, number]>>([]);
+  const normalizedPoints = useMemo(
+    () => normalizeRoutePoints(points) as IRoutePoint[],
+    [points],
+  );
+  const route = useMemo(
+    () => normalizedPoints.map((p) => [p.lng, p.lat] as [number, number]),
+    [normalizedPoints],
+  );
+  const activeLocationIsLive = activeBusId
+    ? locations[activeBusId]?.isLive === true
+    : false;
 
   // Listen for estimated location from tracking request
   useEffect(() => {
@@ -166,12 +227,18 @@ export default function BusMap({
     // When route is displayed, join the route room to receive live bus location updates
     let socket: any;
     
-    if (routeId) {
+    if (routeId || activeBusId) {
       (async () => {
         try {
           socket = await getSocket();
-          socket.emit("view_bus_route", { routeId });
-          console.log("Joined route room:", `route:${routeId}`);
+          socket.emit("view_bus_route", {
+            routeId: routeId || undefined,
+            busId: activeBusId || undefined,
+          });
+          console.log(
+            "Joined tracking room:",
+            routeId ? `route:${routeId}` : `bus:${activeBusId}`,
+          );
         } catch (error) {
           console.error("Failed to join route room:", error);
         }
@@ -179,38 +246,94 @@ export default function BusMap({
     }
     
     return () => {
-      if (socket && routeId) {
-        socket.emit("leave_bus_route", { routeId });
+      if (socket && (routeId || activeBusId)) {
+        socket.emit("leave_bus_route", {
+          routeId: routeId || undefined,
+          busId: activeBusId || undefined,
+        });
       }
     };
-  }, [routeId]);
+  }, [routeId, activeBusId]);
 
   useEffect(() => {
-    // Clear bus locations when switching routes to prevent stale markers
-    setLocations({});
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRoute(points.map((p) => [p.lng, p.lat]));
     // Debug: Log the structure of received points
-    if (points && points.length > 0) {
-      console.log("BusMap received points:", points);
-      console.log("First point keys:", Object.keys(points[0]));
-      console.log("First point minuteOffset:", points[0].minuteOffset);
-      console.log("All points minuteOffsets:", points.map((p: any) => p.minuteOffset));
+    if (normalizedPoints && normalizedPoints.length > 0) {
+      console.log("BusMap received points:", normalizedPoints);
+      console.log("First point keys:", Object.keys(normalizedPoints[0]));
+      console.log("First point minuteOffset:", normalizedPoints[0].minuteOffset);
+      console.log("All points minuteOffsets:", normalizedPoints.map((p: any) => p.minuteOffset));
       
       // Check if all minuteOffsets are the same (bug indicator)
-      const offsets = points.map((p: any) => p.minuteOffset);
+      const offsets = normalizedPoints.map((p: any) => p.minuteOffset);
       const uniqueOffsets = new Set(offsets);
       if (uniqueOffsets.size === 1) {
         console.warn("⚠️ All points have the same minuteOffset. They might not have been set properly.");
         console.warn("Current minuteOffset value:", offsets[0]);
       }
     }
-  }, [points]);
-  // Listen for tracking ended — remove bus from map
+  }, [normalizedPoints]);
+
+  useEffect(() => {
+    if (!activeBusId || normalizedPoints.length === 0 || !startTime) {
+      return;
+    }
+
+    if (activeLocationIsLive) {
+      return;
+    }
+
+    const updateEstimate = () => {
+      const estimatedPos = calculateEstimatedPosition(normalizedPoints, startTime);
+      if (!estimatedPos) return;
+
+      setLocations((prev) => ({
+        ...prev,
+        [activeBusId]: {
+          busId: activeBusId,
+          points: [],
+          isLive: false,
+          estimate: {
+            lat: estimatedPos.lat,
+            lng: estimatedPos.lng,
+            confidence: prev[activeBusId]?.estimate.confidence ?? 0.5,
+          },
+        },
+      }));
+    };
+
+    updateEstimate();
+    const interval = window.setInterval(updateEstimate, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [activeBusId, activeLocationIsLive, normalizedPoints, startTime]);
+
+  // Listen for tracking ended — fallback to estimated bus location
   useEffect(() => {
     const handler = (e: any) => {
       const data = e.detail;
       if (data?.busId) {
+        const estimatedPos =
+          data.busId === activeBusId
+            ? calculateEstimatedPosition(normalizedPoints, startTime ?? null)
+            : null;
+
+        if (estimatedPos) {
+          setLocations((prev) => ({
+            ...prev,
+            [data.busId]: {
+              busId: data.busId,
+              points: [],
+              isLive: false,
+              estimate: {
+                lat: estimatedPos.lat,
+                lng: estimatedPos.lng,
+                confidence: prev[data.busId]?.estimate.confidence ?? 0.5,
+              },
+            },
+          }));
+          return;
+        }
+
         setLocations((prev) => {
           const next = { ...prev };
           delete next[data.busId];
@@ -221,7 +344,7 @@ export default function BusMap({
 
     window.addEventListener("BUS_TRACKING_ENDED", handler);
     return () => window.removeEventListener("BUS_TRACKING_ENDED", handler);
-  }, []);
+  }, [activeBusId, normalizedPoints, startTime]);
 
   return (
     <div className="w-full h-[600px] rounded border ">
@@ -266,7 +389,7 @@ export default function BusMap({
             </MarkerPopup>
           </MapMarker>
         ))}
-        {normalizeRoutePoints(points)?.map((point, idx) => {
+        {normalizedPoints?.map((point, idx) => {
           const isFirst = idx === 0;
           const isLast = idx === points.length - 1;
           const time = pointTime(startTime ?? null, point.minuteOffset);

@@ -8,6 +8,34 @@ import { BusSchedule } from "../schedule/busSchedule.entity";
 import { RoutePoint } from "../route/routePoint.entity";
 import { LessThan } from "typeorm";
 
+async function getTrackingRooms(busId: number): Promise<string[]> {
+  const rooms = [`bus:${busId}`];
+  const scheduleRepo = AppDataSource.getRepository(BusSchedule);
+  const schedule = await scheduleRepo.findOne({
+    where: { bus: { id: busId } },
+    relations: ["route"],
+  });
+
+  if (schedule?.route?.id) {
+    rooms.unshift(`route:${schedule.route.id}`);
+  }
+
+  return [...new Set(rooms)];
+}
+
+async function emitToTrackingRooms(
+  io: any,
+  busId: number,
+  event: string,
+  payload: Record<string, unknown>,
+) {
+  const rooms = await getTrackingRooms(busId);
+
+  rooms.forEach((room) => {
+    io.to(room).emit(event, payload);
+  });
+}
+
 function startSessionCleanup(io: any) {
   setInterval(async () => {
     try {
@@ -28,7 +56,11 @@ function startSessionCleanup(io: any) {
           });
         }
 
-        io.to(`bus:${session.bus?.id}`).emit("bus_tracking_ended", { busId: session.bus?.id });
+        if (session.bus?.id) {
+          await emitToTrackingRooms(io, session.bus.id, "bus_tracking_ended", {
+            busId: session.bus.id,
+          });
+        }
       }
     } catch (err) {
       console.error("Error during session cleanup:", err);
@@ -132,9 +164,10 @@ export const registerTrackingSockets = (io: any) => {
 
       socket.emit("tracking_started", { busId, expiresAt: expiresAt.toISOString() });
 
-      // Broadcast to route-specific room (or fallback to bus room if route not found)
-      const broadcastKey = routeId ? `route:${routeId}` : `bus:${busId}`;
-      io.to(broadcastKey).emit("bus_live_tracking_started", { busId, routeId });
+      await emitToTrackingRooms(io, busId, "bus_live_tracking_started", {
+        busId,
+        routeId,
+      });
     });
 
 
@@ -181,6 +214,20 @@ export const registerTrackingSockets = (io: any) => {
                   }
                 }
               }
+            } else if (busId) {
+              const locRepo = AppDataSource.getRepository(EstimatedBusLocation);
+              const loc = await locRepo.findOne({
+                where: { bus: { id: busId } },
+              });
+
+              if (loc) {
+                socket.emit("bus_location_update", {
+                  busId,
+                  lat: loc.lat,
+                  lng: loc.lng,
+                  estimate: { lat: loc.lat, lng: loc.lng, confidence: loc.confidence },
+                });
+              }
             }
           } catch (err) {
             console.error("Error sending initial locations:", err);
@@ -224,7 +271,7 @@ export const registerTrackingSockets = (io: any) => {
             busId,
             message: "Tracking session expired (bus schedule ended)",
           });
-          io.to(`bus:${busId}`).emit("bus_tracking_ended", { busId });
+          await emitToTrackingRooms(io, busId, "bus_tracking_ended", { busId });
           return;
         }
 
@@ -254,7 +301,7 @@ export const registerTrackingSockets = (io: any) => {
                   dist: Math.round(dist),
                   message: `You appear to be ${Math.round(dist)}m off the route. Tracking stopped.`,
                 });
-                io.to(`bus:${busId}`).emit("bus_tracking_ended", { busId });
+                await emitToTrackingRooms(io, busId, "bus_tracking_ended", { busId });
                 return;
               }
             }
@@ -280,13 +327,7 @@ export const registerTrackingSockets = (io: any) => {
 
         // Broadcast live bus location to all connected clients
         // Broadcast to route if available, otherwise use bus room
-        const scheduleRepo = AppDataSource.getRepository(BusSchedule);
-        const schedule = await scheduleRepo.findOne({
-          where: { bus: { id: busId } },
-          relations: ["route"],
-        });
-        const broadcastKey = schedule?.route?.id ? `route:${schedule.route.id}` : `bus:${busId}`;
-        io.to(broadcastKey).emit("bus_location_update", { 
+        await emitToTrackingRooms(io, busId, "bus_location_update", {
           busId, 
           lat, 
           lng, 
@@ -316,7 +357,7 @@ export const registerTrackingSockets = (io: any) => {
         await sessionRepo.save(session);
 
         socket.emit("tracking_stopped", { busId });
-        io.to(`bus:${busId}`).emit("bus_tracking_ended", { busId });
+        await emitToTrackingRooms(io, busId, "bus_tracking_ended", { busId });
       }
     });
 
@@ -333,7 +374,11 @@ export const registerTrackingSockets = (io: any) => {
       for (const session of activeSessions) {
         session.active = false;
         await sessionRepo.save(session);
-        io.emit("bus_tracking_ended", { busId: session.bus?.id });
+        if (session.bus?.id) {
+          await emitToTrackingRooms(io, session.bus.id, "bus_tracking_ended", {
+            busId: session.bus.id,
+          });
+        }
       }
     });
   });

@@ -11,6 +11,7 @@ type LocationState = "idle" | "requesting" | "granted" | "denied" | "error" | "s
 
 export default function BusesPage() {
   const [buses, setBuses] = useState<any[]>([]);
+  const [activeBusId, setActiveBusId] = useState<number | null>(null);
   const [points, setPoints] = useState<any[]>([]);
   const [routeId, setRouteId] = useState<number | null>(null);
   const [scheduleStartTime, setScheduleStartTime] = useState<string | null>(null);
@@ -236,7 +237,12 @@ export default function BusesPage() {
       </div>
 
       <div className="h-full min-h-[400px]">
-        <BusMap points={points} startTime={scheduleStartTime} routeId={routeId} />
+        <BusMap
+          points={points}
+          startTime={scheduleStartTime}
+          routeId={routeId}
+          activeBusId={activeBusId}
+        />
       </div>
     </div>
   );
@@ -255,6 +261,7 @@ export default function BusesPage() {
       }
 
       const data = await res.json();
+      setActiveBusId(busId);
 
       // Show feedback based on estimate mode
       if (data.estimate?.mode === "not_started") {

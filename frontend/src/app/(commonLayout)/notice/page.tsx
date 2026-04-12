@@ -36,6 +36,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import Image from "next/image";
+import { formatBangladesh } from "@/lib/dateTime";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -188,7 +189,7 @@ export default function NoticePage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(n.createdAt).toLocaleDateString("en-US", {
+                      {formatBangladesh(n.createdAt, {
                         month: "short",
                         day: "numeric",
                         year: "numeric",

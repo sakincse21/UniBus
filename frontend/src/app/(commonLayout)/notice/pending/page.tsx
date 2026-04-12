@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
+import { formatBangladesh } from "@/lib/dateTime";
 
 export default function PendingNoticePage() {
   const [notices, setNotices] = useState<any[]>([]);
@@ -81,7 +82,7 @@ export default function PendingNoticePage() {
                     {n.title}
                   </CardTitle>
                   <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
-                    {new Date(n.createdAt).toLocaleDateString("en-US", {
+                    {formatBangladesh(n.createdAt, {
                       month: "short",
                       day: "numeric",
                     })}

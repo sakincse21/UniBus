@@ -13,33 +13,18 @@ import { useCalendarStore } from "@/store/calendarStore";
 import { ICalendarEvent } from "@/interfaces";
 import EventCard from "./EventCard";
 import CreateEventModal from "./CreateEventModal";
+import {
+  formatBangladesh,
+  formatBangladeshMonthYear,
+  getBangladeshDateKey,
+  parseApiDate,
+} from "@/lib/dateFormatter";
 
 interface CalendarViewProps {
   daysToShow?: number;
 }
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-// Utility function to format date to local YYYY-MM-DD format
-const formatLocalDate = (date: Date): string => {
-  return date.getFullYear() + '-' + 
-    String(date.getMonth() + 1).padStart(2, '0') + '-' +
-    String(date.getDate()).padStart(2, '0');
-};
 
 const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
   const insets = useSafeAreaInsets();
@@ -85,7 +70,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
   const eventsByDate = events.reduce(
     (acc, event) => {
       try {
-        const dateKey = formatLocalDate(new Date(event.startDateTime));
+        const dateKey = getBangladeshDateKey(event.startDateTime);
         if (!acc[dateKey]) {
           acc[dateKey] = [];
         }
@@ -98,7 +83,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
     {} as Record<string, ICalendarEvent[]>,
   );
 
-  const selectedDateKey = formatLocalDate(selectedDate);
+  const selectedDateKey = getBangladeshDateKey(selectedDate);
   const selectedDateEvents = eventsByDate[selectedDateKey] || [];
 
   const generateCalendarDays = () => {
@@ -172,7 +157,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
       currentMonth.getMonth(),
       day,
     );
-    return formatLocalDate(date) === formatLocalDate(selectedDate);
+    return getBangladeshDateKey(date) === getBangladeshDateKey(selectedDate);
   };
 
   const isToday = (day: number | null) => {
@@ -183,7 +168,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
       currentMonth.getMonth(),
       day,
     );
-    return formatLocalDate(date) === formatLocalDate(today);
+    return getBangladeshDateKey(date) === getBangladeshDateKey(today);
   };
 
   const getEventDotColor = (event: ICalendarEvent) => {
@@ -206,7 +191,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
       currentMonth.getMonth(),
       day,
     );
-    const dateKey = formatLocalDate(date);
+    const dateKey = getBangladeshDateKey(date);
     return eventsByDate[dateKey] && eventsByDate[dateKey].length > 0;
   };
 
@@ -217,7 +202,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
       currentMonth.getMonth(),
       day,
     );
-    const dateKey = formatLocalDate(date);
+    const dateKey = getBangladeshDateKey(date);
     const dayEvents = eventsByDate[dateKey] || [];
     const colors = dayEvents.map((event) => {
       switch (event.type) {
@@ -249,8 +234,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
         >
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-2xl font-bold text-gray-900">
-              {MONTH_NAMES[currentMonth.getMonth()]}{" "}
-              {currentMonth.getFullYear()}
+              {formatBangladeshMonthYear(currentMonth)}
             </Text>
             <TouchableOpacity
               className="bg-blue-600 rounded-lg px-4 py-2"
@@ -393,15 +377,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
             {Object.keys(eventsByDate)
               .sort()
               .map((dateKey) => {
-                const date = new Date(dateKey);
-                const dayName = date.toLocaleDateString("en-US", {
+                const date = parseApiDate(dateKey);
+                const dayName = formatBangladesh(date, {
                   weekday: "short",
                 });
-                const monthDay = date.toLocaleDateString("en-US", {
+                const monthDay = formatBangladesh(date, {
                   month: "short",
                   day: "numeric",
                 });
-                const isToday_ = formatLocalDate(new Date()) === dateKey;
+                const isToday_ = getBangladeshDateKey(new Date()) === dateKey;
 
                 return (
                   <View key={dateKey} className="mb-5">
@@ -454,7 +438,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
           <View className="px-4 pt-6 border-t border-gray-200 mt-6">
             <View className="mb-4">
               <Text className="text-lg font-bold text-gray-900 mb-1">
-                {selectedDate.toLocaleDateString("en-US", {
+                {formatBangladesh(selectedDate, {
                   weekday: "long",
                   month: "long",
                   day: "numeric",

@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
+  formatBangladeshDate,
+  formatBangladeshTime,
   formatLocalDateTime,
   formatLocalDateAllDay,
   formatLocalDateEndOfDay,
@@ -98,19 +100,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   };
 
   const formatDate = (date: Date): string => {
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    return formatBangladeshDate(date);
   };
 
   const formatTime = (date: Date): string => {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatBangladeshTime(date);
   };
 
   return (
