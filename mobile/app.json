@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "UniBus Mobile",
+    "slug": "unibus-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "main": "expo-router/entry",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.unibus.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.unibus.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
+      ]
+    },
+    "scheme": "unibus",
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow UniBus to access your photos to upload routine images.",
+          "cameraPermission": "Allow UniBus to use the camera to take photos of your routine."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563eb"
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow UniBus to create routine events in your calendar."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "http://192.168.10.108:5000/api/v1",
+      "socketUrl": "http://192.168.10.108:5000",
+      "router": {},
+      "eas": {
+        "projectId": "80949995-3dff-40be-a5ec-b0f90e6ea163"
+      }
+    }
+  }
+}
