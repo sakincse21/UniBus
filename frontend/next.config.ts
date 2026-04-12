@@ -1,9 +1,10 @@
+import { configs } from "@/lib/config.env";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   async rewrites() {
     const backendBaseUrl =
-      process.env.BACKEND_API_BASE_URL || "http://localhost:5000";
+      configs.BACKEND_BASE_URL || "http://localhost:5000";
 
     return [
       {
