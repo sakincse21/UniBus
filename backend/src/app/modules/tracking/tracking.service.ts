@@ -3,6 +3,28 @@ import { BusSchedule } from "../schedule/busSchedule.entity";
 import { RoutePoint } from "../route/routePoint.entity";
 import { timeToMinutes, interpolate } from "../../utils/estimate.util";
 import { AppError } from "../../errors/AppError";
+import {
+  BANGLADESH_OFFSET_MINUTES,
+  formatBangladeshDateKey,
+  parseLocalDateTime,
+} from "../../utils/dateUtils";
+
+const MINUTES_PER_DAY = 24 * 60;
+
+function getBangladeshMinutesOfDay(now: Date): number {
+  const bangladeshNow = new Date(now.getTime() + BANGLADESH_OFFSET_MINUTES * 60 * 1000);
+  return (
+    bangladeshNow.getUTCHours() * 60 +
+    bangladeshNow.getUTCMinutes() +
+    bangladeshNow.getUTCSeconds() / 60
+  );
+}
+
+function normalizeScheduleTime(time: string): string {
+  const [hh = "00", mm = "00", ssRaw = "00"] = time.split(":");
+  const ss = ssRaw.split(".")[0];
+  return `${hh.padStart(2, "0")}:${mm.padStart(2, "0")}:${ss.padStart(2, "0")}`;
+}
 
 export async function estimateBusLocation(busId: number, now: Date) {
   const scheduleRepo = AppDataSource.getRepository(BusSchedule);
@@ -17,17 +39,52 @@ export async function estimateBusLocation(busId: number, now: Date) {
 
   const startMin = timeToMinutes(schedule.startTime);
   const endMin = timeToMinutes(schedule.endTime);
-  // Include seconds for sub-minute precision
-  const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const nowMin = getBangladeshMinutesOfDay(now);
+  const crossesMidnight = endMin < startMin;
 
-  const elapsed = nowMin - startMin;
-  const total = endMin - startMin;
+  let elapsed: number;
+  let total: number;
 
-  if (elapsed < 0) {
-    return { mode: "not_started", confidence: 0.4, startTime: schedule.startTime, endTime: schedule.endTime };
-  }
-  if (elapsed > total) {
-    return { mode: "ended", confidence: 0.4, startTime: schedule.startTime, endTime: schedule.endTime };
+  if (!crossesMidnight) {
+    total = endMin - startMin;
+
+    if (nowMin < startMin) {
+      return {
+        mode: "not_started",
+        confidence: 0.4,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+      };
+    }
+
+    if (nowMin > endMin) {
+      return {
+        mode: "ended",
+        confidence: 0.4,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+      };
+    }
+
+    elapsed = nowMin - startMin;
+  } else {
+    // Overnight schedule, e.g. 21:30 -> 02:30
+    const inActiveWindow = nowMin >= startMin || nowMin <= endMin;
+
+    if (!inActiveWindow) {
+      return {
+        mode: "not_started",
+        confidence: 0.4,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+      };
+    }
+
+    total = MINUTES_PER_DAY - startMin + endMin;
+    elapsed =
+      nowMin >= startMin
+        ? nowMin - startMin
+        : MINUTES_PER_DAY - startMin + nowMin;
   }
 
   const points = await rpRepo.find({
@@ -94,13 +151,31 @@ export async function getScheduleEndTime(busId: number): Promise<Date> {
 
   if (!schedule) throw new AppError("No schedule found", 404);
 
-  const [hh, mm] = schedule.endTime.split(":").map(Number);
-  const endDate = new Date();
-  endDate.setHours(hh, mm, 0, 0);
+  const now = new Date();
+  const nowMin = getBangladeshMinutesOfDay(now);
+  const todayBangladesh = formatBangladeshDateKey(now);
 
-  // If endTime is past, it's tomorrow's schedule end
-  if (endDate.getTime() < Date.now()) {
-    endDate.setDate(endDate.getDate() + 1);
+  const startMin = timeToMinutes(schedule.startTime);
+  const endMin = timeToMinutes(schedule.endTime);
+  const crossesMidnight = endMin < startMin;
+
+  const normalizedEndTime = normalizeScheduleTime(schedule.endTime);
+  let endDate = parseLocalDateTime(`${todayBangladesh}T${normalizedEndTime}`);
+
+  if (!crossesMidnight) {
+    // Normal same-day schedule; if already passed, next end is tomorrow.
+    if (nowMin > endMin) {
+      endDate = new Date(endDate.getTime() + MINUTES_PER_DAY * 60 * 1000);
+    }
+    return endDate;
+  }
+
+  // Overnight schedule:
+  // - Evening segment (now >= start): end is tomorrow morning.
+  // - Early-morning segment (now <= end): end is today morning.
+  // - Daytime gap (end < now < start): next end is tomorrow morning.
+  if (nowMin >= startMin || nowMin > endMin) {
+    endDate = new Date(endDate.getTime() + MINUTES_PER_DAY * 60 * 1000);
   }
 
   return endDate;
