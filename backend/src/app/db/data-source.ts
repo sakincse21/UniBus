@@ -29,3 +29,20 @@ export const AppDataSource = new DataSource({
   RoutePoint,
   BusSchedule, Batch, Notice, Attachment, UserLocation, Routine, UserFixture],
 });
+
+let initPromise: Promise<DataSource> | null = null;
+
+export async function ensureDataSourceInitialized(): Promise<DataSource> {
+  if (AppDataSource.isInitialized) {
+    return AppDataSource;
+  }
+
+  if (!initPromise) {
+    initPromise = AppDataSource.initialize().catch((error) => {
+      initPromise = null;
+      throw error;
+    });
+  }
+
+  return initPromise;
+}

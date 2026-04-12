@@ -1,6 +1,6 @@
 import app from "./app";
 import { env } from "./app/config/env";
-import { AppDataSource } from "./app/db/data-source";
+import { ensureDataSourceInitialized } from "./app/db/data-source";
 import { attachServer, gracefulShutdown } from "./app/utils/globalErrorHandler";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -8,7 +8,7 @@ import { registerTrackingSockets } from "./app/modules/tracking/tracking.socket"
 import { socketAuth } from "./app/middlewares/socketAuth";
 
 async function start() {
-  await AppDataSource.initialize();
+  await ensureDataSourceInitialized();
   console.log("Database connected");
 
   // const server = app.listen(env.PORT, () =>
