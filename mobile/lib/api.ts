@@ -123,6 +123,8 @@ export const locationAPI = {
 export const userAPI = {
   getProfile: () => api.get("/user/me"),
   updateProfile: (data: any) => api.patch("/user/me", data),
+  updatePushToken: (pushToken: string | null) =>
+    api.put("/user/me/push-token", { pushToken }),
 };
 
 export const routineAPI = {

@@ -7,6 +7,8 @@ import userRepo from "./user.repository";
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 
+const EXPO_PUSH_TOKEN_REGEX = /^(Expo|Exponent)PushToken\[[^\]]+\]$/;
+
 const createUser = async (payload: Partial<User>) => {
   const { name, email, password, role, batchNumber } = payload as any;
   
@@ -233,6 +235,34 @@ const updateMyProfile = async (userId: string, name?: string, email?: string, pa
   return user;
 };
 
+const updateMyPushToken = async (
+  userId: string,
+  pushToken: string | null,
+) => {
+  const user = await userRepo.findOne({ where: { user_id: userId } });
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  if (typeof pushToken === "string") {
+    const normalized = pushToken.trim();
+
+    if (!normalized) {
+      user.pushToken = null;
+    } else {
+      if (!EXPO_PUSH_TOKEN_REGEX.test(normalized)) {
+        throw new AppError("Invalid Expo push token format", 400);
+      }
+      user.pushToken = normalized;
+    }
+  } else {
+    user.pushToken = null;
+  }
+
+  await userRepo.save(user);
+  return { pushToken: user.pushToken };
+};
+
 const getAllUsers = async () => {
   const users = await userRepo.find({
     where: {
@@ -250,5 +280,6 @@ export const UserService = {
   getUserById,
   getMyProfile,
   updateMyProfile,
+  updateMyPushToken,
   getAllUsers,
 };

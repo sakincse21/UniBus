@@ -9,6 +9,7 @@ import { useRole } from "@/components/RoleProvider";
 type NoticeLike = {
   id: number;
   title?: string;
+  content?: string;
 };
 
 const NOTICE_POLL_MS = 25000;
@@ -16,6 +17,46 @@ const NOTICE_POLL_MS = 25000;
 function getNoticeId(value: unknown): number | null {
   const id = Number((value as NoticeLike | undefined)?.id);
   return Number.isFinite(id) ? id : null;
+}
+
+function supportsBrowserNotifications(): boolean {
+  return typeof window !== "undefined" && "Notification" in window;
+}
+
+function showNoticeBrowserNotification(
+  notice: NoticeLike,
+  type: "published" | "pending",
+): void {
+  if (!supportsBrowserNotifications()) return;
+  if (Notification.permission !== "granted") return;
+
+  const id = getNoticeId(notice);
+  if (id === null) return;
+
+  const title =
+    type === "published"
+      ? `New notice: ${notice.title || "Untitled"}`
+      : `Pending notice: ${notice.title || "Untitled"}`;
+
+  const body =
+    notice.content?.trim() ||
+    (type === "published"
+      ? "A new notice was published."
+      : "A new notice is awaiting review.");
+
+  const destination = type === "published" ? "/notice" : "/notice/pending";
+
+  const notification = new Notification(title, {
+    body,
+    tag: `notice-${type}-${id}`,
+    requireInteraction: true,
+  });
+
+  notification.onclick = () => {
+    window.focus();
+    window.location.href = destination;
+    notification.close();
+  };
 }
 
 export default function NoticeRealtimeBridge() {
@@ -40,6 +81,7 @@ export default function NoticeRealtimeBridge() {
 
     if (notify) {
       toast.success(`New notice: ${notice.title || "Untitled"}`);
+      showNoticeBrowserNotification(notice, "published");
     }
   };
 
@@ -56,6 +98,7 @@ export default function NoticeRealtimeBridge() {
 
     if (notify) {
       toast.info(`New notice awaiting review: ${notice.title || "Untitled"}`);
+      showNoticeBrowserNotification(notice, "pending");
     }
   };
 

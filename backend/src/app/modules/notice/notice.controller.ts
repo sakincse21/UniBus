@@ -3,6 +3,7 @@ import tryCatch from "../../utils/tryCatch";
 import { AppDataSource } from "../../db/data-source";
 import { Notice, NoticeStatus } from "./notice.entity";
 import { User, UserRole } from "../user/user.entity";
+import { sendPushToUsers } from "../notification/push.service";
 
 type SocketServerLike = {
   emit: (event: string, payload: unknown) => void;
@@ -43,6 +44,64 @@ function emitPendingNotice(io: SocketServerLike | null, notice: Notice) {
   io.to("role:admin").emit("notice_pending", notice);
   io.to("role:teacher").emit("notice_pending", notice);
   io.to("role:cr").emit("notice_pending", notice);
+}
+
+function summarizeNoticeContent(content: string): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= 140) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 137)}...`;
+}
+
+async function getNoticePushRecipients(
+  notice: Notice,
+  excludeUserId?: string,
+): Promise<User[]> {
+  const userRepo = AppDataSource.getRepository(User);
+  const qb = userRepo
+    .createQueryBuilder("user")
+    .leftJoin("user.batch", "batch")
+    .select(["user.user_id", "user.pushToken", "user.role"]);
+
+  if (notice.forAll) {
+    // forAll notices go to every user.
+  } else if (notice.forTeachers) {
+    qb.where("user.role = :role", { role: UserRole.TEACHER });
+  } else if (notice.targetBatch?.id) {
+    qb.where("batch.id = :batchId", { batchId: notice.targetBatch.id });
+  } else {
+    return [];
+  }
+
+  if (excludeUserId) {
+    qb.andWhere("user.user_id != :excludeUserId", { excludeUserId });
+  }
+
+  return qb.getMany();
+}
+
+async function pushPublishedNotice(
+  notice: Notice,
+  excludeUserId?: string,
+): Promise<number> {
+  const recipients = await getNoticePushRecipients(notice, excludeUserId);
+
+  if (!recipients.length) {
+    return 0;
+  }
+
+  return sendPushToUsers(recipients, {
+    title: `New Notice: ${notice.title}`,
+    body: summarizeNoticeContent(notice.content),
+    data: {
+      type: "notice",
+      noticeId: notice.id,
+    },
+    channelId: "notice-updates",
+  });
 }
 
 const createNotice = tryCatch(async (req: Request, res: Response) => {
@@ -145,14 +204,17 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
   await repo.save(notice);
 
   const io = getSocketServer(req);
+  let pushNotifiedUsers = 0;
+
   // If auto-approved, broadcast immediately
   if (notice.status === NoticeStatus.APPROVED) {
     emitPublishedNotice(io, notice);
+    pushNotifiedUsers = await pushPublishedNotice(notice, user.user_id);
   } else if (notice.status === NoticeStatus.PENDING) {
     emitPendingNotice(io, notice);
   }
 
-  res.json({ success: true, data: notice });
+  res.json({ success: true, data: notice, pushNotifiedUsers });
 });
 
 const approveNotice = tryCatch(async (req: Request, res: Response) => {
@@ -177,8 +239,9 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
 
   const io = getSocketServer(req);
   emitPublishedNotice(io, notice);
+  const pushNotifiedUsers = await pushPublishedNotice(notice);
 
-  res.json({ success: true });
+  res.json({ success: true, pushNotifiedUsers });
 });
 
 const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {

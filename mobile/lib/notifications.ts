@@ -1,28 +1,123 @@
-import { Platform } from "react-native";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+import { Alert, Platform } from "react-native";
 
-// Configure how notifications should be handled
-// Note: Push notifications require a development build
-// Expo Go removed Android Push notifications support in SDK 53
+let channelsInitialized = false;
 
-export async function initializePushNotifications() {
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+function getExpoProjectId(): string | null {
+  const constantsAny = Constants as any;
+
+  const fromExpoConfig = Constants.expoConfig?.extra?.eas?.projectId;
+  const fromEasConfig = constantsAny?.easConfig?.projectId;
+  const fromManifest2 =
+    constantsAny?.manifest2?.extra?.expoClient?.extra?.eas?.projectId;
+  const fromManifest = constantsAny?.manifest?.extra?.eas?.projectId;
+
+  return fromExpoConfig || fromEasConfig || fromManifest2 || fromManifest || null;
+}
+
+export async function ensureNotificationChannels(): Promise<void> {
+  if (Platform.OS !== "android" || channelsInitialized) {
+    return;
+  }
+
+  await Notifications.setNotificationChannelAsync("routine-reminders", {
+    name: "Class Reminders",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: "#2563eb",
+    enableVibrate: true,
+    enableLights: true,
+  });
+
+  await Notifications.setNotificationChannelAsync("bus-tracking-requests", {
+    name: "Bus Tracking Alerts",
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 300, 150, 300],
+    lightColor: "#2563eb",
+    enableVibrate: true,
+    enableLights: true,
+  });
+
+  await Notifications.setNotificationChannelAsync("notice-updates", {
+    name: "Notice Updates",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 200, 250],
+    lightColor: "#2563eb",
+    enableVibrate: true,
+    enableLights: true,
+  });
+
+  await Notifications.setNotificationChannelAsync("calendar-reminders", {
+    name: "Calendar Reminders",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 200, 150, 200],
+    lightColor: "#2563eb",
+    enableVibrate: true,
+    enableLights: true,
+  });
+
+  channelsInitialized = true;
+}
+
+export async function requestNotificationPermissions(
+  showAlertOnDeny = true,
+): Promise<boolean> {
   try {
-    // In Expo Go, push notifications are not fully supported
-    if (Platform.OS === "android") {
-      console.log(
-        "Push notifications are not available in Expo Go for Android. Use a development build for production apps.",
-      );
-      return null;
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
     }
 
-    // For development, we can skip token generation
-    if (process.env.NODE_ENV === "development") {
-      console.debug("Push notifications disabled in development mode");
-      return null;
+    if (finalStatus !== "granted") {
+      if (showAlertOnDeny) {
+        Alert.alert(
+          "Permission Needed",
+          "Please allow notifications to receive bus tracking, notice, and calendar reminders.",
+        );
+      }
+      return false;
     }
 
-    return null;
+    await ensureNotificationChannels();
+    return true;
   } catch (error) {
-    console.debug("Notification initialization skipped (Expo Go limitation)");
+    console.error("Notification permission error:", error);
+    return false;
+  }
+}
+
+export async function initializePushNotifications(): Promise<string | null> {
+  const granted = await requestNotificationPermissions(false);
+  if (!granted) {
+    return null;
+  }
+
+  const projectId = getExpoProjectId();
+  if (!projectId) {
+    console.warn("Expo projectId not found. Push token registration skipped.");
+    return null;
+  }
+
+  try {
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    return token.data;
+  } catch (error) {
+    // Expo Go on Android cannot provide push tokens in SDK 53+, so fail gracefully.
+    console.warn("Failed to get Expo push token:", error);
     return null;
   }
 }
@@ -32,12 +127,23 @@ export async function scheduleNotification(
   body: string,
   seconds: number = 10,
 ) {
-  try {
-    console.debug(`Scheduled notification would be: ${title} - ${body}`);
-    // Full implementation requires development build
-  } catch (error) {
-    console.debug("Error scheduling notification (Expo Go limitation):", error);
-  }
+  const granted = await requestNotificationPermissions(false);
+  if (!granted) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: true,
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds,
+      ...(Platform.OS === "android"
+        ? { channelId: "calendar-reminders" }
+        : {}),
+    },
+  });
 }
 
 export async function sendLocalNotification(
@@ -45,34 +151,43 @@ export async function sendLocalNotification(
   body: string,
   data?: Record<string, any>,
 ) {
-  try {
-    console.debug(`Local notification would be: ${title} - ${body}`);
-    // Full implementation requires development build
-  } catch (error) {
-    console.debug(
-      "Error sending local notification (Expo Go limitation):",
-      error,
-    );
-  }
+  const granted = await requestNotificationPermissions(false);
+  if (!granted) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      data,
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+    },
+    trigger: null,
+  });
 }
 
 export function setupNotificationListeners(
-  onNotificationReceived?: (notification: any) => void,
-  onNotificationTapped?: (response: any) => void,
+  onNotificationReceived?: (notification: Notifications.Notification) => void,
+  onNotificationTapped?: (response: Notifications.NotificationResponse) => void,
 ) {
-  // Return empty cleanup function for Expo Go
-  console.debug(
-    "Notification listeners not available in Expo Go. Use a development build.",
-  );
+  const receivedSubscription = onNotificationReceived
+    ? Notifications.addNotificationReceivedListener(onNotificationReceived)
+    : null;
+
+  const responseSubscription = onNotificationTapped
+    ? Notifications.addNotificationResponseReceivedListener(onNotificationTapped)
+    : null;
+
   return () => {
-    // Cleanup function
+    receivedSubscription?.remove();
+    responseSubscription?.remove();
   };
 }
 
 export async function cancelAllScheduledNotifications() {
   try {
-    console.debug("Notification cancellation not available in Expo Go.");
+    await Notifications.cancelAllScheduledNotificationsAsync();
   } catch (error) {
-    console.debug("Error canceling notifications (Expo Go limitation):", error);
+    console.error("Error canceling scheduled notifications:", error);
   }
 }

@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { calendarAPI } from "@/lib/api";
 import { ICalendarEvent } from "@/interfaces";
+import { syncCalendarReminders } from "@/lib/reminders";
+import { syncEventsToDefaultCalendar } from "@/lib/calendar";
 
 interface CalendarState {
   events: ICalendarEvent[];
@@ -27,7 +29,20 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     try {
       const response = await calendarAPI.getCalendarEvents(days);
       if (response.data.success) {
-        set({ events: response.data.data || [], error: null });
+        const fetchedEvents = response.data.data || [];
+        set({ events: fetchedEvents, error: null });
+
+        try {
+          await syncCalendarReminders(fetchedEvents);
+        } catch (syncError) {
+          console.error("Calendar reminder sync error:", syncError);
+        }
+
+        try {
+          await syncEventsToDefaultCalendar(fetchedEvents);
+        } catch (syncError) {
+          console.error("Device calendar sync error:", syncError);
+        }
       } else {
         set({ error: response.data.message || "Failed to fetch events" });
       }

@@ -1,9 +1,103 @@
 import * as Calendar from "expo-calendar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
-import { IRoutineSlot } from "@/interfaces";
+import { ICalendarEvent, IRoutineSlot } from "@/interfaces";
 import { parseApiDate } from "@/lib/dateFormatter";
 
+const DEVICE_CALENDAR_SYNC_MAP_KEY = "@unibus_device_calendar_sync_map_v1";
 let defaultCalendarId: string | null = null;
+
+type DeviceCalendarSyncMap = Record<string, string>;
+
+async function readSyncMap(): Promise<DeviceCalendarSyncMap> {
+  try {
+    const raw = await AsyncStorage.getItem(DEVICE_CALENDAR_SYNC_MAP_KEY);
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+
+    return Object.entries(parsed).reduce((acc, [key, value]) => {
+      if (typeof value === "string") {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as DeviceCalendarSyncMap);
+  } catch {
+    return {};
+  }
+}
+
+async function writeSyncMap(map: DeviceCalendarSyncMap): Promise<void> {
+  await AsyncStorage.setItem(DEVICE_CALENDAR_SYNC_MAP_KEY, JSON.stringify(map));
+}
+
+function parseTime(value?: string): { hour: number; minute: number } | null {
+  if (!value) return null;
+
+  const [hour, minute] = value.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return { hour, minute };
+}
+
+function getSyncKey(event: ICalendarEvent): string {
+  if (event.type === "notice" && event.source.noticeId) {
+    return `notice:${event.source.noticeId}`;
+  }
+
+  if (event.type === "personal" && event.source.fixtureId) {
+    return `personal:${event.source.fixtureId}`;
+  }
+
+  if (event.type === "routine" && event.source.routineId) {
+    return `routine:${event.source.routineId}`;
+  }
+
+  return `${event.type}:${event.id}`;
+}
+
+function getEventWindow(event: ICalendarEvent): {
+  startDate: Date;
+  endDate: Date;
+  allDay: boolean;
+} {
+  const startDate = parseApiDate(event.startDateTime);
+
+  let endDate = event.endDateTime
+    ? parseApiDate(event.endDateTime)
+    : new Date(startDate.getTime() + 60 * 60 * 1000);
+
+  if (event.isAllDay && !event.endDateTime) {
+    endDate = new Date(startDate);
+    endDate.setHours(23, 59, 59, 999);
+  }
+
+  if (endDate <= startDate) {
+    endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+  }
+
+  return {
+    startDate,
+    endDate,
+    allDay: !!event.isAllDay,
+  };
+}
+
+function buildEventNotes(event: ICalendarEvent): string {
+  const notes: string[] = [];
+
+  if (event.description?.trim()) {
+    notes.push(event.description.trim());
+  }
+
+  if (event.metadata?.note?.trim()) {
+    notes.push(`Note: ${event.metadata.note.trim()}`);
+  }
+
+  return notes.join("\n\n");
+}
 
 export const requestCalendarPermissions = async (): Promise<boolean> => {
   try {
@@ -23,42 +117,126 @@ const getDefaultCalendar = async (): Promise<string | null> => {
   if (defaultCalendarId) return defaultCalendarId;
 
   try {
+    if (typeof Calendar.getDefaultCalendarAsync === "function") {
+      try {
+        const defaultCalendar = await Calendar.getDefaultCalendarAsync();
+        if (defaultCalendar?.id) {
+          defaultCalendarId = defaultCalendar.id;
+          return defaultCalendar.id;
+        }
+      } catch {
+        // Fall through to cross-platform calendar discovery.
+      }
+    }
+
     const calendars = await Calendar.getCalendarsAsync(
       Calendar.EntityTypes.EVENT,
     );
 
-    let unibusCalendar = calendars.find(
-      (cal) => cal.title === "UniBus Schedule",
-    );
+    const preferredCalendar =
+      calendars.find((cal) => (cal as any).isPrimary === true) ||
+      calendars.find((cal) => cal.source?.name === "Default") ||
+      calendars.find(
+        (cal) => cal.accessLevel === Calendar.CalendarAccessLevel.OWNER,
+      ) ||
+      calendars[0];
 
-    if (!unibusCalendar) {
-      const defaultSource = calendars.find(
-        (cal) => cal.source && cal.source.name === "Default",
-      )?.source;
+    if (preferredCalendar?.id) {
+      defaultCalendarId = preferredCalendar.id;
+      return preferredCalendar.id;
+    }
 
-      if (defaultSource) {
-        const newCalendarId = await Calendar.createCalendarAsync({
-          title: "UniBus Schedule",
-          color: "#2563eb",
-          entityType: Calendar.EntityTypes.EVENT,
-          sourceId: defaultSource.id,
-          source: defaultSource,
-          name: "unibus",
-          ownerAccount: "unibus",
-          accessLevel: Calendar.CalendarAccessLevel.OWNER,
-        });
-        defaultCalendarId = newCalendarId;
-        return newCalendarId;
-      }
-    } else {
-      defaultCalendarId = unibusCalendar.id;
-      return unibusCalendar.id;
+    const source = calendars.find((cal) => cal.source?.id)?.source;
+    if (source?.id) {
+      const newCalendarId = await Calendar.createCalendarAsync({
+        title: "UniBus",
+        color: "#2563eb",
+        entityType: Calendar.EntityTypes.EVENT,
+        sourceId: source.id,
+        source,
+        name: "unibus",
+        ownerAccount: source.name || "unibus",
+        accessLevel: Calendar.CalendarAccessLevel.OWNER,
+      });
+
+      defaultCalendarId = newCalendarId;
+      return newCalendarId;
     }
   } catch (error) {
     console.error("Get default calendar error:", error);
   }
 
   return null;
+};
+
+export const syncEventsToDefaultCalendar = async (
+  events: ICalendarEvent[],
+): Promise<number> => {
+  const hasPermission = await requestCalendarPermissions();
+  if (!hasPermission) {
+    return 0;
+  }
+
+  const calendarId = await getDefaultCalendar();
+  if (!calendarId) {
+    return 0;
+  }
+
+  const existingMap = await readSyncMap();
+  const nextMap: DeviceCalendarSyncMap = {};
+  const desiredKeys = new Set(events.map(getSyncKey));
+
+  for (const [key, nativeEventId] of Object.entries(existingMap)) {
+    if (desiredKeys.has(key)) {
+      continue;
+    }
+
+    await Calendar.deleteEventAsync(nativeEventId).catch(() => {});
+  }
+
+  let syncedCount = 0;
+
+  for (const event of events) {
+    const syncKey = getSyncKey(event);
+    const { startDate, endDate, allDay } = getEventWindow(event);
+
+    const eventData = {
+      title: event.title,
+      notes: buildEventNotes(event),
+      startDate,
+      endDate,
+      allDay,
+      timeZone: "Asia/Dhaka",
+      availability: Calendar.Availability.BUSY,
+    };
+
+    const existingNativeEventId = existingMap[syncKey];
+
+    if (existingNativeEventId) {
+      try {
+        await Calendar.updateEventAsync(existingNativeEventId, eventData);
+        nextMap[syncKey] = existingNativeEventId;
+        syncedCount += 1;
+        continue;
+      } catch {
+        // If the native event no longer exists, we recreate it below.
+      }
+    }
+
+    try {
+      const newNativeEventId = await Calendar.createEventAsync(
+        calendarId,
+        eventData,
+      );
+      nextMap[syncKey] = newNativeEventId;
+      syncedCount += 1;
+    } catch (error) {
+      console.error("Failed to sync calendar event:", error);
+    }
+  }
+
+  await writeSyncMap(nextMap);
+  return syncedCount;
 };
 
 export const addRoutineToCalendar = async (
@@ -100,14 +278,18 @@ export const addRoutineToCalendar = async (
     const eventDate = new Date(now);
     eventDate.setDate(now.getDate() + daysUntil);
 
-    const [firstHour, firstMin] = slot.firstHalfStart.split(":").map(Number);
-    const [secondHour, secondMin] = slot.secondHalfStart.split(":").map(Number);
+    const firstHalf = parseTime(slot.firstHalfStart);
+    const secondHalf = parseTime(slot.secondHalfStart);
+
+    if (!firstHalf || !secondHalf) {
+      continue;
+    }
 
     const startFirst = new Date(eventDate);
-    startFirst.setHours(firstHour, firstMin, 0, 0);
+    startFirst.setHours(firstHalf.hour, firstHalf.minute, 0, 0);
 
     const endFirst = new Date(eventDate);
-    endFirst.setHours(secondHour, secondMin, 0, 0);
+    endFirst.setHours(secondHalf.hour, secondHalf.minute, 0, 0);
 
     if (startFirst < endFirst) {
       try {
@@ -117,6 +299,7 @@ export const addRoutineToCalendar = async (
           startDate: startFirst,
           endDate: endFirst,
           alarms: [{ relativeOffset: -10 }],
+          availability: Calendar.Availability.BUSY,
         });
         addedCount++;
       } catch (error) {
@@ -175,6 +358,7 @@ export const addNoticeToCalendar = async (
       startDate: startDate,
       endDate: endDate,
       alarms: [{ relativeOffset: -15 }],
+      availability: Calendar.Availability.BUSY,
     });
 
     return true;

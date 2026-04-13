@@ -9,6 +9,8 @@ import { AppError } from "../../errors/AppError";
 import { BusSchedule } from "../schedule/busSchedule.entity";
 import { LiveTrackingSession } from "./liveTrackingSession.entity";
 import { EstimatedBusLocation } from "./estimatedBusLocation.entity";
+import { sendPushToUsers } from "../notification/push.service";
+import { User } from "../user/user.entity";
 
 const requestTracking = tryCatch(async (req: Request, res: Response) => {
   const busId = Number(req.params.busId);
@@ -39,6 +41,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
       routeId: schedule?.route?.id || null,
       isLive: false,
       notifiedUsers: 0,
+      pushNotifiedUsers: 0,
       startTime: schedule?.startTime || null,
       endTime: schedule?.endTime || null,
     });
@@ -61,6 +64,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
       points,
       routeId: schedule?.route?.id || null,
       notifiedUsers: 0,
+      pushNotifiedUsers: 0,
       isLive: !!liveLoc,
       startTime: schedule?.startTime || null,
       endTime: schedule?.endTime || null,
@@ -76,9 +80,15 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     return d <= 500;
   });
 
-  radiusUsers.forEach((u) => {
-    if (io && u.user?.user_id) {
-      io.to(`user:${u.user.user_id}`).emit("bus_tracking_request", {
+  const nearbyUsers = radiusUsers
+    .map((entry) => entry.user)
+    .filter((user): user is User => {
+      return Boolean(user && user.user_id && user.user_id !== req.user.userId);
+    });
+
+  nearbyUsers.forEach((user) => {
+    if (io) {
+      io.to(`user:${user.user_id}`).emit("bus_tracking_request", {
         busId,
         routeId: schedule?.route?.id,
         message: "Are you currently on this bus?",
@@ -87,12 +97,25 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     }
   });
 
+  const pushNotifiedUsers = await sendPushToUsers(nearbyUsers, {
+    title: `Bus ${busId} location requested`,
+    body: `Someone nearby requested Bus ${busId}. Are you on this bus right now?`,
+    data: {
+      type: "bus-tracking-request",
+      busId,
+      routeId: schedule?.route?.id || null,
+      estimate,
+    },
+    channelId: "bus-tracking-requests",
+  });
+
   return res.json({
     success: true,
     estimate,
     points,
     routeId: schedule?.route?.id || null,
-    notifiedUsers: radiusUsers.length,
+    notifiedUsers: nearbyUsers.length,
+    pushNotifiedUsers,
     isLive: false,
     startTime: schedule?.startTime || null,
     endTime: schedule?.endTime || null,

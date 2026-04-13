@@ -35,6 +35,9 @@ export class User {
   @Column()
   name!: string;
 
+  @Column({ type: "varchar", length: 255, nullable: true })
+  pushToken!: string | null;
+
   @ManyToOne(() => Batch, { nullable: true })
   batch?: Batch;
 

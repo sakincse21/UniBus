@@ -10,6 +10,8 @@ import jwt from "jsonwebtoken"
 import { configs } from "@/lib/config.env"
 import { RoleProvider } from "@/components/RoleProvider"
 import NoticeRealtimeBridge from "../../components/NoticeRealtimeBridge"
+import BusTrackingRealtimeBridge from "@/components/BusTrackingRealtimeBridge"
+import BusTrackingModal from "@/components/BusTrackingModal"
 
 type UserRole = "admin" | "teacher" | "student" | "cr"
 
@@ -44,6 +46,8 @@ export default async function CommonLayout({
   return (
     <RoleProvider role={role}>
       <NoticeRealtimeBridge />
+      <BusTrackingRealtimeBridge />
+      <BusTrackingModal />
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>

@@ -4,13 +4,15 @@ import { View, Text } from "react-native";
 import { useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useBusTrackingStore } from "@/store/busTrackingStore";
+import { useCalendarStore } from "@/store/calendarStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getSocket } from "@/lib/socket";
 import {
+  initializePushNotifications,
   requestNotificationPermissions,
-  sendBusTrackingRequestNotification,
-} from "@/lib/reminders";
+} from "@/lib/notifications";
 import { useRouter } from "expo-router";
+import { userAPI } from "@/lib/api";
 
 const TabIcon = ({
   name,
@@ -33,6 +35,33 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const setPendingRequest = useBusTrackingStore((state) => state.setPendingRequest);
+  const fetchCalendarEvents = useCalendarStore((state) => state.fetchCalendarEvents);
+
+  useEffect(() => {
+    if (!user?.user_id) return;
+
+    let cancelled = false;
+
+    const registerPushAndSyncCalendar = async () => {
+      const pushToken = await initializePushNotifications();
+
+      if (pushToken && !cancelled) {
+        await userAPI.updatePushToken(pushToken).catch((error) => {
+          console.warn("Failed to update push token:", error);
+        });
+      }
+
+      if (!cancelled) {
+        await fetchCalendarEvents(30).catch(() => {});
+      }
+    };
+
+    registerPushAndSyncCalendar();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchCalendarEvents, user?.user_id]);
 
   useEffect(() => {
     requestNotificationPermissions().catch(() => {});
@@ -41,11 +70,20 @@ export default function TabsLayout() {
 
     const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
       const data = response.notification.request.content.data;
+
+      if (data?.type === "notice") {
+        router.push("/(tabs)");
+        return;
+      }
+
       if (data?.type !== "bus-tracking-request") return;
 
       const busId =
         typeof data.busId === "number" ? data.busId : Number(data.busId);
       if (!busId) return;
+
+      const parsedRouteId =
+        typeof data.routeId === "number" ? data.routeId : Number(data.routeId);
 
       const estimateData =
         typeof data.estimate === "object" && data.estimate
@@ -58,8 +96,7 @@ export default function TabsLayout() {
 
       setPendingRequest({
         busId,
-        routeId:
-          typeof data.routeId === "number" ? data.routeId : Number(data.routeId),
+        routeId: Number.isFinite(parsedRouteId) ? parsedRouteId : null,
         estimate: estimateData
           ? {
               lat:
@@ -100,12 +137,6 @@ export default function TabsLayout() {
           routeId: payload.routeId || null,
           estimate: payload.estimate,
         });
-
-        sendBusTrackingRequestNotification(
-          payload.busId,
-          payload.estimate,
-          payload.routeId || null,
-        ).catch(() => {});
       });
     };
 

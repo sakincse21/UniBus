@@ -46,6 +46,7 @@ Rules:
 Example output:
 [{"day":"sunday","firstHalfStart":"08:30","secondHalfStart":"13:00","confidence":0.95,"note":"Regular day"},{"day":"monday","firstHalfStart":"09:00","secondHalfStart":"14:00","confidence":0.85,"note":"Lab in afternoon"}]`;
 
+  console.log(prompt);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
 
