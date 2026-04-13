@@ -17,6 +17,7 @@ const uploadAndAnalyze = tryCatch(async (req: Request, res: Response) => {
   }
 
   try {
+    console.log('trying image analysis')
     const slots = await analyzeRoutineImage(req.file.path);
 
     // Clean up uploaded file after analysis
@@ -30,10 +31,15 @@ const uploadAndAnalyze = tryCatch(async (req: Request, res: Response) => {
   } catch (error: any) {
     // Clean up on failure too
     fs.unlink(req.file.path, () => {});
-    return res.status(422).json({
+    const errorMessage = error?.message || "Unknown analysis error";
+    const isTimeout = /timed out/i.test(errorMessage);
+
+    return res.status(isTimeout ? 504 : 422).json({
       success: false,
-      message: "Failed to analyze routine image",
-      error: error.message,
+      message: isTimeout
+        ? "Routine analysis timed out. Please try again."
+        : "Failed to analyze routine image",
+      error: errorMessage,
     });
   }
 });

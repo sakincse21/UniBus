@@ -30,6 +30,44 @@ interface AttachedFile {
   type: string;
 }
 
+const EXT_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
+function resolveFileName(uri: string, fallback: string) {
+  const fromUri = uri.split("/").pop()?.split("?")[0];
+  return (fromUri || fallback).replace(/\s+/g, "_");
+}
+
+function resolveMimeType(mimeType: string | null | undefined, fileName: string) {
+  const normalized = mimeType?.toLowerCase().trim();
+
+  if (normalized) {
+    if (normalized === "image/jpg" || normalized === "image/pjpeg") {
+      return "image/jpeg";
+    }
+    if (normalized === "image/heic-sequence") {
+      return "image/heic";
+    }
+    if (normalized === "image/heif-sequence") {
+      return "image/heif";
+    }
+    return normalized;
+  }
+
+  const ext = fileName.toLowerCase().split(".").pop();
+  if (ext && EXT_TO_MIME[ext]) {
+    return EXT_TO_MIME[ext];
+  }
+
+  return "application/octet-stream";
+}
+
 interface CreateNoticeModalProps {
   visible: boolean;
   onClose: () => void;
@@ -93,18 +131,22 @@ export default function CreateNoticeModal({
   const pickFile = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ["images"],
         allowsEditing: false,
         quality: 0.7,
       });
 
       if (!result.canceled) {
         const asset = result.assets[0];
+        const fileName = resolveFileName(
+          asset.uri,
+          asset.fileName || `file_${Date.now()}.jpg`,
+        );
         const newFile: AttachedFile = {
           uri: asset.uri,
-          name: asset.fileName || `file_${Date.now()}.jpg`,
+          name: fileName,
           size: asset.fileSize || 0,
-          type: asset.type || "application/octet-stream",
+          type: resolveMimeType(asset.mimeType, fileName),
         };
 
         if (newFile.size > 10 * 1024 * 1024) {
@@ -273,10 +315,17 @@ export default function CreateNoticeModal({
           try {
             await noticeAPI.uploadAttachments(noticeId, attachments);
           } catch (attachmentError) {
-            console.error("Error uploading attachments:", attachmentError);
+            const apiError = attachmentError as any;
+            console.error("Error uploading attachments:", {
+              message: apiError?.message,
+              code: apiError?.code,
+              status: apiError?.response?.status,
+              data: apiError?.response?.data,
+            });
             Alert.alert(
               "Partial Success",
-              "Notice created, but some attachments failed to upload",
+              apiError?.response?.data?.message ||
+                "Notice created, but some attachments failed to upload",
             );
           }
         }

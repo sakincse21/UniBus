@@ -4,6 +4,47 @@ import { AppDataSource } from "../../db/data-source";
 import { Notice, NoticeStatus } from "./notice.entity";
 import { User, UserRole } from "../user/user.entity";
 
+type SocketServerLike = {
+  emit: (event: string, payload: unknown) => void;
+  to: (room: string) => { emit: (event: string, payload: unknown) => void };
+};
+
+function getSocketServer(req: Request): SocketServerLike | null {
+  const io = req.app.get("io") as Partial<SocketServerLike> | undefined;
+
+  if (!io || typeof io.emit !== "function" || typeof io.to !== "function") {
+    return null;
+  }
+
+  return io as SocketServerLike;
+}
+
+function emitPublishedNotice(io: SocketServerLike | null, notice: Notice) {
+  if (!io) return;
+
+  if (notice.forAll) {
+    io.emit("notice_published", notice);
+    return;
+  }
+
+  if (notice.forTeachers) {
+    io.to("role:teacher").emit("notice_published", notice);
+    return;
+  }
+
+  if (notice.targetBatch) {
+    io.to(`batch:${notice.targetBatch.id}`).emit("notice_published", notice);
+  }
+}
+
+function emitPendingNotice(io: SocketServerLike | null, notice: Notice) {
+  if (!io) return;
+
+  io.to("role:admin").emit("notice_pending", notice);
+  io.to("role:teacher").emit("notice_pending", notice);
+  io.to("role:cr").emit("notice_pending", notice);
+}
+
 const createNotice = tryCatch(async (req: Request, res: Response) => {
   const { title, content, forAll, forTeachers, targetBatchId, eventDate, startTime, endTime } = req.body;
 
@@ -103,16 +144,12 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
 
   await repo.save(notice);
 
-  const io = req.app.get("io");
+  const io = getSocketServer(req);
   // If auto-approved, broadcast immediately
   if (notice.status === NoticeStatus.APPROVED) {
-    if (notice.forAll) {
-      io.emit("notice_published", notice);
-    } else if (notice.forTeachers) {
-      io.to("role:teacher").emit("notice_published", notice);
-    } else if (notice.targetBatch) {
-      io.to(`batch:${notice.targetBatch.id}`).emit("notice_published", notice);
-    }
+    emitPublishedNotice(io, notice);
+  } else if (notice.status === NoticeStatus.PENDING) {
+    emitPendingNotice(io, notice);
   }
 
   res.json({ success: true, data: notice });
@@ -138,14 +175,8 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
   notice.status = NoticeStatus.APPROVED;
   await repo.save(notice);
 
-  const io = req.app.get("io");
-  if (notice.forAll) {
-    io.emit("notice_published", notice);
-  } else if (notice.forTeachers) {
-    io.to("role:teacher").emit("notice_published", notice);
-  } else if (notice.targetBatch) {
-    io.to(`batch:${notice.targetBatch.id}`).emit("notice_published", notice);
-  }
+  const io = getSocketServer(req);
+  emitPublishedNotice(io, notice);
 
   res.json({ success: true });
 });
@@ -236,8 +267,8 @@ const deleteNotice = tryCatch(async (req: Request, res: Response) => {
   const repo = AppDataSource.getRepository(Notice);
   await repo.delete(Number(id));
 
-  const io = req.app.get("io");
-  io.emit("notice_deleted", { id: Number(id) });
+  const io = getSocketServer(req);
+  io?.emit("notice_deleted", { id: Number(id) });
 
   res.json({ success: true });
 });

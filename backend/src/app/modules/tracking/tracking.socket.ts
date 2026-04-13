@@ -8,6 +8,20 @@ import { BusSchedule } from "../schedule/busSchedule.entity";
 import { RoutePoint } from "../route/routePoint.entity";
 import { LessThan } from "typeorm";
 
+const SESSION_CLEANUP_INTERVAL_MS = 10000;
+let sessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+function isPoolClosedError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  return /pool is closed/i.test(message);
+}
+
+function stopSessionCleanup() {
+  if (!sessionCleanupTimer) return;
+  clearInterval(sessionCleanupTimer);
+  sessionCleanupTimer = null;
+}
+
 async function getTrackingRooms(busId: number): Promise<string[]> {
   const rooms = [`bus:${busId}`];
   const scheduleRepo = AppDataSource.getRepository(BusSchedule);
@@ -37,7 +51,13 @@ async function emitToTrackingRooms(
 }
 
 function startSessionCleanup(io: any) {
-  setInterval(async () => {
+  stopSessionCleanup();
+
+  sessionCleanupTimer = setInterval(async () => {
+    if (!AppDataSource.isInitialized) {
+      return;
+    }
+
     try {
       const repo = AppDataSource.getRepository(LiveTrackingSession);
       const expired = await repo.find({
@@ -63,13 +83,22 @@ function startSessionCleanup(io: any) {
         }
       }
     } catch (err) {
+      if (!AppDataSource.isInitialized || isPoolClosedError(err)) {
+        return;
+      }
       console.error("Error during session cleanup:", err);
     }
-  }, 10000); 
+  }, SESSION_CLEANUP_INTERVAL_MS);
+
+  sessionCleanupTimer.unref?.();
 }
 
 export const registerTrackingSockets = (io: any) => {
   startSessionCleanup(io);
+
+  const stopCleanup = () => {
+    stopSessionCleanup();
+  };
 
   io.on("connection", (socket: any) => {
     const user = socket.user;
@@ -382,4 +411,6 @@ export const registerTrackingSockets = (io: any) => {
       }
     });
   });
+
+  return stopCleanup;
 };

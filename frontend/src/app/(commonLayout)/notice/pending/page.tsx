@@ -28,6 +28,44 @@ export default function PendingNoticePage() {
     });
   }, []);
 
+  useEffect(() => {
+    const onPending = (event: Event) => {
+      const notice = (event as CustomEvent<any>).detail;
+      if (!notice?.id) return;
+
+      setNotices((prev) => {
+        if (prev.some((n) => n.id === notice.id)) {
+          return prev;
+        }
+        return [notice, ...prev];
+      });
+    };
+
+    const onPublished = (event: Event) => {
+      const notice = (event as CustomEvent<any>).detail;
+      if (!notice?.id) return;
+
+      setNotices((prev) => prev.filter((n) => n.id !== notice.id));
+    };
+
+    const onDeleted = (event: Event) => {
+      const data = (event as CustomEvent<{ id: number }>).detail;
+      if (!data?.id) return;
+
+      setNotices((prev) => prev.filter((n) => n.id !== data.id));
+    };
+
+    window.addEventListener("NOTICE_PENDING", onPending as EventListener);
+    window.addEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+    window.addEventListener("NOTICE_DELETED", onDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener("NOTICE_PENDING", onPending as EventListener);
+      window.removeEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+      window.removeEventListener("NOTICE_DELETED", onDeleted as EventListener);
+    };
+  }, []);
+
   const approve = async (id: number) => {
     await approveNotice(id);
     setNotices((prev) => prev.filter((n) => n.id !== id));

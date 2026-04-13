@@ -13,7 +13,15 @@ export function getSocket(): Promise<Socket> {
         { credentials: "include" }
       );
 
+      if (!res.ok) {
+        throw new Error(`Socket token request failed (${res.status})`);
+      }
+
       const { token } = await res.json();
+
+      if (!token) {
+        throw new Error("Socket token not found");
+      }
 
       const socket = io(configs.BACKEND_BASE_URL, {
         withCredentials: true,
@@ -30,6 +38,11 @@ export function getSocket(): Promise<Socket> {
 
       return socket;
     })();
+
+    socketPromise.catch(() => {
+      // Allow retry on next call if initial setup fails.
+      socketPromise = null;
+    });
   }
 
   return socketPromise;

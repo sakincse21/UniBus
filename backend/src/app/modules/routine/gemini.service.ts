@@ -4,6 +4,7 @@ import path from "path";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = env.OPENROUTER_MODEL;
+const OPENROUTER_TIMEOUT_MS = 60_000;
 // const MODEL = "google/gemma-3-27b-it:free";
 
 export interface RoutineSlot {
@@ -45,36 +46,49 @@ Rules:
 Example output:
 [{"day":"sunday","firstHalfStart":"08:30","secondHalfStart":"13:00","confidence":0.95,"note":"Regular day"},{"day":"monday","firstHalfStart":"09:00","secondHalfStart":"14:00","confidence":0.85,"note":"Lab in afternoon"}]`;
 
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": "https://unibus.app",
-      "X-Title": "UniBus",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${mimeType};base64,${base64Image}`,
-              },
-            },
-          ],
-        },
-      ],
-      max_tokens: 2048,
-      temperature: 0.2,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
 
-  console.log(response)
+  let response: Response;
+
+  try {
+    response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "UniBus",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 2048,
+        temperature: 0.2,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      throw new Error("Routine analysis request timed out");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errBody = await response.text();

@@ -21,11 +21,29 @@ const fileFilter = (
   file: Express.Multer.File,
   cb: multer.FileFilterCallback,
 ) => {
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic"];
-  if (allowedTypes.includes(file.mimetype)) {
+  const allowedTypes = new Set([
+    "image/jpeg",
+    "image/jpg",
+    "image/pjpeg",
+    "image/png",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+    "image/heic-sequence",
+    "image/heif-sequence",
+  ]);
+  const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"]);
+  const mimeType = (file.mimetype || "").toLowerCase();
+  const extension = path.extname(file.originalname || "").toLowerCase();
+
+  const isAllowedMime = allowedTypes.has(mimeType);
+  const isOctetStreamImage =
+    mimeType === "application/octet-stream" && allowedExtensions.has(extension);
+
+  if (isAllowedMime || isOctetStreamImage) {
     cb(null, true);
   } else {
-    cb(new Error("Only JPEG, PNG, WebP and HEIC images are allowed"));
+    cb(new Error("Only JPEG/JPG, PNG, WebP, HEIC and HEIF images are allowed"));
   }
 };
 

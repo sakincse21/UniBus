@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import { fetchNotices, getAttachmentDownloadUrl, deleteNotice } from "@/lib/action/notice";
-import { getSocket } from "@/lib/socket";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -79,27 +78,33 @@ export default function NoticePage() {
   }, [currentPage]);
 
   useEffect(() => {
-    let socket: any;
+    const onPublished = (event: Event) => {
+      if (currentPage !== 1) return;
 
-    (async () => {
-      socket = await getSocket();
+      const notice = (event as CustomEvent<any>).detail;
+      if (!notice?.id) return;
 
-      socket.on("notice_published", (notice: any) => {
-        if (currentPage === 1) {
-          setNotices((prev) => [notice, ...prev]);
+      setNotices((prev) => {
+        if (prev.some((n) => n.id === notice.id)) {
+          return prev;
         }
+        return [notice, ...prev];
       });
+    };
 
-      socket.on("notice_deleted", (data: any) => {
-        setNotices((prev) => prev.filter((n) => n.id !== data.id));
-      });
-    })();
+    const onDeleted = (event: Event) => {
+      const data = (event as CustomEvent<{ id: number }>).detail;
+      if (!data?.id) return;
+
+      setNotices((prev) => prev.filter((n) => n.id !== data.id));
+    };
+
+    window.addEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+    window.addEventListener("NOTICE_DELETED", onDeleted as EventListener);
 
     return () => {
-      if (socket) {
-        socket.off("notice_published");
-        socket.off("notice_deleted");
-      }
+      window.removeEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+      window.removeEventListener("NOTICE_DELETED", onDeleted as EventListener);
     };
   }, [currentPage]);
 

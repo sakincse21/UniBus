@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
   Dimensions,
+  Platform,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
@@ -56,6 +57,37 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
   return to12h(
     `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
   );
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeRoutePoints(points: unknown): IRoutePoint[] {
+  if (!Array.isArray(points)) return [];
+
+  return points
+    .map((point, index) => {
+      const raw = point as Partial<IRoutePoint>;
+      const lat = toFiniteNumber(raw.lat);
+      const lng = toFiniteNumber(raw.lng);
+      const minuteOffset = toFiniteNumber(raw.minuteOffset);
+
+      if (lat === null || lng === null || minuteOffset === null) {
+        return null;
+      }
+
+      const sequence = toFiniteNumber(raw.sequence);
+
+      return {
+        sequence: sequence === null ? index + 1 : Math.round(sequence),
+        lat,
+        lng,
+        minuteOffset,
+      };
+    })
+    .filter((point): point is IRoutePoint => point !== null);
 }
 
 /**
@@ -282,6 +314,7 @@ export default function BusTrackingTab() {
   const [loadingBuses, setLoadingBuses] = useState(true);
   const [trackingBusId, setTrackingBusId] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [hasLocationPermission, setHasLocationPermission] = useState(false);
 
   const [isSharingGps, setIsSharingGps] = useState(false);
   const [sharingForBusId, setSharingForBusId] = useState<number | null>(null);
@@ -365,6 +398,7 @@ export default function BusTrackingTab() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
+          setHasLocationPermission(false);
           socket.emit("stop_tracking", { busId });
           isSharingRef.current = false;
           sharingBusIdRef.current = null;
@@ -374,6 +408,8 @@ export default function BusTrackingTab() {
           showToast("Location permission required");
           return;
         }
+
+        setHasLocationPermission(true);
 
         const initialPosition = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Highest,
@@ -439,6 +475,9 @@ export default function BusTrackingTab() {
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
+        if (!cancelled) {
+          setHasLocationPermission(status === "granted");
+        }
         if (status === "granted" && !cancelled) {
           const loc = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
@@ -526,6 +565,9 @@ export default function BusTrackingTab() {
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
+        if (mounted) {
+          setHasLocationPermission(status === "granted");
+        }
         if (status !== "granted" || !mounted) return;
 
         const sub = await Location.watchPositionAsync(
@@ -614,14 +656,19 @@ export default function BusTrackingTab() {
 
         socket.on("bus_location_update", (data: any) => {
           if (!mounted) return;
-          const lat: number = data.estimate?.lat ?? data.lat;
-          const lng: number = data.estimate?.lng ?? data.lng;
-          const confidence: number = data.estimate?.confidence ?? 1;
+          const busId = toFiniteNumber(data.busId);
+          const lat = toFiniteNumber(data.estimate?.lat ?? data.lat);
+          const lng = toFiniteNumber(data.estimate?.lng ?? data.lng);
+          const confidence = toFiniteNumber(data.estimate?.confidence ?? 1) ?? 1;
+
+          if (busId === null || lat === null || lng === null) {
+            return;
+          }
 
           setBusLocations((prev) => ({
             ...prev,
-            [data.busId]: {
-              busId: data.busId,
+            [busId]: {
+              busId,
               lat,
               lng,
               isLive: true,
@@ -657,9 +704,10 @@ export default function BusTrackingTab() {
         });
 
         socket.on("bus_tracking_ended", (data: any) => {
-          if (!mounted || !data?.busId) return;
+          const endedBusId = toFiniteNumber(data?.busId);
+          if (!mounted || endedBusId === null) return;
 
-          if (activeBusId === data.busId) {
+          if (activeBusId === endedBusId) {
             const estimatedPos =
               routePoints.length > 0 && scheduleStartTime
                 ? calculateEstimatedPosition(routePoints, scheduleStartTime)
@@ -668,20 +716,20 @@ export default function BusTrackingTab() {
             if (estimatedPos) {
               setBusLocations((prev) => ({
                 ...prev,
-                [data.busId]: {
-                  busId: data.busId,
+                [endedBusId]: {
+                  busId: endedBusId,
                   lat: estimatedPos.lat,
                   lng: estimatedPos.lng,
                   isLive: false,
-                  confidence: prev[data.busId]?.confidence ?? 0.5,
+                  confidence: prev[endedBusId]?.confidence ?? 0.5,
                 },
               }));
             } else {
               setBusLocations((prev) => {
                 const next = { ...prev };
-                if (next[data.busId]) {
-                  next[data.busId] = {
-                    ...next[data.busId],
+                if (next[endedBusId]) {
+                  next[endedBusId] = {
+                    ...next[endedBusId],
                     isLive: false,
                   };
                 }
@@ -690,7 +738,7 @@ export default function BusTrackingTab() {
             }
           }
 
-          if (isSharingRef.current && sharingBusIdRef.current === data.busId) {
+          if (isSharingRef.current && sharingBusIdRef.current === endedBusId) {
             stopSharingGps("Live sharing ended");
           }
         });
@@ -744,24 +792,27 @@ export default function BusTrackingTab() {
 
         const res = await busAPI.requestTracking(busId);
         const data = res.data as IBusTrackingResponse;
+        const normalizedPoints = normalizeRoutePoints(data.points);
 
         setActiveBusId(busId);
         setActiveRouteId(data.routeId ?? null);
         activeRouteIdRef.current = data.routeId ?? null;
-        setRoutePoints(data.points ?? []);
+        setRoutePoints(normalizedPoints);
         setScheduleStartTime(data.startTime ?? null);
         joinTrackingRoom(busId, data.routeId ?? null);
 
         // Debug logging
         console.log("🗺️ Bus tracked:", busId);
-        console.log("Route points received:", data.points?.length || 0);
+        console.log("Route points received:", normalizedPoints.length);
         console.log("Start time:", data.startTime);
-        if (data.points && data.points.length > 0) {
-          console.log("First point:", data.points[0]);
-          console.log("Route point offsets:", data.points.map((p: any) => p.minuteOffset));
+        if (normalizedPoints.length > 0) {
+          console.log("First point:", normalizedPoints[0]);
+          console.log("Route point offsets:", normalizedPoints.map((p: any) => p.minuteOffset));
         }
 
         const estimate = data.estimate;
+        const estimateLat = toFiniteNumber(estimate?.lat);
+        const estimateLng = toFiniteNumber(estimate?.lng);
         const mode = estimate?.mode;
         if (mode === "not_started") {
           showToast(`Bus starts at ${estimate?.startTime}`);
@@ -773,22 +824,22 @@ export default function BusTrackingTab() {
           showToast("Estimated location shown");
         }
 
-        if (estimate?.lat != null && estimate?.lng != null) {
+        if (estimateLat !== null && estimateLng !== null) {
           setBusLocations((prev) => ({
             ...prev,
             [busId]: {
               busId,
-              lat: estimate.lat,
-              lng: estimate.lng,
+              lat: estimateLat,
+              lng: estimateLng,
               isLive: data.isLive ?? false,
-              confidence: estimate.confidence ?? 0.5,
+              confidence: estimate?.confidence ?? 0.5,
             },
           }));
 
           mapRef.current?.animateToRegion(
             {
-              latitude: estimate.lat,
-              longitude: estimate.lng,
+              latitude: estimateLat,
+              longitude: estimateLng,
               latitudeDelta: 0.06,
               longitudeDelta: 0.06,
             },
@@ -882,8 +933,8 @@ export default function BusTrackingTab() {
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         initialRegion={DEFAULT_REGION}
-        showsUserLocation
-        showsMyLocationButton={false}
+        showsUserLocation={hasLocationPermission}
+        showsMyLocationButton={Platform.OS === "android" && hasLocationPermission}
         showsCompass={false}
         toolbarEnabled={false}
       >

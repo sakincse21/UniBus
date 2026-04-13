@@ -9,8 +9,13 @@ import { cookies } from "next/headers"
 import jwt from "jsonwebtoken"
 import { configs } from "@/lib/config.env"
 import { RoleProvider } from "@/components/RoleProvider"
+import NoticeRealtimeBridge from "../../components/NoticeRealtimeBridge"
 
 type UserRole = "admin" | "teacher" | "student" | "cr"
+
+type DecodedAuthToken = jwt.JwtPayload & {
+  role?: UserRole
+}
 
 async function getServerUserRole(): Promise<UserRole | null> {
   const cookieStore = await cookies()
@@ -22,9 +27,9 @@ async function getServerUserRole(): Promise<UserRole | null> {
     const secret = configs.JWT_SECRET
     if (!secret) return null
 
-    const decoded = jwt.verify(token, secret) as any
-    return decoded.role as UserRole
-  } catch (error) {
+    const decoded = jwt.verify(token, secret) as DecodedAuthToken
+    return decoded.role ?? null
+  } catch {
     return null
   }
 }
@@ -38,6 +43,7 @@ export default async function CommonLayout({
 
   return (
     <RoleProvider role={role}>
+      <NoticeRealtimeBridge />
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>

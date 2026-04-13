@@ -4,11 +4,40 @@ import storage from "./storage";
 
 console.log("API Base URL:", config.API_BASE_URL);
 
+const EXT_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
+const resolveUploadFileName = (file: any): string => {
+  const uriName = (file?.uri || "").split("/").pop()?.split("?")[0];
+  return (file?.name || uriName || `upload-${Date.now()}.jpg`).replace(/\s+/g, "_");
+};
+
+const resolveUploadMimeType = (file: any, fileName: string): string => {
+  const rawType = (file?.type || file?.mimeType || "").toLowerCase().trim();
+
+  if (rawType.includes("/")) {
+    if (rawType === "image/jpg" || rawType === "image/pjpeg") {
+      return "image/jpeg";
+    }
+    return rawType;
+  }
+
+  const ext = fileName.toLowerCase().split(".").pop();
+  if (ext && EXT_TO_MIME[ext]) {
+    return EXT_TO_MIME[ext];
+  }
+
+  return "application/octet-stream";
+};
+
 const api = axios.create({
   baseURL: config.API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
   timeout: 60000,
 });
 
@@ -16,6 +45,7 @@ api.interceptors.request.use(
   async (config) => {
     const token = await storage.getToken();
     if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -60,17 +90,16 @@ export const noticeAPI = {
 
     // Append files directly - axios will handle multipart encoding
     files.forEach((file) => {
+      const name = resolveUploadFileName(file);
+      const type = resolveUploadMimeType(file, name);
       formData.append("attachments", {
         uri: file.uri,
-        name: file.name,
-        type: file.type || "application/octet-stream",
+        name,
+        type,
       } as any);
     });
 
     return api.post("/attachment/upload", formData, {
-      headers: {
-        "Content-Type": undefined, // Override default JSON header to allow FormData multipart
-      },
       timeout: 120000,
     });
   },
@@ -99,8 +128,8 @@ export const userAPI = {
 export const routineAPI = {
   uploadImage: (formData: FormData) =>
     api.post("/routine/upload", formData, {
-      headers: { "Content-Type": undefined }, // Let axios handle multipart encoding
-      timeout: 60000,
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 180000,
     }),
   confirmRoutine: (slots: any[]) => api.post("/routine/confirm", { slots }),
   getMyRoutine: () => api.get("/routine"),
