@@ -6,14 +6,15 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { registerTrackingSockets } from "./app/modules/tracking/tracking.socket";
 import { socketAuth } from "./app/middlewares/socketAuth";
+import { setupInitialBatches } from "./app/utils/batchSetup";
 
 async function start() {
   await ensureDataSourceInitialized();
-  console.log("Database connected");
+  console.log("✅ PostgreSQL database connected");
 
-  // const server = app.listen(env.PORT, () =>
-  //   console.log(`Server running on port ${env.PORT}`)
-  // );
+  // Setup initial batch data
+  await setupInitialBatches();
+  console.log("✅ Initial batches created");
 
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
@@ -29,10 +30,9 @@ async function start() {
   const stopTrackingCleanup = registerTrackingSockets(io);
 
   httpServer.listen(env.PORT, () =>
-    console.log(`Server running on port ${env.PORT}`),
+    console.log(`🚀 Server running on port ${env.PORT}`),
   );
 
-  // attachServer(server);
   attachServer(httpServer);
 
   const shutdown = (exitCode: number, reason: string) => {

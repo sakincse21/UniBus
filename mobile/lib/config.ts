@@ -17,11 +17,8 @@ const getApiBaseUrl = (): string => {
     return expoConfig;
   }
 
-  // Priority 3: Default for development
-  // In production builds, ensure EXPO_PUBLIC_API_BASE_URL is set in eas.json
-  const fallbackUrl = "http://localhost:5000/api/v1";
-  console.warn("⚠️ No API URL configured, using fallback:", fallbackUrl);
-  return fallbackUrl;
+  // Priority 3: Production fallback
+  return "https://tracku-backend.onrender.com/api/v1";
 };
 
 const getSocketUrl = (): string => {
@@ -38,7 +35,7 @@ const getSocketUrl = (): string => {
     return expoConfig;
   }
 
-  return "http://192.168.10.191:5000";
+  return "https://tracku-backend.onrender.com";
 };
 
 export const config = {

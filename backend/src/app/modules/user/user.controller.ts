@@ -31,7 +31,7 @@ const bulkUploadUsers = tryCatch(async (req: Request, res: Response, next: NextF
 });
 
 const updateUser = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.params.id;
+  const userId = req.params.id as string;
   const payload = req.body;
   const user = await UserService.updateUser(userId, payload);
 
@@ -43,7 +43,7 @@ const updateUser = tryCatch(async (req: Request, res: Response, next: NextFuncti
 });
 
 const deleteUser = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.params.id;
+  const userId = req.params.id as string;
   await UserService.deleteUser(userId);
 
   res.status(200).json({
@@ -53,7 +53,7 @@ const deleteUser = tryCatch(async (req: Request, res: Response, next: NextFuncti
 });
 
 const fetchUserbyId = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.params.id;
+  const userId = req.params.id as string;
   const user = await UserService.getUserById(userId);
 
   res.status(200).json({

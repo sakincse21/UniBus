@@ -15,10 +15,10 @@ export class EstimatedBusLocation {
   @ManyToOne(() => Bus)
   bus!: Bus;
 
-  @Column("double")
+  @Column("double precision")
   lat!: number;
 
-  @Column("double")
+  @Column("double precision")
   lng!: number;
 
   @Column("float")

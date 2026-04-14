@@ -9,10 +9,10 @@ export class RoutePoint {
   @ManyToOne(() => Route, (route) => route.points, { onDelete: "CASCADE" })
   route!: Route;
 
-  @Column("double")
+  @Column("double precision")
   lat!: number;
 
-  @Column("double")
+  @Column("double precision")
   lng!: number;
 
   @Column()

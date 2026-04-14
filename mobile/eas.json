@@ -21,8 +21,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://operating-durable-washout.ngrok-free.dev/api/v1",
-        "EXPO_PUBLIC_SOCKET_URL": "https://operating-durable-washout.ngrok-free.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.10.191:5000/api/v1",
+        "EXPO_PUBLIC_SOCKET_URL": "http://192.168.10.191:5000"
       }
     },
     "production": {

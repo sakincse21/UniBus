@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "UniBus Mobile",
-    "slug": "unibus-mobile",
+    "name": "TrackU Mobile",
+    "slug": "tracku-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.unibus.mobile",
+      "bundleIdentifier": "com.tracku.mobile",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
@@ -27,7 +27,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.unibus.mobile",
+      "package": "com.tracku.mobile",
       "networkSecurityConfig": "./android/app/src/main/res/xml/network_security_config.xml",
       "permissions": [
         "android.permission.INTERNET",
@@ -38,7 +38,7 @@
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
-    "scheme": "unibus",
+    "scheme": "tracku",
     "web": {
       "bundler": "metro",
       "output": "static",
@@ -49,8 +49,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow UniBus to access your photos to upload routine images.",
-          "cameraPermission": "Allow UniBus to use the camera to take photos of your routine."
+          "photosPermission": "Allow TrackU to access your photos to upload routine images.",
+          "cameraPermission": "Allow TrackU to use the camera to take photos of your routine."
         }
       ],
       [
@@ -63,7 +63,7 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Allow UniBus to create routine events in your calendar."
+          "calendarPermission": "Allow TrackU to create routine events in your calendar."
         }
       ]
     ],
@@ -74,8 +74,8 @@
       "eas": {
         "projectId": "a271be5e-bb64-425b-9a77-55d04088c337"
       },
-      "apiBaseUrl": "https://operating-durable-washout.ngrok-free.dev/api/v1",
-      "socketUrl": "https://operating-durable-washout.ngrok-free.dev"
+      "apiBaseUrl": "https://tracku-backend.onrender.com/api/v1",
+      "socketUrl": "https://tracku-backend.onrender.com"
     }
   }
 }

@@ -16,18 +16,30 @@ import { Routine } from "../modules/routine/routine.entity";
 import { UserFixture } from "../modules/calendar/calendar.entity";
 
 export const AppDataSource = new DataSource({
-  type: "mysql",
-  host: env.MYSQL_HOST,
-  port: env.MYSQL_PORT,
-  username: env.MYSQL_USER,
-  password: env.MYSQL_PASSWORD,
-  database: env.MYSQL_DB,
-  synchronize: true, // use migrations later — good for now
+  type: "postgres",
+  host: env.DB_HOST,
+  port: env.DB_PORT,
+  username: env.DB_USER,
+  password: env.DB_PASSWORD,
+  database: env.DB_NAME,
+  synchronize: true, // Set to false in production, use migrations
   logging: false,
-  entities: [User, Bus, LiveTrackingSession, EstimatedBusLocation,
-  Route,
-  RoutePoint,
-  BusSchedule, Batch, Notice, Attachment, UserLocation, Routine, UserFixture],
+  ssl: { rejectUnauthorized: false },
+  entities: [
+    User,
+    Bus,
+    LiveTrackingSession,
+    EstimatedBusLocation,
+    Route,
+    RoutePoint,
+    BusSchedule,
+    Batch,
+    Notice,
+    Attachment,
+    UserLocation,
+    Routine,
+    UserFixture,
+  ],
 });
 
 let initPromise: Promise<DataSource> | null = null;
