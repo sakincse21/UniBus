@@ -7,7 +7,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "main": "expo-router/entry",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,7 +14,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.unibus.mobile"
+      "bundleIdentifier": "com.unibus.mobile",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,10 +28,14 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.unibus.mobile",
+      "networkSecurityConfig": "./android/app/src/main/res/xml/network_security_config.xml",
       "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR"
+        "android.permission.WRITE_CALENDAR",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "scheme": "unibus",
@@ -63,12 +71,11 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "http://192.168.10.108:5000/api/v1",
-      "socketUrl": "http://192.168.10.108:5000",
-      "router": {},
       "eas": {
-        "projectId": "80949995-3dff-40be-a5ec-b0f90e6ea163"
-      }
+        "projectId": "a271be5e-bb64-425b-9a77-55d04088c337"
+      },
+      "apiBaseUrl": "https://operating-durable-washout.ngrok-free.dev/api/v1",
+      "socketUrl": "https://operating-durable-washout.ngrok-free.dev"
     }
   }
 }

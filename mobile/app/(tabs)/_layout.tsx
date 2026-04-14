@@ -13,6 +13,7 @@ import {
 } from "@/lib/notifications";
 import { useRouter } from "expo-router";
 import { userAPI } from "@/lib/api";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const TabIcon = ({
   name,
@@ -34,8 +35,12 @@ export default function TabsLayout() {
   const { user } = useAuthStore();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const setPendingRequest = useBusTrackingStore((state) => state.setPendingRequest);
-  const fetchCalendarEvents = useCalendarStore((state) => state.fetchCalendarEvents);
+  const setPendingRequest = useBusTrackingStore(
+    (state) => state.setPendingRequest,
+  );
+  const fetchCalendarEvents = useCalendarStore(
+    (state) => state.fetchCalendarEvents,
+  );
 
   useEffect(() => {
     if (!user?.user_id) return;
@@ -68,7 +73,9 @@ export default function TabsLayout() {
 
     let socket: any;
 
-    const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+    const handleNotificationResponse = (
+      response: Notifications.NotificationResponse,
+    ) => {
       const data = response.notification.request.content.data;
 
       if (data?.type === "notice") {
@@ -164,85 +171,87 @@ export default function TabsLayout() {
   }, [router, setPendingRequest]);
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: "#2563eb",
-        tabBarInactiveTintColor: "#6b7280",
-        tabBarStyle: {
-          backgroundColor: "#ffffff",
-          borderTopWidth: 1,
-          borderTopColor: "#e5e7eb",
-          paddingBottom: Math.max(insets.bottom, 12),
-          paddingTop: 10,
-          height: 70 + Math.max(insets.bottom, 0),
-          paddingHorizontal: 4,
-          elevation: 12,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.15,
-          shadowRadius: 6,
-        },
-        tabBarItemStyle: {
-          paddingVertical: 6,
-          gap: 2,
-          flex: 1,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "700",
-          marginTop: 2,
-        },
-        sceneStyle: {
-          backgroundColor: "#f9fafb",
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Notices",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Notices" focused={focused} iconChar="📢" />
-          ),
+    <ErrorBoundary>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: "#2563eb",
+          tabBarInactiveTintColor: "#6b7280",
+          tabBarStyle: {
+            backgroundColor: "#ffffff",
+            borderTopWidth: 1,
+            borderTopColor: "#e5e7eb",
+            paddingBottom: Math.max(insets.bottom, 12),
+            paddingTop: 10,
+            height: 70 + Math.max(insets.bottom, 0),
+            paddingHorizontal: 4,
+            elevation: 12,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -3 },
+            shadowOpacity: 0.15,
+            shadowRadius: 6,
+          },
+          tabBarItemStyle: {
+            paddingVertical: 6,
+            gap: 2,
+            flex: 1,
+          },
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: "700",
+            marginTop: 2,
+          },
+          sceneStyle: {
+            backgroundColor: "#f9fafb",
+          },
         }}
-      />
-      <Tabs.Screen
-        name="bus-tracking"
-        options={{
-          title: "Bus Track",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Bus Track" focused={focused} iconChar="🚌" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="weekly-routine"
-        options={{
-          title: "Routine",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Routine" focused={focused} iconChar="📋" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: "Calendar",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Calendar" focused={focused} iconChar="📅" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Profile" focused={focused} iconChar="👤" />
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Notices",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="Notices" focused={focused} iconChar="📢" />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="bus-tracking"
+          options={{
+            title: "Bus Track",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="Bus Track" focused={focused} iconChar="🚌" />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="weekly-routine"
+          options={{
+            title: "Routine",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="Routine" focused={focused} iconChar="📋" />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="calendar"
+          options={{
+            title: "Calendar",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="Calendar" focused={focused} iconChar="📅" />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: "Profile",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="Profile" focused={focused} iconChar="👤" />
+            ),
+          }}
+        />
+      </Tabs>
+    </ErrorBoundary>
   );
 }

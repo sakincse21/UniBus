@@ -2,7 +2,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchNotices, getAttachmentDownloadUrl, deleteNotice } from "@/lib/action/notice";
+import {
+  fetchNotices,
+  getAttachmentDownloadUrl,
+  deleteNotice,
+} from "@/lib/action/notice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -35,7 +39,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import Image from "next/image";
-import { formatBangladesh } from "@/lib/dateTime";
+import { formatBangladesh, formatBangladeshFromUTC } from "@/lib/dateTime";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -103,7 +107,10 @@ export default function NoticePage() {
     window.addEventListener("NOTICE_DELETED", onDeleted as EventListener);
 
     return () => {
-      window.removeEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+      window.removeEventListener(
+        "NOTICE_PUBLISHED",
+        onPublished as EventListener,
+      );
       window.removeEventListener("NOTICE_DELETED", onDeleted as EventListener);
     };
   }, [currentPage]);
@@ -194,10 +201,13 @@ export default function NoticePage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {formatBangladesh(n.createdAt, {
+                      {formatBangladeshFromUTC(n.createdAt, {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
                       })}
                     </span>
                     <Button
@@ -206,7 +216,9 @@ export default function NoticePage() {
                     >
                       View
                     </Button>
-                    {(role === "admin" || role === "teacher" || role === "cr") && (
+                    {(role === "admin" ||
+                      role === "teacher" ||
+                      role === "cr") && (
                       <Button
                         size="sm"
                         variant="destructive"
@@ -410,12 +422,16 @@ export default function NoticePage() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+      <AlertDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Notice</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this notice? This action cannot be undone.
+              Are you sure you want to delete this notice? This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

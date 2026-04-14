@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { INotice } from "@/interfaces";
-import { formatBangladesh } from "@/lib/dateFormatter";
+import { formatBangladesh, formatBangladeshFromUTC } from "@/lib/dateFormatter";
 
 interface NoticeCardProps {
   notice: INotice;
@@ -11,8 +11,10 @@ interface NoticeCardProps {
 export default function NoticeCard({ notice, onPress }: NoticeCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
+    // Add 6 hours for Bangladesh time
+    const bangladeshDate = new Date(date.getTime() + 6 * 60 * 60 * 1000);
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    const diffMs = now.getTime() - bangladeshDate.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
@@ -22,7 +24,7 @@ export default function NoticeCard({ notice, onPress }: NoticeCardProps) {
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
 
-    return formatBangladesh(date, {
+    return formatBangladesh(bangladeshDate, {
       month: "short",
       day: "numeric",
     });

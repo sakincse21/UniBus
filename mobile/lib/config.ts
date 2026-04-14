@@ -1,59 +1,54 @@
-// mobile/lib/config.ts
 import Constants from "expo-constants";
 
-type AppExtraConfig = {
-  apiBaseUrl?: string;
-  socketUrl?: string;
-};
-
-const getExtraConfig = (): AppExtraConfig => {
-  const constantsAny = Constants as any;
-
-  return (
-    (Constants.expoConfig?.extra as AppExtraConfig | undefined) ||
-    (constantsAny.manifest2?.extra?.expoClient?.extra as
-      | AppExtraConfig
-      | undefined) ||
-    (constantsAny.manifest?.extra as AppExtraConfig | undefined) ||
-    {}
-  );
-};
-
-const extra = getExtraConfig();
-
-// Get the IP from environment or use localhost with fallback
 const getApiBaseUrl = (): string => {
-  // Priority order:
-  // 1. Expo config extra
-  // 2. Environment variable
-  // 3. Localhost (for web/emulator)
-  // 4. Fallback IP
+  // Priority 1: Environment variable (set in .env or eas.json)
+  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+    console.log(
+      "📡 Using API URL from env:",
+      process.env.EXPO_PUBLIC_API_BASE_URL,
+    );
+    return process.env.EXPO_PUBLIC_API_BASE_URL;
+  }
 
-  const expoConfig = extra.apiBaseUrl;
-  if (expoConfig) return expoConfig;
+  // Priority 2: Expo constants extra (from app.json)
+  const expoConfig = Constants.expoConfig?.extra?.apiBaseUrl;
+  if (expoConfig && typeof expoConfig === "string") {
+    console.log("📡 Using API URL from expoConfig:", expoConfig);
+    return expoConfig;
+  }
 
-  const envVar =
-    process.env.EXPO_PUBLIC_API_BASE_URL || process.env.API_BASE_URL;
-  if (envVar) return envVar;
-
-  // Default to localhost:5000 for development
-  return "http://localhost:5000/api/v1";
+  // Priority 3: Default for development
+  // In production builds, ensure EXPO_PUBLIC_API_BASE_URL is set in eas.json
+  const fallbackUrl = "http://localhost:5000/api/v1";
+  console.warn("⚠️ No API URL configured, using fallback:", fallbackUrl);
+  return fallbackUrl;
 };
 
 const getSocketUrl = (): string => {
-  const expoConfig = extra.socketUrl;
-  if (expoConfig) return expoConfig;
+  if (process.env.EXPO_PUBLIC_SOCKET_URL) {
+    console.log(
+      "📡 Using Socket URL from env:",
+      process.env.EXPO_PUBLIC_SOCKET_URL,
+    );
+    return process.env.EXPO_PUBLIC_SOCKET_URL;
+  }
 
-  const envVar = process.env.EXPO_PUBLIC_SOCKET_URL || process.env.SOCKET_URL;
-  if (envVar) return envVar;
+  const expoConfig = Constants.expoConfig?.extra?.socketUrl;
+  if (expoConfig && typeof expoConfig === "string") {
+    return expoConfig;
+  }
 
-  // Default to localhost:5000 for development
-  return "http://localhost:5000";
+  return "http://192.168.10.191:5000";
 };
 
 export const config = {
   API_BASE_URL: getApiBaseUrl(),
   SOCKET_URL: getSocketUrl(),
 };
+
+console.log("🔧 Final config:", {
+  API_BASE_URL: config.API_BASE_URL,
+  SOCKET_URL: config.SOCKET_URL,
+});
 
 export default config;

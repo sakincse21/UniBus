@@ -50,13 +50,23 @@ function to12h(time24: string): string {
 
 function pointTime(startTime: string | null, minuteOffset: number): string {
   if (!startTime) return `+${minuteOffset}m`;
-  const [sh, sm] = startTime.split(":").map(Number);
-  const totalMin = sh * 60 + sm + minuteOffset;
-  const h = Math.floor(totalMin / 60) % 24;
-  const m = Math.floor(totalMin % 60);
-  return to12h(
-    `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
-  );
+  try {
+    const parts = startTime.split(":").map(Number);
+    const sh = parts[0];
+    const sm = parts[1];
+
+    if (isNaN(sh) || isNaN(sm)) return `+${minuteOffset}m`;
+
+    const totalMin = sh * 60 + sm + minuteOffset;
+    const h = Math.floor(totalMin / 60) % 24;
+    const m = Math.floor(totalMin % 60);
+    return to12h(
+      `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
+    );
+  } catch (error) {
+    console.error("Error parsing time:", startTime, error);
+    return `+${minuteOffset}m`;
+  }
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -96,7 +106,7 @@ function normalizeRoutePoints(points: unknown): IRoutePoint[] {
 function interpolatePosition(
   p1: { lat: number; lng: number },
   p2: { lat: number; lng: number },
-  ratio: number
+  ratio: number,
 ): { lat: number; lng: number } {
   return {
     lat: p1.lat + (p2.lat - p1.lat) * ratio,
@@ -109,7 +119,7 @@ function interpolatePosition(
  */
 function calculateEstimatedPosition(
   routePoints: IRoutePoint[],
-  startTime: string | null
+  startTime: string | null,
 ): { lat: number; lng: number } | null {
   if (!routePoints || routePoints.length === 0 || !startTime) return null;
 
@@ -160,7 +170,7 @@ function calculateEstimatedPosition(
 function getOffsetColor(offsetPercent: number): string {
   // Clamp between 0 and 1
   const p = Math.max(0, Math.min(1, offsetPercent));
-  
+
   if (p < 0.5) {
     // Green to Yellow: 0% -> green (#22C55E), 50% -> orange (#F59E0B)
     const ratio = p * 2; // 0 to 1
@@ -315,10 +325,16 @@ export default function BusTrackingTab() {
   const [trackingBusId, setTrackingBusId] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<
+    "idle" | "requesting" | "granted" | "denied"
+  >("idle");
 
   const [isSharingGps, setIsSharingGps] = useState(false);
   const [sharingForBusId, setSharingForBusId] = useState<number | null>(null);
-  const [userGpsLocation, setUserGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userGpsLocation, setUserGpsLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const isSharingRef = useRef(false);
   const sharingBusIdRef = useRef<number | null>(null);
   const activeRouteIdRef = useRef<number | null>(null);
@@ -362,25 +378,31 @@ export default function BusTrackingTab() {
     [showToast],
   );
 
-  const joinTrackingRoom = useCallback((busId: number, routeId?: number | null) => {
-    const socket = socketRef.current;
-    if (!socket) return;
+  const joinTrackingRoom = useCallback(
+    (busId: number, routeId?: number | null) => {
+      const socket = socketRef.current;
+      if (!socket) return;
 
-    socket.emit("view_bus_route", {
-      busId,
-      routeId: routeId ?? undefined,
-    });
-  }, []);
+      socket.emit("view_bus_route", {
+        busId,
+        routeId: routeId ?? undefined,
+      });
+    },
+    [],
+  );
 
-  const leaveTrackingRoom = useCallback((busId?: number | null, routeId?: number | null) => {
-    const socket = socketRef.current;
-    if (!socket || !busId) return;
+  const leaveTrackingRoom = useCallback(
+    (busId?: number | null, routeId?: number | null) => {
+      const socket = socketRef.current;
+      if (!socket || !busId) return;
 
-    socket.emit("leave_bus_route", {
-      busId,
-      routeId: routeId ?? undefined,
-    });
-  }, []);
+      socket.emit("leave_bus_route", {
+        busId,
+        routeId: routeId ?? undefined,
+      });
+    },
+    [],
+  );
 
   const acceptTracking = useCallback(
     async (busId: number) => {
@@ -417,7 +439,9 @@ export default function BusTrackingTab() {
         const initialLat = initialPosition.coords.latitude;
         const initialLng = initialPosition.coords.longitude;
 
-        await locationAPI.updateLocation(initialLat, initialLng).catch(() => {});
+        await locationAPI
+          .updateLocation(initialLat, initialLng)
+          .catch(() => {});
         socket.emit("location_update", { lat: initialLat, lng: initialLng });
         setUserGpsLocation({ lat: initialLat, lng: initialLng });
 
@@ -474,9 +498,16 @@ export default function BusTrackingTab() {
 
     (async () => {
       try {
+        setLocationStatus("requesting");
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (!cancelled) {
-          setHasLocationPermission(status === "granted");
+          if (status === "granted") {
+            setHasLocationPermission(true);
+            setLocationStatus("granted");
+          } else {
+            setHasLocationPermission(false);
+            setLocationStatus("denied");
+          }
         }
         if (status === "granted" && !cancelled) {
           const loc = await Location.getCurrentPositionAsync({
@@ -522,7 +553,10 @@ export default function BusTrackingTab() {
 
   useEffect(() => {
     if (!pendingRequest?.busId) return;
-    if (isSharingRef.current && sharingBusIdRef.current === pendingRequest.busId) {
+    if (
+      isSharingRef.current &&
+      sharingBusIdRef.current === pendingRequest.busId
+    ) {
       clearPendingRequest();
       return;
     }
@@ -604,10 +638,19 @@ export default function BusTrackingTab() {
   // Debug: Log route points updates
   useEffect(() => {
     if (routePoints.length > 0) {
-      console.log(`📍 Route points updated: ${routePoints.length} points visible`);
+      console.log(
+        `📍 Route points updated: ${routePoints.length} points visible`,
+      );
       routePoints.forEach((pt, idx) => {
-        const type = idx === 0 ? "START" : idx === routePoints.length - 1 ? "END" : `STOP ${pt.sequence}`;
-        console.log(`  ${type}: (${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}) offset: ${pt.minuteOffset}m`);
+        const type =
+          idx === 0
+            ? "START"
+            : idx === routePoints.length - 1
+              ? "END"
+              : `STOP ${pt.sequence}`;
+        console.log(
+          `  ${type}: (${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}) offset: ${pt.minuteOffset}m`,
+        );
       });
     }
   }, [routePoints]);
@@ -627,7 +670,10 @@ export default function BusTrackingTab() {
     }
 
     const interval = setInterval(() => {
-      const estimatedPos = calculateEstimatedPosition(routePoints, scheduleStartTime);
+      const estimatedPos = calculateEstimatedPosition(
+        routePoints,
+        scheduleStartTime,
+      );
       if (estimatedPos) {
         setBusLocations((prev) => ({
           ...prev,
@@ -659,7 +705,8 @@ export default function BusTrackingTab() {
           const busId = toFiniteNumber(data.busId);
           const lat = toFiniteNumber(data.estimate?.lat ?? data.lat);
           const lng = toFiniteNumber(data.estimate?.lng ?? data.lng);
-          const confidence = toFiniteNumber(data.estimate?.confidence ?? 1) ?? 1;
+          const confidence =
+            toFiniteNumber(data.estimate?.confidence ?? 1) ?? 1;
 
           if (busId === null || lat === null || lng === null) {
             return;
@@ -807,7 +854,10 @@ export default function BusTrackingTab() {
         console.log("Start time:", data.startTime);
         if (normalizedPoints.length > 0) {
           console.log("First point:", normalizedPoints[0]);
-          console.log("Route point offsets:", normalizedPoints.map((p: any) => p.minuteOffset));
+          console.log(
+            "Route point offsets:",
+            normalizedPoints.map((p: any) => p.minuteOffset),
+          );
         }
 
         const estimate = data.estimate;
@@ -929,88 +979,156 @@ export default function BusTrackingTab() {
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        initialRegion={DEFAULT_REGION}
-        showsUserLocation={hasLocationPermission}
-        showsMyLocationButton={Platform.OS === "android" && hasLocationPermission}
-        showsCompass={false}
-        toolbarEnabled={false}
-      >
-        {polylineCoords.length > 1 && (
-          <Polyline
-            coordinates={polylineCoords}
-            strokeColor="#3B82F6"
-            strokeWidth={4}
-            lineCap="round"
-            lineJoin="round"
-          />
-        )}
+      {locationStatus === "denied" ? (
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "#f5f5f5",
+            paddingHorizontal: 20,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "700",
+              marginBottom: 12,
+              color: "#1f2937",
+            }}
+          >
+            Location Permission Required
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              color: "#6b7280",
+              marginBottom: 24,
+              textAlign: "center",
+            }}
+          >
+            Enable location access in your device settings to track buses and
+            share your GPS location.
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              setLocationStatus("requesting");
+              Location.requestForegroundPermissionsAsync().then(
+                ({ status }) => {
+                  if (status === "granted") {
+                    setHasLocationPermission(true);
+                    setLocationStatus("granted");
+                  } else {
+                    setLocationStatus("denied");
+                  }
+                },
+              );
+            }}
+            style={{
+              backgroundColor: "#3B82F6",
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600" }}>
+              Enable Location
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFillObject}
+          initialRegion={DEFAULT_REGION}
+          showsUserLocation={hasLocationPermission}
+          showsMyLocationButton={
+            Platform.OS === "android" && hasLocationPermission
+          }
+          showsCompass={false}
+          toolbarEnabled={false}
+        >
+          {polylineCoords.length > 1 && (
+            <Polyline
+              coordinates={polylineCoords}
+              strokeColor="#3B82F6"
+              strokeWidth={4}
+              lineCap="round"
+              lineJoin="round"
+            />
+          )}
 
-        {routePoints.map((pt, idx) => {
-          const type =
-            idx === 0
-              ? "start"
-              : idx === routePoints.length - 1
-                ? "end"
-                : "mid";
-          
-          // Calculate offset color based on progression through route
-          const maxOffset = Math.max(...routePoints.map(p => p.minuteOffset), 1);
-          const offsetPercent = pt.minuteOffset / maxOffset;
-          const offsetColor = getOffsetColor(offsetPercent);
-          
-          // Calculate time at this point: startTime + minuteOffset
-          const time = pointTime(scheduleStartTime, pt.minuteOffset);
-          
-          return (
-            <Marker
-              key={`stop-${pt.sequence}`}
-              coordinate={{ latitude: pt.lat, longitude: pt.lng }}
-              anchor={{ x: 0.5, y: 1 }}
-              tracksViewChanges={true}
-            >
-              <StopMarker
-                type={type}
-                time={time}
-                sequence={pt.sequence}
-                offsetColor={offsetColor}
-              />
-            </Marker>
-          );
-        })}
+          {routePoints.map((pt, idx) => {
+            const type =
+              idx === 0
+                ? "start"
+                : idx === routePoints.length - 1
+                  ? "end"
+                  : "mid";
 
-        {Object.values(busLocations).map((loc) => {
-          const isSharerMarker =
-            isSharingGps &&
-            userGpsLocation &&
-            sharingForBusId != null &&
-            loc.busId === sharingForBusId;
-          const displayLoc = isSharerMarker && userGpsLocation ? userGpsLocation : loc;
-          
-          return (
-            <Marker
-              key={`bus-${loc.busId}`}
-              coordinate={{ latitude: displayLoc.lat, longitude: displayLoc.lng }}
-              anchor={{ x: 0.5, y: 0.5 }}
-              title={`Bus ${buses.find((b) => b.id === loc.busId)?.busNumber ?? loc.busId}`}
-              description={
-                isSharerMarker
-                  ? "Your location (sharing)"
-                  : loc.isLive
-                    ? "Live location"
-                    : `Estimated - ${(loc.confidence * 100).toFixed(0)}% confidence`
-              }
-            >
-              <BusMarkerDot
-                isLive={isSharerMarker ? true : loc.isLive}
-                confidence={isSharerMarker ? 1 : loc.confidence}
-              />
-            </Marker>
-          );
-        })}
-      </MapView>
+            // Calculate offset color based on progression through route
+            const maxOffset = Math.max(
+              ...routePoints.map((p) => p.minuteOffset),
+              1,
+            );
+            const offsetPercent = pt.minuteOffset / maxOffset;
+            const offsetColor = getOffsetColor(offsetPercent);
+
+            // Calculate time at this point: startTime + minuteOffset
+            const time = pointTime(scheduleStartTime, pt.minuteOffset);
+
+            return (
+              <Marker
+                key={`stop-${pt.sequence}`}
+                coordinate={{ latitude: pt.lat, longitude: pt.lng }}
+                anchor={{ x: 0.5, y: 1 }}
+                tracksViewChanges={true}
+              >
+                <StopMarker
+                  type={type}
+                  time={time}
+                  sequence={pt.sequence}
+                  offsetColor={offsetColor}
+                />
+              </Marker>
+            );
+          })}
+
+          {Object.values(busLocations).map((loc) => {
+            const isSharerMarker =
+              isSharingGps &&
+              userGpsLocation &&
+              sharingForBusId != null &&
+              loc.busId === sharingForBusId;
+            const displayLoc =
+              isSharerMarker && userGpsLocation ? userGpsLocation : loc;
+
+            return (
+              <Marker
+                key={`bus-${loc.busId}`}
+                coordinate={{
+                  latitude: displayLoc.lat,
+                  longitude: displayLoc.lng,
+                }}
+                anchor={{ x: 0.5, y: 0.5 }}
+                title={`Bus ${buses.find((b) => b.id === loc.busId)?.busNumber ?? loc.busId}`}
+                description={
+                  isSharerMarker
+                    ? "Your location (sharing)"
+                    : loc.isLive
+                      ? "Live location"
+                      : `Estimated - ${(loc.confidence * 100).toFixed(0)}% confidence`
+                }
+              >
+                <BusMarkerDot
+                  isLive={isSharerMarker ? true : loc.isLive}
+                  confidence={isSharerMarker ? 1 : loc.confidence}
+                />
+              </Marker>
+            );
+          })}
+        </MapView>
+      )}
 
       <View
         pointerEvents="none"
@@ -1056,7 +1174,11 @@ export default function BusTrackingTab() {
                       : styles.liveBadgeTextYellow,
                 ]}
               >
-                {isSharingGps ? "Sharing Location" : activeBusLocation.isLive ? "Live" : "Estimated"}
+                {isSharingGps
+                  ? "Sharing Location"
+                  : activeBusLocation.isLive
+                    ? "Live"
+                    : "Estimated"}
               </Text>
             </View>
           )}

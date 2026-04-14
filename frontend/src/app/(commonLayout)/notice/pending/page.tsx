@@ -8,14 +8,9 @@ import {
   rejectNotice,
 } from "@/lib/action/notice";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { formatBangladesh } from "@/lib/dateTime";
+import { formatBangladeshFromUTC } from "@/lib/dateTime";
 
 export default function PendingNoticePage() {
   const [notices, setNotices] = useState<any[]>([]);
@@ -61,7 +56,10 @@ export default function PendingNoticePage() {
 
     return () => {
       window.removeEventListener("NOTICE_PENDING", onPending as EventListener);
-      window.removeEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+      window.removeEventListener(
+        "NOTICE_PUBLISHED",
+        onPublished as EventListener,
+      );
       window.removeEventListener("NOTICE_DELETED", onDeleted as EventListener);
     };
   }, []);
@@ -81,9 +79,7 @@ export default function PendingNoticePage() {
   return (
     <div className="max-w-3xl mx-auto w-full space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">
-          Pending Notices
-        </h1>
+        <h1 className="text-2xl font-semibold">Pending Notices</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Review and approve student notices
         </p>
@@ -120,9 +116,12 @@ export default function PendingNoticePage() {
                     {n.title}
                   </CardTitle>
                   <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
-                    {formatBangladesh(n.createdAt, {
+                    {formatBangladeshFromUTC(n.createdAt, {
                       month: "short",
                       day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
                     })}
                   </span>
                 </div>

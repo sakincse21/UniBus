@@ -3,7 +3,11 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchNoticeById, getAttachmentDownloadUrl, deleteNotice } from "@/lib/action/notice";
+import {
+  fetchNoticeById,
+  getAttachmentDownloadUrl,
+  deleteNotice,
+} from "@/lib/action/notice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +35,7 @@ import {
 } from "lucide-react";
 import { useRole } from "@/components/RoleProvider";
 import { toast } from "sonner";
-import { formatBangladesh, formatBangladeshDate } from "@/lib/dateTime";
+import { formatBangladeshDate, formatBangladeshFromUTC } from "@/lib/dateTime";
 
 export default function NoticeDetailPage() {
   const params = useParams();
@@ -155,13 +159,20 @@ export default function NoticeDetailPage() {
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <CardTitle className="text-2xl font-bold">{notice.title}</CardTitle>
+              <CardTitle className="text-2xl font-bold">
+                {notice.title}
+              </CardTitle>
               <span className="text-sm text-muted-foreground whitespace-nowrap ml-0 mt-1 block">
-                {formatBangladesh(notice.createdAt, {
+                Created:{" "}
+                {formatBangladeshFromUTC(notice.createdAt, {
                   month: "long",
                   day: "numeric",
                   year: "numeric",
-                })}
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })}{" "}
+                {""}
               </span>
             </div>
             {(role === "admin" || role === "teacher" || role === "cr") && (
@@ -269,7 +280,7 @@ export default function NoticeDetailPage() {
                           className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted transition-colors group"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0">
+                            <div className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0">
                               {getFileIcon(attachment.fileType)}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -281,7 +292,7 @@ export default function NoticeDetailPage() {
                               </p>
                             </div>
                           </div>
-                          <Download className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0 ml-2" />
+                          <Download className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0 ml-2" />
                         </a>
                       ))}
                   </div>
@@ -330,7 +341,8 @@ export default function NoticeDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Notice</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this notice? This action cannot be undone.
+              Are you sure you want to delete this notice? This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

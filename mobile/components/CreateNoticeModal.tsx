@@ -44,7 +44,10 @@ function resolveFileName(uri: string, fallback: string) {
   return (fromUri || fallback).replace(/\s+/g, "_");
 }
 
-function resolveMimeType(mimeType: string | null | undefined, fileName: string) {
+function resolveMimeType(
+  mimeType: string | null | undefined,
+  fileName: string,
+) {
   const normalized = mimeType?.toLowerCase().trim();
 
   if (normalized) {
@@ -142,19 +145,33 @@ export default function CreateNoticeModal({
           asset.uri,
           asset.fileName || `file_${Date.now()}.jpg`,
         );
-        const newFile: AttachedFile = {
-          uri: asset.uri,
-          name: fileName,
-          size: asset.fileSize || 0,
-          type: resolveMimeType(asset.mimeType, fileName),
-        };
+        const mimeType = resolveMimeType(asset.mimeType, fileName);
 
-        if (newFile.size > 10 * 1024 * 1024) {
+        // Validate file type (JPEG, PNG, WebP only)
+        const validTypes = ["image/jpeg", "image/png", "image/webp"];
+        if (!validTypes.includes(mimeType)) {
+          Alert.alert(
+            "Invalid file type",
+            "Only JPEG, PNG, and WebP images are allowed",
+          );
+          return;
+        }
+
+        // Validate file size (max 10MB)
+        if ((asset.fileSize || 0) > 10 * 1024 * 1024) {
           Alert.alert("File too large", "Maximum file size is 10MB");
           return;
         }
 
+        const newFile: AttachedFile = {
+          uri: asset.uri,
+          name: fileName,
+          size: asset.fileSize || 0,
+          type: mimeType,
+        };
+
         setAttachments((prev) => {
+          // Validate max attachments (max 5 files)
           if (prev.length >= 5) {
             Alert.alert("Too many files", "Maximum 5 attachments allowed");
             return prev;

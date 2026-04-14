@@ -6,13 +6,34 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.10.191:5000/api/v1",
+        "EXPO_PUBLIC_SOCKET_URL": "http://192.168.10.191:5000"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://operating-durable-washout.ngrok-free.dev/api/v1",
+        "EXPO_PUBLIC_SOCKET_URL": "https://operating-durable-washout.ngrok-free.dev"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://uni-bus-eight.vercel.app/api/v1",
+        "EXPO_PUBLIC_SOCKET_URL": "https://uni-bus-eight.vercel.app"
+      }
     }
   },
   "submit": {

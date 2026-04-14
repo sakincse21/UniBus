@@ -23,7 +23,9 @@ function getExpoProjectId(): string | null {
     constantsAny?.manifest2?.extra?.expoClient?.extra?.eas?.projectId;
   const fromManifest = constantsAny?.manifest?.extra?.eas?.projectId;
 
-  return fromExpoConfig || fromEasConfig || fromManifest2 || fromManifest || null;
+  return (
+    fromExpoConfig || fromEasConfig || fromManifest2 || fromManifest || null
+  );
 }
 
 export async function ensureNotificationChannels(): Promise<void> {
@@ -74,7 +76,8 @@ export async function requestNotificationPermissions(
   showAlertOnDeny = true,
 ): Promise<boolean> {
   try {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== "granted") {
@@ -103,6 +106,7 @@ export async function requestNotificationPermissions(
 export async function initializePushNotifications(): Promise<string | null> {
   const granted = await requestNotificationPermissions(false);
   if (!granted) {
+    console.log("Notification permissions not granted, skipping push token");
     return null;
   }
 
@@ -114,10 +118,18 @@ export async function initializePushNotifications(): Promise<string | null> {
 
   try {
     const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    console.log("Push token obtained successfully");
     return token.data;
-  } catch (error) {
-    // Expo Go on Android cannot provide push tokens in SDK 53+, so fail gracefully.
-    console.warn("Failed to get Expo push token:", error);
+  } catch (error: any) {
+    // This error is expected in development builds without FCM configured
+    // Expo Go on Android SDK 53+ cannot provide push tokens
+    if (error?.code === "E_REGISTRATION_FAILED") {
+      console.log(
+        "Push notifications not configured for this build - this is normal for development",
+      );
+      return null;
+    }
+    console.warn("Failed to get Expo push token:", error?.message || error);
     return null;
   }
 }
@@ -139,9 +151,7 @@ export async function scheduleNotification(
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
       seconds,
-      ...(Platform.OS === "android"
-        ? { channelId: "calendar-reminders" }
-        : {}),
+      ...(Platform.OS === "android" ? { channelId: "calendar-reminders" } : {}),
     },
   });
 }
@@ -175,7 +185,9 @@ export function setupNotificationListeners(
     : null;
 
   const responseSubscription = onNotificationTapped
-    ? Notifications.addNotificationResponseReceivedListener(onNotificationTapped)
+    ? Notifications.addNotificationResponseReceivedListener(
+        onNotificationTapped,
+      )
     : null;
 
   return () => {

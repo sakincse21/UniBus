@@ -217,7 +217,22 @@ export default function NoticeDetailModal({
   if (!notice) return null;
 
   const formatDate = (dateString: string) => {
-    return formatBangladeshDateTime(dateString);
+    try {
+      if (!dateString) return "Invalid date";
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        // Fallback: try parsing as ISO string with space instead of T
+        const parsed = new Date(dateString.replace(" ", "T"));
+        if (isNaN(parsed.getTime())) {
+          return "Invalid date";
+        }
+        return formatBangladeshDateTime(parsed);
+      }
+      return formatBangladeshDateTime(date);
+    } catch (error) {
+      console.error("Date formatting error:", error, dateString);
+      return "Invalid date";
+    }
   };
 
   const getTargetLabel = () => {
@@ -319,7 +334,19 @@ export default function NoticeDetailModal({
                   <View className="flex-row justify-between">
                     <Text className="text-blue-700 text-sm">Date</Text>
                     <Text className="text-blue-900 font-medium text-sm">
-                      {notice.eventDate && formatBangladeshDate(notice.eventDate)}
+                      {notice.eventDate
+                        ? (() => {
+                            try {
+                              return formatBangladeshDate(notice.eventDate);
+                            } catch (error) {
+                              console.error(
+                                "Error formatting event date:",
+                                error,
+                              );
+                              return notice.eventDate;
+                            }
+                          })()
+                        : "—"}
                     </Text>
                   </View>
 

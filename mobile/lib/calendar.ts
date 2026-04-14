@@ -239,6 +239,21 @@ export const syncEventsToDefaultCalendar = async (
   return syncedCount;
 };
 
+// Helper: Get existing routine events that have been synced
+const getExistingRoutineEvents = async (): Promise<Map<string, string>> => {
+  const syncMap = await readSyncMap();
+  const routineEvents = new Map<string, string>();
+
+  // Filter and store only routine events
+  Object.entries(syncMap).forEach(([key, eventId]) => {
+    if (key.startsWith("routine:")) {
+      routineEvents.set(key, eventId);
+    }
+  });
+
+  return routineEvents;
+};
+
 export const addRoutineToCalendar = async (
   routine: IRoutineSlot[],
 ): Promise<number> => {
@@ -257,6 +272,10 @@ export const addRoutineToCalendar = async (
   let addedCount = 0;
   const now = new Date();
 
+  // Get existing synced routine events to avoid duplicates
+  const existingRoutineEvents = await getExistingRoutineEvents();
+  const syncMap = await readSyncMap();
+
   const dayMap: Record<string, number> = {
     sunday: 0,
     monday: 1,
@@ -270,6 +289,15 @@ export const addRoutineToCalendar = async (
   for (const slot of routine) {
     const targetDay = dayMap[slot.day];
     if (targetDay === undefined) continue;
+
+    // Create a unique sync key for this routine slot
+    const syncKey = `routine:slot_${slot.day}_${slot.firstHalfStart}`;
+
+    // Check if this routine slot was already synced
+    if (existingRoutineEvents.has(syncKey)) {
+      // Skip if already synced (prevents duplicates on resync)
+      continue;
+    }
 
     const today = now.getDay();
     let daysUntil = targetDay - today;
@@ -293,7 +321,7 @@ export const addRoutineToCalendar = async (
 
     if (startFirst < endFirst) {
       try {
-        await Calendar.createEventAsync(calendarId, {
+        const eventId = await Calendar.createEventAsync(calendarId, {
           title: `Class: ${slot.day.charAt(0).toUpperCase() + slot.day.slice(1)}`,
           notes: slot.note || "Class session",
           startDate: startFirst,
@@ -301,6 +329,9 @@ export const addRoutineToCalendar = async (
           alarms: [{ relativeOffset: -10 }],
           availability: Calendar.Availability.BUSY,
         });
+
+        // Track this synced event
+        syncMap[syncKey] = eventId;
         addedCount++;
       } catch (error) {
         console.error("Failed to add event:", error);
@@ -308,6 +339,8 @@ export const addRoutineToCalendar = async (
     }
   }
 
+  // Persist updated sync map
+  await writeSyncMap(syncMap);
   return addedCount;
 };
 

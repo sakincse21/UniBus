@@ -1,8 +1,7 @@
 export const BANGLADESH_TIME_ZONE = "Asia/Dhaka";
 
 const API_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const API_LOCAL_DATE_TIME_REGEX =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/;
+const API_LOCAL_DATE_TIME_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/;
 
 function normalizeDateInput(value: string | Date): Date {
   if (value instanceof Date) {
@@ -80,11 +79,15 @@ export function getBangladeshDateKey(value: string | Date): string {
     return value;
   }
 
-  const parts = getFormatParts(value, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }, "en-CA");
+  const parts = getFormatParts(
+    value,
+    {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    },
+    "en-CA",
+  );
 
   return `${getPart(parts, "year")}-${getPart(parts, "month")}-${getPart(parts, "day")}`;
 }
@@ -99,4 +102,30 @@ export function formatDateForApi(value: Date): string {
   const day = String(value.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+export function formatBangladeshFromUTC(
+  utcDate: string | Date,
+  options: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  },
+): string {
+  try {
+    const date = new Date(utcDate);
+    if (isNaN(date.getTime())) return "Invalid date";
+
+    // Add 6 hours for Bangladesh time
+    const bangladeshDate = new Date(date.getTime() + 6 * 60 * 60 * 1000);
+
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: BANGLADESH_TIME_ZONE,
+      ...options,
+    }).format(bangladeshDate);
+  } catch {
+    return "Invalid date";
+  }
 }

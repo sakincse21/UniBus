@@ -240,6 +240,8 @@ export default function WeeklyRoutineScreen() {
     if (currentRoutine.length > 0) {
       setSchedulingReminders(true);
       try {
+        // Cancel any existing reminders before scheduling new ones
+        await cancelAllReminders();
         await scheduleWeeklyReminders(currentRoutine);
         Alert.alert(
           "Routine Saved",
@@ -276,6 +278,8 @@ export default function WeeklyRoutineScreen() {
   const rescheduleReminders = async () => {
     setSchedulingReminders(true);
     try {
+      // Cancel existing reminders before scheduling new ones
+      await cancelAllReminders();
       await scheduleWeeklyReminders(routine);
       Alert.alert("Done", "Reminders updated successfully.");
     } catch {
