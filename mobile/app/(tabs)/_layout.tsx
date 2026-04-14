@@ -31,11 +31,18 @@ const TabIcon = ({
 );
 
 export default function TabsLayout() {
-  const { user } = useAuthStore();
+  const { user, isAuthenticated, isLoading } = useAuthStore();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const setPendingRequest = useBusTrackingStore((state) => state.setPendingRequest);
   const fetchCalendarEvents = useCalendarStore((state) => state.fetchCalendarEvents);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!isAuthenticated || !user?.user_id) {
+      router.replace("/(auth)/login");
+    }
+  }, [isAuthenticated, isLoading, router, user?.user_id]);
 
   useEffect(() => {
     if (!user?.user_id) return;

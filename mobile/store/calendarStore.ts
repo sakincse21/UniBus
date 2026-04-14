@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { calendarAPI } from "@/lib/api";
 import { ICalendarEvent } from "@/interfaces";
-import { syncCalendarReminders } from "@/lib/reminders";
+import { scheduleAllEventReminders } from "@/lib/reminders";
 import { syncEventsToDefaultCalendar } from "@/lib/calendar";
 
 interface CalendarState {
@@ -33,7 +33,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
         set({ events: fetchedEvents, error: null });
 
         try {
-          await syncCalendarReminders(fetchedEvents);
+          await scheduleAllEventReminders(fetchedEvents);
         } catch (syncError) {
           console.error("Calendar reminder sync error:", syncError);
         }

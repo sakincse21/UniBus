@@ -13,14 +13,21 @@ import {
   TouchableOpacity,
   View,
   Dimensions,
-  Platform,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import BottomSheet, {
   BottomSheetFlatList,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
+import {
+  Map,
+  MapMarker,
+  MapRoute,
+  MapUserLocation,
+  MarkerContent,
+  MarkerPopup,
+  type MapRefHandle,
+} from "../../components/ui/map";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { busAPI, locationAPI } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
@@ -40,6 +47,11 @@ const DEFAULT_REGION = {
   latitudeDelta: 0.08,
   longitudeDelta: 0.08,
 };
+
+function deltaToZoom(longitudeDelta: number): number {
+  const safeDelta = Math.max(longitudeDelta, 0.0001);
+  return Math.max(0, Math.min(20, Math.log2(360 / safeDelta)));
+}
 
 function to12h(time24: string): string {
   const [hh, mm] = time24.split(":").map(Number);
@@ -327,7 +339,7 @@ export default function BusTrackingTab() {
     useRef<Location.LocationSubscription | null>(null);
   const promptedBusIdRef = useRef<number | null>(null);
 
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapRefHandle | null>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const socketRef = useRef<Socket | null>(null);
   const pendingRequest = useBusTrackingStore((state) => state.pendingRequest);
@@ -859,7 +871,7 @@ export default function BusTrackingTab() {
   );
 
   const polylineCoords = useMemo(
-    () => routePoints.map((p) => ({ latitude: p.lat, longitude: p.lng })),
+    () => routePoints.map((p): [number, number] => [p.lng, p.lat]),
     [routePoints],
   );
 
@@ -929,22 +941,23 @@ export default function BusTrackingTab() {
 
   return (
     <View style={styles.container}>
-      <MapView
+      <Map
         ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        initialRegion={DEFAULT_REGION}
-        showsUserLocation={hasLocationPermission}
-        showsMyLocationButton={Platform.OS === "android" && hasLocationPermission}
-        showsCompass={false}
-        toolbarEnabled={false}
+        className="absolute inset-0"
+        center={[DEFAULT_REGION.longitude, DEFAULT_REGION.latitude]}
+        zoom={deltaToZoom(DEFAULT_REGION.longitudeDelta)}
+        showLoader={false}
       >
+        <MapUserLocation
+          visible={hasLocationPermission}
+          autoRequestPermission={false}
+        />
         {polylineCoords.length > 1 && (
-          <Polyline
+          <MapRoute
             coordinates={polylineCoords}
-            strokeColor="#3B82F6"
-            strokeWidth={4}
-            lineCap="round"
-            lineJoin="round"
+            color="#3B82F6"
+            width={4}
+            opacity={1}
           />
         )}
 
@@ -965,19 +978,21 @@ export default function BusTrackingTab() {
           const time = pointTime(scheduleStartTime, pt.minuteOffset);
           
           return (
-            <Marker
+            <MapMarker
               key={`stop-${pt.sequence}`}
-              coordinate={{ latitude: pt.lat, longitude: pt.lng }}
+              coordinate={[pt.lng, pt.lat]}
               anchor={{ x: 0.5, y: 1 }}
-              tracksViewChanges={true}
+              allowOverlap
             >
-              <StopMarker
-                type={type}
-                time={time}
-                sequence={pt.sequence}
-                offsetColor={offsetColor}
-              />
-            </Marker>
+              <MarkerContent>
+                <StopMarker
+                  type={type}
+                  time={time}
+                  sequence={pt.sequence}
+                  offsetColor={offsetColor}
+                />
+              </MarkerContent>
+            </MapMarker>
           );
         })}
 
@@ -988,29 +1003,35 @@ export default function BusTrackingTab() {
             sharingForBusId != null &&
             loc.busId === sharingForBusId;
           const displayLoc = isSharerMarker && userGpsLocation ? userGpsLocation : loc;
+
+          const markerDescription = isSharerMarker
+            ? "Your location (sharing)"
+            : loc.isLive
+              ? "Live location"
+              : `Estimated - ${(loc.confidence * 100).toFixed(0)}% confidence`;
           
           return (
-            <Marker
+            <MapMarker
               key={`bus-${loc.busId}`}
-              coordinate={{ latitude: displayLoc.lat, longitude: displayLoc.lng }}
+              coordinate={[displayLoc.lng, displayLoc.lat]}
               anchor={{ x: 0.5, y: 0.5 }}
-              title={`Bus ${buses.find((b) => b.id === loc.busId)?.busNumber ?? loc.busId}`}
-              description={
-                isSharerMarker
-                  ? "Your location (sharing)"
-                  : loc.isLive
-                    ? "Live location"
-                    : `Estimated - ${(loc.confidence * 100).toFixed(0)}% confidence`
-              }
+              allowOverlap
             >
-              <BusMarkerDot
-                isLive={isSharerMarker ? true : loc.isLive}
-                confidence={isSharerMarker ? 1 : loc.confidence}
-              />
-            </Marker>
+              <MarkerContent>
+                <BusMarkerDot
+                  isLive={isSharerMarker ? true : loc.isLive}
+                  confidence={isSharerMarker ? 1 : loc.confidence}
+                />
+              </MarkerContent>
+              <MarkerPopup
+                title={`Bus ${buses.find((b) => b.id === loc.busId)?.busNumber ?? loc.busId}`}
+              >
+                <Text style={styles.markerPopupText}>{markerDescription}</Text>
+              </MarkerPopup>
+            </MapMarker>
           );
         })}
-      </MapView>
+      </Map>
 
       <View
         pointerEvents="none"
@@ -1461,5 +1482,9 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
+  },
+  markerPopupText: {
+    fontSize: 12,
+    color: "#334155",
   },
 });

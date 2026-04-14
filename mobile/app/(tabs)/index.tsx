@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import axios from "axios";
 import {
   View,
   Text,
@@ -62,6 +63,9 @@ export default function NoticesTab() {
         }
       }
     } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          return;
+        }
       console.error("Failed to fetch notices:", error);
     } finally {
       setIsLoading(false);

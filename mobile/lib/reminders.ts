@@ -7,369 +7,344 @@ import { requestNotificationPermissions as ensureNotificationPermission } from "
 
 export { requestNotificationPermissions } from "@/lib/notifications";
 
-const ROUTINE_REMINDER_IDS_KEY = "@unibus_routine_reminder_ids_v1";
-const CALENDAR_REMINDER_MAP_KEY = "@unibus_calendar_reminder_map_v1";
+const SCHEDULED_REMINDERS_KEY = "@unibus_scheduled_reminders_v2";
 
-type CalendarReminderMap = Record<string, string>;
-
-const DAY_MAP: Record<string, number> = {
-  sunday: 0,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-};
-
-function capitalize(word: string): string {
-  if (!word) return word;
-  return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+interface ScheduledReminder {
+  eventId: string;
+  notificationId: string;
+  notificationTime: number; // Unix timestamp
+  eventTitle: string;
+  eventType: "notice" | "routine" | "personal";
+  minutesBefore: number;
 }
 
-function parseTime(value: string): { hour: number; minute: number } | null {
-  const [hour, minute] = value.split(":").map(Number);
+/**
+ * Schedule a reminder for a calendar event using server-calculated notification time
+ * This is the primary method for scheduling all event reminders (notices, routines, personal)
+ */
+export const scheduleEventReminder = async (
+  event: ICalendarEvent,
+): Promise<boolean> => {
+  const hasPermission = await ensureNotificationPermission();
+  if (!hasPermission) return false;
 
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-    return null;
+  // Skip if reminder disabled or no reminder metadata
+  if (!event.reminder?.enabled) return false;
+
+  // Use notificationTime from server (already calculated as startTime - minutesBefore)
+  const notificationTime = new Date(event.reminder.notificationTime);
+
+  // Don't schedule if already in past
+  if (notificationTime <= new Date()) {
+    return false;
   }
 
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-    return null;
-  }
-
-  return { hour, minute };
-}
-
-function getWeeklyReminderTime(
-  dayIndex: number,
-  classStart: string,
-): { weekday: number; hour: number; minute: number } | null {
-  const parsed = parseTime(classStart);
-  if (!parsed) return null;
-
-  const now = new Date();
-  const offset = (dayIndex - now.getDay() + 7) % 7;
-  const nextOccurrence = new Date(now);
-  nextOccurrence.setDate(now.getDate() + offset);
-  nextOccurrence.setHours(parsed.hour, parsed.minute, 0, 0);
-  nextOccurrence.setMinutes(nextOccurrence.getMinutes() - 10);
-
-  return {
-    weekday: nextOccurrence.getDay() + 1,
-    hour: nextOccurrence.getHours(),
-    minute: nextOccurrence.getMinutes(),
-  };
-}
-
-function buildWeeklyTrigger(
-  weekday: number,
-  hour: number,
-  minute: number,
-): Notifications.WeeklyTriggerInput {
-  const base: Notifications.WeeklyTriggerInput = {
-    type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-    weekday,
-    hour,
-    minute,
-  };
-
-  if (Platform.OS === "android") {
-    return {
-      ...base,
-      channelId: "routine-reminders",
-    };
-  }
-
-  return base;
-}
-
-async function readRoutineReminderIds(): Promise<string[]> {
   try {
-    const raw = await AsyncStorage.getItem(ROUTINE_REMINDER_IDS_KEY);
-    if (!raw) return [];
+    // Schedule the notification at exact server-calculated time
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `⏰ ${event.title}`,
+        body: getNotificationBody(event),
+        data: {
+          eventId: event.id,
+          eventType: event.type,
+          source: event.source,
+        },
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger: {
+        date: notificationTime,
+        channelId: "event-reminders",
+      },
+    });
 
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((value): value is string => typeof value === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
+    // Store for recovery on app restart
+    await storeScheduledReminder({
+      eventId: event.id,
+      notificationId,
+      notificationTime: notificationTime.getTime(),
+      eventTitle: event.title,
+      eventType: event.type,
+      minutesBefore: event.reminder.minutesBefore,
+    });
 
-async function writeRoutineReminderIds(ids: string[]): Promise<void> {
-  await AsyncStorage.setItem(ROUTINE_REMINDER_IDS_KEY, JSON.stringify(ids));
-}
-
-async function readCalendarReminderMap(): Promise<CalendarReminderMap> {
-  try {
-    const raw = await AsyncStorage.getItem(CALENDAR_REMINDER_MAP_KEY);
-    if (!raw) return {};
-
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") {
-      return {};
-    }
-
-    return Object.entries(parsed).reduce((acc, [key, value]) => {
-      if (typeof value === "string") {
-        acc[key] = value;
-      }
-      return acc;
-    }, {} as CalendarReminderMap);
-  } catch {
-    return {};
-  }
-}
-
-async function writeCalendarReminderMap(
-  map: CalendarReminderMap,
-): Promise<void> {
-  await AsyncStorage.setItem(CALENDAR_REMINDER_MAP_KEY, JSON.stringify(map));
-}
-
-function getCalendarReminderKey(event: ICalendarEvent): string {
-  if (event.type === "notice" && event.source.noticeId) {
-    return `notice:${event.source.noticeId}`;
-  }
-
-  if (event.type === "personal" && event.source.fixtureId) {
-    return `personal:${event.source.fixtureId}`;
-  }
-
-  if (event.type === "routine" && event.source.routineId) {
-    return `routine:${event.source.routineId}`;
-  }
-
-  return `${event.type}:${event.id}`;
-}
-
-// Cancel all scheduled notifications
-export const cancelAllReminders = async (): Promise<void> => {
-  try {
-    const ids = await readRoutineReminderIds();
-    await Promise.all(
-      ids.map((id) =>
-        Notifications.cancelScheduledNotificationAsync(id).catch(() => {}),
-      ),
-    );
-    await writeRoutineReminderIds([]);
-    console.log("Routine reminders cancelled");
+    return true;
   } catch (error) {
-    console.error("Cancel reminders error:", error);
+    console.error(`Failed to schedule reminder for ${event.id}:`, error);
+    return false;
   }
 };
 
-// Schedule weekly reminders for routine
-export const scheduleWeeklyReminders = async (
-  routine: IRoutineSlot[]
-): Promise<number> => {
+/**
+ * Schedule reminders for all calendar events
+ * Cancels existing reminders first, then schedules all provided events
+ */
+export const scheduleAllEventReminders = async (
+  events: ICalendarEvent[],
+): Promise<{ scheduled: number; failed: number }> => {
+  let scheduled = 0;
+  let failed = 0;
+
   // Cancel existing reminders first
   await cancelAllReminders();
+
+  for (const event of events) {
+    const success = await scheduleEventReminder(event);
+    if (success) {
+      scheduled++;
+    } else {
+      failed++;
+    }
+  }
+
+  console.log(`Scheduled ${scheduled} reminders, ${failed} failed`);
+  return { scheduled, failed };
+};
+
+/**
+ * Reschedule reminders for events that have passed their notification time
+ * Called on app startup or when app comes to foreground
+ */
+export const rescheduleExpiredReminders = async (): Promise<number> => {
+  const stored = await AsyncStorage.getItem(SCHEDULED_REMINDERS_KEY);
+  if (!stored) return 0;
+
+  try {
+    const reminders: ScheduledReminder[] = JSON.parse(stored);
+    const now = Date.now();
+    let rescheduled = 0;
+
+    for (const reminder of reminders) {
+      // If notification time has passed and app was closed
+      if (reminder.notificationTime <= now) {
+        // Cancel old notification
+        try {
+          await Notifications.cancelScheduledNotificationAsync(
+            reminder.notificationId,
+          );
+        } catch {}
+
+        // For tests: log that this reminder was missed
+        console.log(`Reminder missed for ${reminder.eventTitle}`);
+        rescheduled++;
+      }
+    }
+
+    return rescheduled;
+  } catch (error) {
+    console.error("Failed to reschedule expired reminders:", error);
+    return 0;
+  }
+};
+
+/**
+ * Cancel all scheduled reminders
+ * Used when logging out or clearing app data
+ */
+export const cancelAllReminders = async (): Promise<void> => {
+  try {
+    const stored = await AsyncStorage.getItem(SCHEDULED_REMINDERS_KEY);
+    if (!stored) return;
+
+    const reminders: ScheduledReminder[] = JSON.parse(stored);
+    await Promise.all(
+      reminders.map((r) =>
+        Notifications.cancelScheduledNotificationAsync(r.notificationId).catch(
+          () => {},
+        ),
+      ),
+    );
+
+    await AsyncStorage.removeItem(SCHEDULED_REMINDERS_KEY);
+    console.log("All reminders cancelled");
+  } catch (error) {
+    console.error("Failed to cancel all reminders:", error);
+  }
+};
+
+/**
+ * Store a scheduled reminder for recovery on app restart
+ */
+const storeScheduledReminder = async (
+  reminder: ScheduledReminder,
+): Promise<void> => {
+  try {
+    const stored = await AsyncStorage.getItem(SCHEDULED_REMINDERS_KEY);
+    const reminders: ScheduledReminder[] = stored ? JSON.parse(stored) : [];
+
+    // Remove if already exists (update case)
+    const filtered = reminders.filter((r) => r.eventId !== reminder.eventId);
+    filtered.push(reminder);
+
+    await AsyncStorage.setItem(
+      SCHEDULED_REMINDERS_KEY,
+      JSON.stringify(filtered),
+    );
+  } catch (error) {
+    console.error("Failed to store scheduled reminder:", error);
+  }
+};
+
+/**
+ * Get readable notification body based on event type
+ */
+const getNotificationBody = (event: ICalendarEvent): string => {
+  const minutesBefore = event.reminder?.minutesBefore || 10;
+
+  if (event.type === "notice") {
+    return `${event.title} starts in ${minutesBefore} minutes`;
+  }
+
+  if (event.type === "routine") {
+    const startTime = event.startTime || "soon";
+    return `Class starts at ${startTime}`;
+  }
+
+  if (event.type === "personal") {
+    return `${event.title} starts in ${minutesBefore} minutes`;
+  }
+
+  return `${event.title} is coming up`;
+};
+
+/**
+ * Legacy: Schedule weekly routine reminders (deprecated, kept for backwards compatibility)
+ * Use scheduleAllEventReminders with calendar events instead
+ */
+export const scheduleWeeklyReminders = async (
+  routine: IRoutineSlot[],
+): Promise<number> => {
+  console.warn(
+    "scheduleWeeklyReminders is deprecated, use scheduleAllEventReminders with calendar events",
+  );
 
   const hasPermission = await ensureNotificationPermission();
   if (!hasPermission) return 0;
 
   let scheduledCount = 0;
-  const scheduledIds: string[] = [];
+  const now = new Date();
+
+  const dayMap: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
 
   for (const slot of routine) {
-    const targetDay = DAY_MAP[slot.day];
+    const targetDay = dayMap[slot.day];
     if (targetDay === undefined) continue;
 
-    const firstReminder = getWeeklyReminderTime(targetDay, slot.firstHalfStart);
-    if (firstReminder) {
-      const identifier = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "📚 Class Starting Soon",
-          body: `${capitalize(slot.day)} class at ${slot.firstHalfStart}${slot.note ? ` - ${slot.note}` : ""}`,
-          data: { type: "routine", day: slot.day },
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: buildWeeklyTrigger(
-          firstReminder.weekday,
-          firstReminder.hour,
-          firstReminder.minute,
-        ),
-      });
-      scheduledIds.push(identifier);
-      scheduledCount++;
+    // Calculate next occurrence
+    const today = now.getDay();
+    let daysUntil = targetDay - today;
+    if (daysUntil <= 0) daysUntil += 7;
+
+    const triggerDate = new Date(now);
+    triggerDate.setDate(now.getDate() + daysUntil);
+
+    // First half reminder (10 minutes before)
+    if (slot.firstHalfStart) {
+      const [firstHour, firstMin] = slot.firstHalfStart
+        .split(":")
+        .map(Number);
+      const firstReminderTime = new Date(triggerDate);
+      firstReminderTime.setHours(firstHour, firstMin, 0, 0);
+      firstReminderTime.setMinutes(firstReminderTime.getMinutes() - 10);
+
+      if (firstReminderTime > now) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "📚 Class Starting Soon",
+              body: `${slot.day.charAt(0).toUpperCase() + slot.day.slice(1)} class at ${slot.firstHalfStart}${slot.note ? ` - ${slot.note}` : ""}`,
+              data: { type: "routine", day: slot.day },
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.HIGH,
+            },
+            trigger: {
+              date: firstReminderTime,
+              channelId: "routine-reminders",
+            },
+          });
+          scheduledCount++;
+        } catch (error) {
+          console.error("Failed to schedule first half reminder:", error);
+        }
+      }
     }
 
     // Second half reminder (10 minutes before)
     if (slot.secondHalfStart) {
-      const secondReminder = getWeeklyReminderTime(
-        targetDay,
-        slot.secondHalfStart,
-      );
+      const [secondHour, secondMin] = slot.secondHalfStart
+        .split(":")
+        .map(Number);
+      const secondReminderTime = new Date(triggerDate);
+      secondReminderTime.setHours(secondHour, secondMin, 0, 0);
+      secondReminderTime.setMinutes(secondReminderTime.getMinutes() - 10);
 
-      if (secondReminder) {
-        const identifier = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "📚 Afternoon Class Starting Soon",
-            body: `${capitalize(slot.day)} afternoon class at ${slot.secondHalfStart}`,
-            data: { type: "routine", day: slot.day },
-            sound: true,
-            priority: Notifications.AndroidNotificationPriority.HIGH,
-          },
-          trigger: buildWeeklyTrigger(
-            secondReminder.weekday,
-            secondReminder.hour,
-            secondReminder.minute,
-          ),
-        });
-        scheduledIds.push(identifier);
-        scheduledCount++;
+      if (secondReminderTime > now) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "📚 Afternoon Class Starting Soon",
+              body: `${slot.day.charAt(0).toUpperCase() + slot.day.slice(1)} afternoon class at ${slot.secondHalfStart}`,
+              data: { type: "routine", day: slot.day },
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.HIGH,
+            },
+            trigger: {
+              date: secondReminderTime,
+              channelId: "routine-reminders",
+            },
+          });
+          scheduledCount++;
+        } catch (error) {
+          console.error("Failed to schedule second half reminder:", error);
+        }
       }
     }
   }
 
-  await writeRoutineReminderIds(scheduledIds);
-  console.log(`Scheduled ${scheduledCount} reminders`);
+  console.log(`Scheduled ${scheduledCount} legacy routine reminders`);
   return scheduledCount;
 };
 
-// Schedule single notification for notice
+/**
+ * Legacy: Schedule single notice reminder (deprecated)
+ * Use scheduleEventReminder with calendar events instead
+ */
 export const scheduleNoticeReminder = async (
   title: string,
   body: string,
-  date: Date
+  date: Date,
 ): Promise<string | null> => {
   const hasPermission = await ensureNotificationPermission();
   if (!hasPermission) return null;
 
   if (date <= new Date()) return null;
 
-  const trigger: Notifications.DateTriggerInput = {
-    type: Notifications.SchedulableTriggerInputTypes.DATE,
-    date,
-    ...(Platform.OS === "android"
-      ? { channelId: "calendar-reminders" }
-      : {}),
-  };
-
-  const identifier = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: `📢 ${title}`,
-      body: body,
-      data: { type: "notice" },
-      sound: true,
-    },
-    trigger,
-  });
-
-  return identifier;
-};
-
-export const sendBusTrackingRequestNotification = async (
-  busId: number,
-  estimate?: { lat?: number; lng?: number },
-  routeId?: number | null,
-): Promise<string | null> => {
-  const hasPermission = await ensureNotificationPermission();
-  if (!hasPermission) return null;
-
-  const body =
-    estimate?.lat != null && estimate?.lng != null
-      ? `Someone nearby requested Bus ${busId}. Estimated near ${estimate.lat.toFixed(4)}, ${estimate.lng.toFixed(4)}.`
-      : `Someone nearby requested Bus ${busId}. Are you on the bus?`;
-
-  const identifier = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: `Bus ${busId} location requested`,
-      body,
-      data: {
-        type: "bus-tracking-request",
-        busId,
-        routeId: routeId ?? null,
-        estimate,
+  try {
+    const identifier = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `📢 ${title}`,
+        body: body,
+        data: { type: "notice" },
+        sound: true,
       },
-      sound: true,
-      priority: Notifications.AndroidNotificationPriority.MAX,
-    },
-    trigger: null,
-  });
-
-  return identifier;
-};
-
-  export const syncCalendarReminders = async (
-    events: ICalendarEvent[],
-  ): Promise<number> => {
-    const hasPermission = await ensureNotificationPermission(false);
-    if (!hasPermission) return 0;
-
-    const now = Date.now();
-    const existingMap = await readCalendarReminderMap();
-    const nextMap: CalendarReminderMap = {};
-
-    const reminderCandidates = events.filter((event) => {
-      if (event.type === "routine") return false;
-      if (event.isAllDay) return false;
-      return true;
+      trigger: {
+        date: date,
+        channelId: "routine-reminders",
+      },
     });
 
-    const desiredKeys = new Set<string>();
-    let scheduledCount = 0;
-
-    for (const event of reminderCandidates) {
-      const start = new Date(event.startDateTime);
-      if (!Number.isFinite(start.getTime())) continue;
-
-      const reminderDate = new Date(start.getTime() - 15 * 60 * 1000);
-      if (reminderDate.getTime() <= now) continue;
-
-      const key = getCalendarReminderKey(event);
-      desiredKeys.add(key);
-
-      const previousId = existingMap[key];
-      if (previousId) {
-        await Notifications.cancelScheduledNotificationAsync(previousId).catch(
-          () => {},
-        );
-      }
-
-      const body = event.description?.trim()
-        ? event.description
-        : `Starts at ${formatBangladeshTime(start)}`;
-
-      const trigger: Notifications.DateTriggerInput = {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: reminderDate,
-        ...(Platform.OS === "android"
-          ? { channelId: "calendar-reminders" }
-          : {}),
-      };
-
-      const identifier = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: `Upcoming: ${event.title}`,
-          body,
-          data: {
-            type: "calendar-reminder",
-            eventId: event.id,
-            eventType: event.type,
-            source: event.source,
-          },
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger,
-      });
-
-      nextMap[key] = identifier;
-      scheduledCount += 1;
-    }
-
-    for (const [key, notificationId] of Object.entries(existingMap)) {
-      if (desiredKeys.has(key)) continue;
-      await Notifications.cancelScheduledNotificationAsync(notificationId).catch(
-        () => {},
-      );
-    }
-
-    await writeCalendarReminderMap(nextMap);
-    return scheduledCount;
-  };
+    return identifier;
+  } catch (error) {
+    console.error("Failed to schedule notice reminder:", error);
+    return null;
+  }
+};

@@ -1,7 +1,8 @@
 {
   "expo": {
+    "owner": "saleheen007",
     "name": "UniBus Mobile",
-    "slug": "unibus-mobile",
+    "slug": "unibus-mobile-sakin",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,7 +16,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.unibus.mobile"
+      "bundleIdentifier": "com.unibus.mobile.sakin",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show you on the map.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location to show you on the map."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,8 +32,10 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.unibus.mobile",
+      "package": "com.unibus.mobile.sakin",
       "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
@@ -57,14 +68,15 @@
         {
           "calendarPermission": "Allow UniBus to create routine events in your calendar."
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "http://192.168.10.108:5000/api/v1",
-      "socketUrl": "http://192.168.10.108:5000",
+      "apiBaseUrl": "https://kraig-electrotechnical-alvera.ngrok-free.dev/api/v1",
+      "socketUrl": "https://kraig-electrotechnical-alvera.ngrok-free.dev/socket",
       "router": {},
       "eas": {
         "projectId": "80949995-3dff-40be-a5ec-b0f90e6ea163"

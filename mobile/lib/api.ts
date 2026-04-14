@@ -1,6 +1,7 @@
 import axios from "axios";
 import config from "./config";
 import storage from "./storage";
+import { useAuthStore } from "@/store/authStore";
 
 console.log("API Base URL:", config.API_BASE_URL);
 
@@ -58,6 +59,18 @@ api.interceptors.response.use(
   async (error) => {
     if (error.response?.status === 401) {
       await storage.clear();
+
+      const authState = useAuthStore.getState();
+
+      // Keep zustand auth state consistent with cleared token storage.
+      if (authState.isAuthenticated || authState.user || authState.token) {
+        useAuthStore.setState({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+      }
     }
     return Promise.reject(error);
   },

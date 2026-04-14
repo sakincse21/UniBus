@@ -128,6 +128,11 @@ export interface ICalendarEvent {
   isAllDay?: boolean;
   source: ICalendarEventSource;
   metadata?: ICalendarEventMetadata;
+  reminder?: {
+    enabled: boolean;
+    minutesBefore: number;
+    notificationTime: string; // ISO date string
+  };
 }
 
 export interface IUserFixture {
