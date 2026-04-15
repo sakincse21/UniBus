@@ -30,7 +30,7 @@ export const addUserSchema = z.object({
   password: z
     .string({ error: "Password is required" })
     .min(6, "Password must be at least 6 characters long"),
-  role: z.enum(["student", "teacher", "cr"], { error: "Role is required" }),
+  role: z.enum(["admin", "student", "teacher", "cr"], { error: "Role is required" }),
   batchNumber: z
     .string()
     .optional()
@@ -39,9 +39,9 @@ export const addUserSchema = z.object({
       "Batch number must be a valid number"
     ),
 }).refine(
-  (data) => data.role !== "student" || (data.batchNumber && data.batchNumber !== ""),
+  (data) => !["student", "cr"].includes(data.role) || (data.batchNumber && data.batchNumber !== ""),
   {
-    message: "Batch number is required for students",
+    message: "Batch number is required for students and CRs",
     path: ["batchNumber"],
   }
 );
@@ -69,7 +69,7 @@ const AddUserForm = () => {
         email: values.email,
         password: values.password,
         role: values.role,
-        ...(values.role === "student" && { batchNumber: Number(values.batchNumber) }),
+        ...(["student", "cr"].includes(values.role) && { batchNumber: Number(values.batchNumber) }),
       };
       const res = await addUser(submitData as any);
       if (res.success) {
@@ -160,6 +160,7 @@ const AddUserForm = () => {
                         <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="student">Student</SelectItem>
                         <SelectItem value="teacher">Teacher</SelectItem>
                         <SelectItem value="cr">Class Representative (CR)</SelectItem>
@@ -172,7 +173,7 @@ const AddUserForm = () => {
             )}
           />
 
-          {role === "student" && (
+          {["student", "cr"].includes(role) && (
             <FormField
               control={form.control}
               name="batchNumber"

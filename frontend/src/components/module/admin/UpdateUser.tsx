@@ -29,7 +29,7 @@ import z from "zod";
 export const updateUserSchema = z.object({
   name: z.string({ error: "Name is required" }).min(1, "Name is required"),
   email: z.email({ error: "Email is required" }).min(1, "Email is required"),
-  role: z.enum(["student", "teacher", "cr"], { error: "Role is required" }),
+  role: z.enum(["admin", "student", "teacher", "cr"], { error: "Role is required" }),
   batchNumber: z
     .string()
     .optional()
@@ -38,16 +38,16 @@ export const updateUserSchema = z.object({
       "Batch number must be a valid number"
     ),
 }).refine(
-  (data) => data.role !== "student" || (data.batchNumber && data.batchNumber !== ""),
+  (data) => !["student", "cr"].includes(data.role) || (data.batchNumber && data.batchNumber !== ""),
   {
-    message: "Batch number is required for students",
+    message: "Batch number is required for students and CRs",
     path: ["batchNumber"],
   }
 );
 
 const UpdateUserForm = ({user}:{user: IUser|null}) => {
-  const defaultRole: "student" | "teacher" | "cr" =
-    user?.role === "teacher" || user?.role === "cr" || user?.role === "student"
+  const defaultRole: "admin" | "student" | "teacher" | "cr" =
+    user?.role === "admin" || user?.role === "teacher" || user?.role === "cr" || user?.role === "student"
       ? user.role
       : "student";
 
@@ -70,7 +70,7 @@ const UpdateUserForm = ({user}:{user: IUser|null}) => {
       const res = await updateUser(values, user!.user_id);
       if (res.success) {
         toast.success("User updated successfully!", { id: toastId });
-        // form.reset();
+        router.push("/dashboard/manage-users");
         router.refresh();
       } else {
         toast.error(`Failed to update user: ${res.message}`, { id: toastId });
@@ -135,6 +135,7 @@ const UpdateUserForm = ({user}:{user: IUser|null}) => {
                         <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="student">Student</SelectItem>
                         <SelectItem value="teacher">Teacher</SelectItem>
                         <SelectItem value="cr">Class Representative (CR)</SelectItem>
@@ -147,7 +148,7 @@ const UpdateUserForm = ({user}:{user: IUser|null}) => {
             )}
           />
 
-          {role === "student" && (
+          {["student", "cr"].includes(role) && (
             <FormField
               control={form.control}
               name="batchNumber"

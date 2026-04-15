@@ -111,12 +111,21 @@ const updateMyPushToken = tryCatch(async (req: Request, res: Response) => {
 });
 
 const getAllUsers = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
-  const users = await UserService.getAllUsers();
+  const options = {
+    page: Number(req.query.page) || 1,
+    limit: Number(req.query.limit) || 10,
+    sort: (req.query.sort as string) || "createdAt",
+    order: (req.query.order as string) || "desc",
+    search: (req.query.search as string) || "",
+  };
+
+  const data = await UserService.getAllUsers(options);
 
   res.status(200).json({
     success: true,
     message: "Users fetched successfully",
-    data: users,
+    data: data.users,
+    meta: data.meta,
   });
 });
 

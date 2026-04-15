@@ -189,6 +189,8 @@ export default function AllUsers() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Batch</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -197,6 +199,10 @@ export default function AllUsers() {
                     <TableRow key={user.user_id}>
                       <TableCell className="font-medium text-start">{user.name}</TableCell>
                       <TableCell className="font-medium text-start">{user.email}</TableCell>
+                      <TableCell className="font-medium text-start capitalize">{user.role || "N/A"}</TableCell>
+                      <TableCell className="font-medium text-start">
+                        {user.batch?.name || "N/A"}
+                      </TableCell>
                       <TableCell className="text-right flex flex-row gap-2 justify-end">
                         {/* <ActionDialog userId={user._id} role={userData?.data?.role} /> */}
                         <AlertDialog>

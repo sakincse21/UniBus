@@ -8,13 +8,14 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { useRoutineStore } from "@/store/routineStore";
 import { IRoutineSlot } from "@/interfaces";
 import { scheduleWeeklyReminders, cancelAllReminders } from "@/lib/reminders";
-import { addRoutineToCalendar } from "@/lib/calendar";
+import { syncRoutineToCalendar, clearSyncedRoutinesFromCalendar } from "@/lib/calendar";
 
 // Correct day order - Sunday is first (0) in JavaScript Date
 const DAY_ORDER = [
@@ -179,6 +180,9 @@ export default function WeeklyRoutineScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [schedulingReminders, setSchedulingReminders] = useState(false);
+  const [syncDaysModalVisible, setSyncDaysModalVisible] = useState(false);
+  const [syncDaysConfig, setSyncDaysConfig] = useState('30');
+  const [pendingConfirm, setPendingConfirm] = useState(false);
 
   useEffect(() => {
     fetchRoutine();
@@ -238,50 +242,39 @@ export default function WeeklyRoutineScreen() {
 
     const currentRoutine = useRoutineStore.getState().routine;
     if (currentRoutine.length > 0) {
-      setSchedulingReminders(true);
-      try {
-        await scheduleWeeklyReminders(currentRoutine);
-        Alert.alert(
-          "Routine Saved",
-          "Weekly reminders have been set 10 minutes before each class.",
-          [
-            {
-              text: "Add to Calendar",
-              onPress: async () => {
-                try {
-                  const count = await addRoutineToCalendar(currentRoutine);
-                  Alert.alert("Done", `${count} calendar events created.`);
-                } catch {
-                  Alert.alert(
-                    "Info",
-                    "Calendar events could not be created. Notifications are still active.",
-                  );
-                }
-              },
-            },
-            { text: "Skip", style: "cancel" },
-          ],
-        );
-      } catch {
-        Alert.alert(
-          "Saved",
-          "Routine saved, but notification permission was not granted. Please enable notifications in settings.",
-        );
-      } finally {
-        setSchedulingReminders(false);
-      }
+      setSyncDaysModalVisible(true);
+      setPendingConfirm(true);
     }
   };
 
-  const rescheduleReminders = async () => {
+  const rescheduleReminders = () => {
+    setSyncDaysModalVisible(true);
+    setPendingConfirm(false);
+  };
+
+  const executeSync = async () => {
+    setSyncDaysModalVisible(false);
+    const parsedDays = parseInt(syncDaysConfig, 10);
+    const daysToSync = isNaN(parsedDays) || parsedDays <= 0 ? 30 : parsedDays;
+
     setSchedulingReminders(true);
     try {
-      await scheduleWeeklyReminders(routine);
-      Alert.alert("Done", "Reminders updated successfully.");
+      const currentRoutine = useRoutineStore.getState().routine;
+      // Also schedule standard app notifications
+      await scheduleWeeklyReminders(currentRoutine);
+
+      // Now add to native calendar
+      await syncRoutineToCalendar(currentRoutine, daysToSync);
+
+      Alert.alert(
+        "Done",
+        `Reminders saved. Successfully synced classes for the next ${daysToSync} days to your calendar.`,
+      );
     } catch {
-      Alert.alert("Error", "Could not update reminders.");
+      Alert.alert("Error", "Could not fully update your reminders.");
     } finally {
       setSchedulingReminders(false);
+      setPendingConfirm(false);
     }
   };
 
@@ -296,6 +289,8 @@ export default function WeeklyRoutineScreen() {
           style: "destructive",
           onPress: async () => {
             await cancelAllReminders();
+            // Remove native synced events too
+            await clearSyncedRoutinesFromCalendar();
             await deleteRoutine();
           },
         },
@@ -492,6 +487,52 @@ export default function WeeklyRoutineScreen() {
 
         <View className="h-8" />
       </ScrollView>
+
+      <Modal
+        visible={syncDaysModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSyncDaysModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center p-4">
+          <View className="bg-white rounded-lg w-10/12 max-w-sm p-6">
+            <Text className="text-xl font-bold text-gray-900 mb-2">
+              Sync to Calendar
+            </Text>
+            <Text className="text-gray-600 text-sm mb-4">
+              How many days into the future should we add these classes to your native calendar?
+            </Text>
+
+            <TextInput
+              className="border border-gray-300 rounded-lg px-4 py-3 mb-5 text-base text-gray-900 bg-gray-50 focus:border-blue-500 focus:bg-white transition-colors"
+              keyboardType="numeric"
+              value={syncDaysConfig}
+              onChangeText={setSyncDaysConfig}
+              placeholder="e.g. 30"
+              maxLength={3}
+            />
+
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => setSyncDaysModalVisible(false)}
+                className="flex-1 py-3 bg-gray-100 rounded-lg"
+              >
+                <Text className="text-center font-medium text-gray-700 text-base">
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={executeSync}
+                className="flex-1 py-3 bg-blue-600 rounded-lg"
+              >
+                <Text className="text-center font-bold text-white text-base">
+                  {pendingConfirm ? "Confirm & Sync" : "Sync"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

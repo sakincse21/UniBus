@@ -12,7 +12,7 @@ import {
 import { INotice } from "@/interfaces";
 import { noticeAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
-import { addNoticeToCalendar } from "@/lib/calendar";
+import { toggleNoticeInCalendar, checkNoticeSyncState } from "@/lib/calendar";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -52,10 +52,12 @@ export default function NoticeDetailModal({
   const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAddingToCalendar, setIsAddingToCalendar] = useState(false);
+  const [isSynced, setIsSynced] = useState(false);
 
   useEffect(() => {
     if (visible && notice) {
       loadAttachments();
+      checkNoticeSyncState(notice.id).then(setIsSynced);
     }
   }, [visible, notice?.id]);
 
@@ -82,25 +84,8 @@ export default function NoticeDetailModal({
 
     setIsAddingToCalendar(true);
     try {
-      const success = await addNoticeToCalendar(
-        notice.title,
-        notice.content,
-        notice.eventDate,
-        notice.startTime,
-        notice.endTime,
-      );
-
-      if (success) {
-        Alert.alert(
-          "Success",
-          "Event added to your calendar with a reminder 15 minutes before.",
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          "Failed to add to calendar. Please check permissions.",
-        );
-      }
+      const newSyncState = await toggleNoticeInCalendar(notice);
+      setIsSynced(newSyncState);
     } catch (error) {
       Alert.alert("Error", "Something went wrong.");
     } finally {
@@ -389,17 +374,17 @@ export default function NoticeDetailModal({
                 <TouchableOpacity
                   onPress={handleAddToCalendar}
                   disabled={isAddingToCalendar}
-                  className="bg-blue-600 rounded-xl py-2.5 mt-1 flex-row items-center justify-center gap-2"
+                  className={`${isSynced ? 'bg-red-50 border border-red-200' : 'bg-blue-600'} rounded-xl py-2.5 mt-1 flex-row items-center justify-center gap-2`}
                 >
                   {isAddingToCalendar ? (
-                    <ActivityIndicator size="small" color="white" />
+                    <ActivityIndicator size="small" color={isSynced ? "#dc2626" : "white"} />
                   ) : (
                     <>
-                      <Text className="text-white text-sm font-semibold">
-                        📅
+                      <Text className={isSynced ? "text-red-600" : "text-white"}>
+                        {isSynced ? "✕" : "📅"}
                       </Text>
-                      <Text className="text-white text-sm font-semibold">
-                        Add to Calendar
+                      <Text className={`${isSynced ? "text-red-600" : "text-white"} text-sm font-semibold`}>
+                        {isSynced ? "Remove from Calendar" : "Add to Calendar"}
                       </Text>
                     </>
                   )}

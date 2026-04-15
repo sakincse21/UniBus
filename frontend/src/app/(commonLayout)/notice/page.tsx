@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Download, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
+import { Download, Image as ImageIcon, FileText, Trash2, Users, Calendar, Clock } from "lucide-react";
 import { useRole } from "@/components/RoleProvider";
 import { toast } from "sonner";
 import {
@@ -35,7 +35,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import Image from "next/image";
-import { formatBangladesh } from "@/lib/dateTime";
+import { formatBangladesh, formatBangladeshDate } from "@/lib/dateTime";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -191,8 +191,35 @@ export default function NoticePage() {
                         )}
                       </p>
                     )}
+                    
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                        <Users className="w-3 h-3" />
+                        {n.forAll 
+                          ? "Visible: All" 
+                          : n.forTeachers 
+                            ? "Visible: Teachers" 
+                            : n.targetBatch?.name
+                              ? `Visible: Batch ${n.targetBatch.name}`
+                              : "Specific Audience"}
+                      </span>
+
+                      {n.eventDate && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 ring-1 ring-inset ring-gray-600/10">
+                          <Calendar className="w-3 h-3" />
+                          {formatBangladeshDate(n.eventDate)}
+                          {(n.startTime || n.endTime) && (
+                            <>
+                              <Clock className="w-3 h-3 ml-1" />
+                              {n.startTime ? n.startTime.slice(0, 5) : ""}
+                              {n.endTime ? ` - ${n.endTime.slice(0, 5)}` : ""}
+                            </>
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 border-l pl-4 ml-2">
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {formatBangladesh(n.createdAt, {
                         month: "short",

@@ -13,6 +13,7 @@ import { useCalendarStore } from "@/store/calendarStore";
 import { ICalendarEvent } from "@/interfaces";
 import EventCard from "./EventCard";
 import CreateEventModal from "./CreateEventModal";
+import { silentRemoveEventFromCalendar } from "@/lib/calendar";
 import {
   formatBangladesh,
   formatBangladeshMonthYear,
@@ -69,6 +70,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
 
   const eventsByDate = events.reduce(
     (acc, event) => {
+      // Hide routine from events globally in CalendarView
+      if (event.type === "routine") return acc;
+
       try {
         const dateKey = getBangladeshDateKey(event.startDateTime);
         if (!acc[dateKey]) {
@@ -119,6 +123,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
     try {
       if (event.type === "personal" && event.source.fixtureId) {
         await deleteFixture(event.source.fixtureId);
+        await silentRemoveEventFromCalendar(event.id);
       } else if (event.type === "notice" && event.source.noticeId) {
         await deleteNotice(event.source.noticeId);
       }
@@ -221,15 +226,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
 
   return (
     <View className="flex-1 bg-white">
-      <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      >
         <View
-          className="px-4 pt-4 pb-4 bg-white border-b border-gray-100"
+          className="px-4 pt-4 pb-4 bg-white border-b border-gray-100 shadow-sm z-10"
           style={{ paddingTop: insets.top + 16 }}
         >
           <View className="flex-row justify-between items-center mb-4">
@@ -294,8 +292,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
           <View className="flex-1 justify-center items-center py-16">
             <ActivityIndicator size="large" color="#2563eb" />
           </View>
-        ) : viewMode === "month" ? (
-          <View className="px-4 pt-4">
+        ) : viewMode === "month" && (
+          <View className="px-4 pt-4 border-b border-gray-100 pb-4 z-0">
             <View className="flex-row mb-2 gap-1">
               {DAYS_OF_WEEK.map((day) => (
                 <View 
@@ -372,8 +370,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
               )}
             </View>
           </View>
-        ) : (
-          <View className="px-4 pt-4">
+        )}
+
+      <ScrollView
+        className="flex-1 px-4 z-0 bg-white"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 120, paddingTop: 16 }}
+      >
+        {viewMode === "list" && (
+          <View>
             {Object.keys(eventsByDate)
               .sort()
               .map((dateKey) => {
@@ -435,36 +443,42 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
         )}
 
         {viewMode === "month" && (
-          <View className="px-4 pt-6 border-t border-gray-200 mt-6">
-            <View className="mb-4">
-              <Text className="text-lg font-bold text-gray-900 mb-1">
+          <View className="px-4 py-4">
+            <View className="mb-4 flex-row items-center justify-between">
+              <Text className="text-xl font-extrabold text-gray-900">
                 {formatBangladesh(selectedDate, {
                   weekday: "long",
                   month: "long",
                   day: "numeric",
                 })}
               </Text>
-              <Text className="text-sm text-gray-500">
-                {selectedDateEvents.length} event
-                {selectedDateEvents.length !== 1 ? "s" : ""}
-              </Text>
+              <View className="bg-blue-100 px-3 py-1 rounded-full">
+                <Text className="text-xs font-bold text-blue-700">
+                  {selectedDateEvents.length} event{selectedDateEvents.length !== 1 ? "s" : ""}
+                </Text>
+              </View>
             </View>
 
             {selectedDateEvents.length === 0 ? (
-              <View className="items-center py-8">
-                <Text className="text-gray-400 text-sm">
+              <View className="items-center justify-center py-10 bg-gray-50 rounded-2xl border border-gray-200 border-dashed">
+                <Text className="text-gray-400 font-medium text-base">
                   No events on this day
                 </Text>
+                <TouchableOpacity onPress={() => setCreateModalVisible(true)} className="mt-3">
+                    <Text className="text-blue-500 font-semibold text-sm">Add one now</Text>
+                </TouchableOpacity>
               </View>
             ) : (
-              selectedDateEvents.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  onDelete={() => handleDeleteEvent(event)}
-                  isDeleting={deletingEventId === event.id}
-                />
-              ))
+              <View>
+                {selectedDateEvents.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    onDelete={() => handleDeleteEvent(event)}
+                    isDeleting={deletingEventId === event.id}
+                  />
+                ))}
+              </View>
             )}
           </View>
         )}

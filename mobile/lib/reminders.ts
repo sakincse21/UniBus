@@ -55,7 +55,7 @@ export const scheduleEventReminder = async (
       },
       trigger: {
         date: notificationTime,
-        channelId: "event-reminders",
+        channelId: "calendar-reminders",
       },
     });
 

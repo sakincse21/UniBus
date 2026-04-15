@@ -28,6 +28,9 @@ import {
   Image as ImageIcon,
   FileText,
   Trash2,
+  Clock,
+  Calendar,
+  Users,
 } from "lucide-react";
 import { useRole } from "@/components/RoleProvider";
 import { toast } from "sonner";
@@ -188,11 +191,35 @@ export default function NoticeDetailPage() {
                   </span>
                 )}
               </p>
-              {notice.eventDate && (
-                <p className="text-xs mt-1">
-                  Event Date: {formatBangladeshDate(notice.eventDate)}
-                </p>
-              )}
+              
+              <div className="flex flex-wrap items-center gap-3 mt-3">
+                {/* Viewing Rules / Audience */}
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                  <Users className="w-3.5 h-3.5" />
+                  {notice.forAll 
+                    ? "Visible: All" 
+                    : notice.forTeachers 
+                      ? "Visible: Teachers" 
+                      : notice.targetBatch?.name
+                        ? `Visible: Batch ${notice.targetBatch.name}`
+                        : "Specific Audience"}
+                </span>
+
+                {/* Event Details */}
+                {notice.eventDate && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-600/10">
+                    <Calendar className="w-3.5 h-3.5" />
+                    {formatBangladeshDate(notice.eventDate)}
+                    {(notice.startTime || notice.endTime) && (
+                      <>
+                        <Clock className="w-3.5 h-3.5 ml-1.5" />
+                        {notice.startTime ? notice.startTime.slice(0, 5) : ""}
+                        {notice.endTime ? ` - ${notice.endTime.slice(0, 5)}` : ""}
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </CardHeader>

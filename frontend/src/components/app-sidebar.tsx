@@ -81,6 +81,7 @@ function getNavSections(role: UserRole | null) {
         { title: "Manage Buses", url: "/dashboard/buses" },
         { title: "Manage Routes", url: "/dashboard/routes" },
         { title: "Manage Schedules", url: "/dashboard/schedules" },
+        { title: "Manage Batches", url: "/dashboard/batches" },
         { title: "Add User", url: "/dashboard/add-user" },
         { title: "Bulk Upload Users", url: "/dashboard/add-user/bulk" },
         { title: "Manage Users", url: "/dashboard/manage-users" },

@@ -60,8 +60,26 @@ const confirmRoutine = tryCatch(async (req: Request, res: Response) => {
   const validDays = Object.values(DayOfWeek);
   const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+  // Ensure zero-padding for single-digit hours (e.g. "9:30" => "09:30")
+  const processTime = (timeStr?: string) => {
+    if (!timeStr) return "";
+    const parts = timeStr.split(":");
+    if (parts.length === 2) {
+      return `${parts[0].padStart(2, "0")}:${parts[1]}`;
+    }
+    return timeStr;
+  };
+
   // Validate each slot
-  for (const slot of slots) {
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    
+    // Auto pad starting times
+    slot.firstHalfStart = processTime(slot.firstHalfStart);
+    if (slot.secondHalfStart) {
+      slot.secondHalfStart = processTime(slot.secondHalfStart);
+    }
+
     if (!validDays.includes(slot.day)) {
       return res
         .status(400)
@@ -140,8 +158,28 @@ const updateSlot = tryCatch(async (req: Request, res: Response) => {
     return res.status(404).json({ message: "Routine entry not found" });
   }
 
-  if (firstHalfStart !== undefined) entry.firstHalfStart = firstHalfStart;
-  if (secondHalfStart !== undefined) entry.secondHalfStart = secondHalfStart;
+  const processTime = (timeStr?: string) => {
+    if (!timeStr) return "";
+    const parts = timeStr.split(":");
+    if (parts.length === 2) {
+      return `${parts[0].padStart(2, "0")}:${parts[1]}`;
+    }
+    return timeStr;
+  };
+
+  const processedFirst = firstHalfStart !== undefined ? processTime(firstHalfStart) : undefined;
+  const processedSecond = secondHalfStart !== undefined ? processTime(secondHalfStart) : undefined;
+
+  const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (processedFirst && !timeRegex.test(processedFirst)) {
+    return res.status(400).json({ message: "Invalid firstHalfStart time" });
+  }
+  if (processedSecond && !timeRegex.test(processedSecond)) {
+    return res.status(400).json({ message: "Invalid secondHalfStart time" });
+  }
+
+  if (processedFirst !== undefined) entry.firstHalfStart = processedFirst;
+  if (processedSecond !== undefined) entry.secondHalfStart = processedSecond;
   if (note !== undefined) entry.note = note;
   if (remindersEnabled !== undefined) entry.remindersEnabled = remindersEnabled;
 
