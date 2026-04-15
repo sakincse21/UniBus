@@ -106,7 +106,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
       routeId: schedule?.route?.id || null,
       estimate,
     },
-    channelId: "bus-tracking-requests",
+    channelId: "default",
   });
 
   return res.json({

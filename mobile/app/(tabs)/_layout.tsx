@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import * as Notifications from "expo-notifications";
-import { View, Text } from "react-native";
+import { AppState, View, Text } from "react-native";
 import { useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useBusTrackingStore } from "@/store/busTrackingStore";
@@ -10,6 +10,7 @@ import { getSocket } from "@/lib/socket";
 import {
   initializePushNotifications,
   requestNotificationPermissions,
+  sendLocalNotification,
 } from "@/lib/notifications";
 import { useRouter } from "expo-router";
 import { userAPI } from "@/lib/api";
@@ -48,15 +49,34 @@ export default function TabsLayout() {
     if (!user?.user_id) return;
 
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const registerPushAndSyncCalendar = async () => {
+    const syncPushTokenWithRetry = async (attempt = 0): Promise<void> => {
       const pushToken = await initializePushNotifications();
 
-      if (pushToken && !cancelled) {
-        await userAPI.updatePushToken(pushToken).catch((error) => {
-          console.warn("Failed to update push token:", error);
-        });
+      if (!pushToken) {
+        if (!cancelled && attempt < 3) {
+          retryTimer = setTimeout(() => {
+            syncPushTokenWithRetry(attempt + 1).catch(() => {});
+          }, 3000 * (attempt + 1));
+        }
+        return;
       }
+
+      try {
+        await userAPI.updatePushToken(pushToken);
+      } catch (error) {
+        console.warn("Failed to update push token:", error);
+        if (!cancelled && attempt < 5) {
+          retryTimer = setTimeout(() => {
+            syncPushTokenWithRetry(attempt + 1).catch(() => {});
+          }, Math.min(30000, 2000 * 2 ** attempt));
+        }
+      }
+    };
+
+    const registerPushAndSyncCalendar = async () => {
+      await syncPushTokenWithRetry();
 
       if (!cancelled) {
         await fetchCalendarEvents(30).catch(() => {});
@@ -65,8 +85,21 @@ export default function TabsLayout() {
 
     registerPushAndSyncCalendar();
 
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextState) => {
+        if (nextState === "active" && !cancelled) {
+          syncPushTokenWithRetry().catch(() => {});
+        }
+      },
+    );
+
     return () => {
       cancelled = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+      appStateSubscription.remove();
     };
   }, [fetchCalendarEvents, user?.user_id]);
 
@@ -144,6 +177,18 @@ export default function TabsLayout() {
           routeId: payload.routeId || null,
           estimate: payload.estimate,
         });
+
+        sendLocalNotification(
+          `Bus ${payload.busId} location requested`,
+          "Someone nearby asked if you are on this bus.",
+          {
+            type: "bus-tracking-request",
+            busId: payload.busId,
+            routeId: payload.routeId || null,
+            estimate: payload.estimate,
+          },
+          "bus-tracking-requests",
+        ).catch(() => {});
       });
     };
 

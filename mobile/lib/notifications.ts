@@ -31,6 +31,15 @@ export async function ensureNotificationChannels(): Promise<void> {
     return;
   }
 
+  await Notifications.setNotificationChannelAsync("default", {
+    name: "General",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: "#2563eb",
+    enableVibrate: true,
+    enableLights: true,
+  });
+
   await Notifications.setNotificationChannelAsync("routine-reminders", {
     name: "Class Reminders",
     importance: Notifications.AndroidImportance.HIGH,
@@ -150,6 +159,7 @@ export async function sendLocalNotification(
   title: string,
   body: string,
   data?: Record<string, any>,
+  channelId: string = "default",
 ) {
   const granted = await requestNotificationPermissions(false);
   if (!granted) return;
@@ -161,6 +171,7 @@ export async function sendLocalNotification(
       data,
       sound: true,
       priority: Notifications.AndroidNotificationPriority.HIGH,
+      ...(Platform.OS === "android" ? { channelId } : {}),
     },
     trigger: null,
   });

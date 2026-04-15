@@ -13,6 +13,12 @@ import { INotice } from "@/interfaces";
 import { noticeAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { addNoticeToCalendar } from "@/lib/calendar";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import * as IntentLauncher from "expo-intent-launcher";
+import { Platform } from "react-native";
+import config from "@/lib/config";
+import storage from "@/lib/storage";
 import {
   formatBangladeshDate,
   formatBangladeshDateTime,
@@ -29,8 +35,9 @@ interface NoticeDetailModalProps {
 interface Attachment {
   id: number;
   fileName: string;
-  fileUrl: string;
-  uploadedAt: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
 }
 
 export default function NoticeDetailModal({
@@ -103,12 +110,58 @@ export default function NoticeDetailModal({
 
   const handleDownloadAttachment = async (attachment: Attachment) => {
     try {
-      await Share.share({
-        title: attachment.fileName,
-        message: `Download: ${attachment.fileName}`,
-        url: attachment.fileUrl,
-      });
+      const token = await storage.getToken();
+      if (!token) {
+        Alert.alert("Error", "You must be logged in to download attachments");
+        return;
+      }
+      
+      const downloadUrl = `${config.API_BASE_URL}/attachment/download/${attachment.id}`;
+      // Clean up filename to prevent weird paths
+      const safeFileName = attachment.fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const localUri = FileSystem.documentDirectory + safeFileName;
+      
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      let uriToShare = localUri;
+
+      if (!fileInfo.exists) {
+        Alert.alert("Downloading", "Please wait while the file downloads...");
+        const { uri } = await FileSystem.downloadAsync(
+          downloadUrl,
+          localUri,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+        uriToShare = uri;
+      }
+
+      if (Platform.OS === "android") {
+        try {
+          const contentUri = await FileSystem.getContentUriAsync(uriToShare);
+          await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+            data: contentUri,
+            flags: 1,
+            type: attachment.fileType || "application/octet-stream",
+          });
+        } catch (e) {
+          Alert.alert("No App Found", "No application found to open this file type.");
+        }
+      } else {
+        const isSharingAvailable = await Sharing.isAvailableAsync();
+        if (isSharingAvailable) {
+          await Sharing.shareAsync(uriToShare, {
+            dialogTitle: attachment.fileName,
+            mimeType: attachment.fileType || "application/octet-stream",
+          });
+        } else {
+          Alert.alert("Success", `File available at ${uriToShare}`);
+        }
+      }
     } catch (error) {
+      console.error("Download Error:", error);
       Alert.alert("Error", "Failed to download attachment");
     }
   };
@@ -390,7 +443,7 @@ export default function NoticeDetailModal({
                           {attachment.fileName}
                         </Text>
                         <Text className="text-xs text-gray-500 mt-0.5">
-                          {formatBangladeshDate(attachment.uploadedAt)}
+                          {attachment.createdAt ? formatBangladeshDate(attachment.createdAt) : ""}
                         </Text>
                       </View>
                       <Text className="text-blue-600 text-lg">↓</Text>

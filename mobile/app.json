@@ -2,7 +2,7 @@
   "expo": {
     "owner": "saleheen007",
     "name": "UniBus Mobile",
-    "slug": "unibus-mobile-sakin",
+    "slug": "unibus-mobile-2024-1",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -34,8 +34,12 @@
       "edgeToEdgeEnabled": true,
       "package": "com.unibus.mobile.sakin",
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
@@ -64,6 +68,16 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow UniBus to access your location to show your bus and nearby riders.",
+          "locationAlwaysAndWhenInUsePermission": "Allow UniBus to access your location in the background to notify nearby riders.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true
+        }
+      ],
+      [
         "expo-calendar",
         {
           "calendarPermission": "Allow UniBus to create routine events in your calendar."
@@ -76,10 +90,10 @@
     },
     "extra": {
       "apiBaseUrl": "https://kraig-electrotechnical-alvera.ngrok-free.dev/api/v1",
-      "socketUrl": "https://kraig-electrotechnical-alvera.ngrok-free.dev/socket",
+      "socketUrl": "https://kraig-electrotechnical-alvera.ngrok-free.dev",
       "router": {},
       "eas": {
-        "projectId": "80949995-3dff-40be-a5ec-b0f90e6ea163"
+        "projectId": "77dc35cc-6568-404e-879f-770b4bb31ea3"
       }
     }
   }

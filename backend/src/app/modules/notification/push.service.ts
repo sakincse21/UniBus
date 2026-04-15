@@ -20,6 +20,7 @@ type ExpoPushMessage = {
   sound: "default";
   channelId?: string;
   priority: "high";
+  ttl?: number;
 };
 
 type ExpoPushTicket = {
@@ -41,6 +42,11 @@ function chunkMessages<T>(items: T[], size: number): T[][] {
   }
 
   return chunks;
+}
+
+function maskExpoToken(token: string): string {
+  if (token.length <= 12) return token;
+  return `${token.slice(0, 12)}...${token.slice(-6)}`;
 }
 
 function sendExpoPushChunk(messages: ExpoPushMessage[]): Promise<ExpoPushTicket[]> {
@@ -151,8 +157,9 @@ export async function sendPushToUsers(
     body: payload.body,
     data: payload.data,
     sound: "default",
-    channelId: payload.channelId,
+    channelId: payload.channelId || "default",
     priority: "high",
+    ttl: 3600,
   }));
 
   let deliveredCount = 0;
@@ -177,6 +184,14 @@ export async function sendPushToUsers(
           ticket.details?.error === "DeviceNotRegistered"
         ) {
           invalidTokens.add(token);
+          return;
+        }
+
+        if (ticket.status === "error") {
+          console.warn("Expo push ticket error:", {
+            error: ticket.details?.error || "unknown",
+            token: typeof token === "string" ? maskExpoToken(token) : undefined,
+          });
         }
       });
     } catch (error) {

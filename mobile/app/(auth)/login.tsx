@@ -10,6 +10,8 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { authAPI, userAPI } from "@/lib/api";
+import { initializePushNotifications } from "@/lib/notifications";
+import { startBackgroundLocationTracking } from "@/lib/backgroundLocation";
 import { useAuthStore } from "@/store/authStore";
 import { IUser } from "@/interfaces";
 import {
@@ -86,6 +88,19 @@ export default function LoginScreen() {
         } catch (profileError) {
           console.warn("Failed to fetch full profile:", profileError);
         }
+
+        try {
+          const pushToken = await initializePushNotifications();
+          if (pushToken) {
+            await userAPI.updatePushToken(pushToken);
+          }
+        } catch (pushError) {
+          console.warn("Push token registration failed at login:", pushError);
+        }
+
+        startBackgroundLocationTracking().catch((trackingError) => {
+          console.warn("Background location tracking start failed:", trackingError);
+        });
 
         await refreshProfile();
         router.replace("/(tabs)");

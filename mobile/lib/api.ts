@@ -97,11 +97,11 @@ export const noticeAPI = {
     api.get(`/attachment/download/${attachmentId}`, {
       responseType: "blob",
     }),
-  uploadAttachments: (noticeId: number, files: any[]) => {
+  uploadAttachments: async (noticeId: number, files: any[]) => {
     const formData = new FormData();
     formData.append("noticeId", noticeId.toString());
 
-    // Append files directly - axios will handle multipart encoding
+    // Append files directly
     files.forEach((file) => {
       const name = resolveUploadFileName(file);
       const type = resolveUploadMimeType(file, name);
@@ -112,8 +112,19 @@ export const noticeAPI = {
       } as any);
     });
 
-    return api.post("/attachment/upload", formData, {
-      timeout: 120000,
+    const token = await storage.getToken();
+    return fetch(`${config.API_BASE_URL}/attachment/upload`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw { response: { data: errorData, status: res.status } };
+      }
+      return { data: await res.json() };
     });
   },
 };

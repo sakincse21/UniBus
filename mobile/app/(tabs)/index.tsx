@@ -11,6 +11,7 @@ import {
 import { noticeAPI } from "@/lib/api";
 import { INotice } from "@/interfaces";
 import { getSocket } from "@/lib/socket";
+import { sendLocalNotification } from "@/lib/notifications";
 import NoticeCard from "@/components/ui/NoticeCard";
 import NoticeDetailModal from "@/components/NoticeDetailModal";
 import CreateNoticeModal from "@/components/CreateNoticeModal";
@@ -82,6 +83,16 @@ export default function NoticesTab() {
       socket.on("notice_published", (notice: INotice) => {
         setNotices((prev) => [notice, ...prev]);
         setPendingNotices((prev) => prev.filter((n) => n.id !== notice.id));
+
+        sendLocalNotification(
+          `New Notice: ${notice.title}`,
+          (notice.content || "New notice published").slice(0, 140),
+          {
+            type: "notice",
+            noticeId: notice.id,
+          },
+          "notice-updates",
+        ).catch(() => {});
       });
       socket.on("notice_deleted", (data: { id: number }) => {
         setNotices((prev) => prev.filter((n) => n.id !== data.id));

@@ -100,7 +100,7 @@ async function pushPublishedNotice(
       type: "notice",
       noticeId: notice.id,
     },
-    channelId: "notice-updates",
+    channelId: "default",
   });
 }
 
