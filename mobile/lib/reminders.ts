@@ -54,6 +54,7 @@ export const scheduleEventReminder = async (
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
       trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: notificationTime,
         channelId: "calendar-reminders",
       },
@@ -267,6 +268,7 @@ export const scheduleWeeklyReminders = async (
               priority: Notifications.AndroidNotificationPriority.HIGH,
             },
             trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
               date: firstReminderTime,
               channelId: "routine-reminders",
             },
@@ -298,6 +300,7 @@ export const scheduleWeeklyReminders = async (
               priority: Notifications.AndroidNotificationPriority.HIGH,
             },
             trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
               date: secondReminderTime,
               channelId: "routine-reminders",
             },
@@ -337,6 +340,7 @@ export const scheduleNoticeReminder = async (
         sound: true,
       },
       trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: date,
         channelId: "routine-reminders",
       },

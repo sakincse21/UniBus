@@ -2,8 +2,9 @@ import { Request, Response } from "express";
 import tryCatch from "../../utils/tryCatch";
 import { AppDataSource } from "../../db/data-source";
 import { Routine, DayOfWeek } from "./routine.entity";
-import { analyzeRoutineImage } from "./gemini.service";
+import { analyzeRoutineImageWithOllama } from "./ollama.service";
 import fs from "fs";
+import { analyzeRoutineImage } from "./gemini.service";
 
 const routineRepo = () => AppDataSource.getRepository(Routine);
 
@@ -18,7 +19,8 @@ const uploadAndAnalyze = tryCatch(async (req: Request, res: Response) => {
 
   try {
     console.log('trying image analysis')
-    const slots = await analyzeRoutineImage(req.file.path);
+    const slots = await analyzeRoutineImageWithOllama(req.file.path);
+    // const slots = await analyzeRoutineImage(req.file.path);
 
     // Clean up uploaded file after analysis
     fs.unlink(req.file.path, () => {});

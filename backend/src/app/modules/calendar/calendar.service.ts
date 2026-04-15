@@ -31,6 +31,11 @@ export interface CalendarEvent {
     createdBy?: string;
     canDelete?: boolean;
   };
+  reminder?: {
+    enabled: boolean;
+    minutesBefore: number;
+    notificationTime: string;
+  };
 }
 
 /**
@@ -60,17 +65,20 @@ export async function getCalendarEvents(
   }
 
   const now = new Date();
-  // Truncate to date only for comparison with eventDate column (which is stored as date, not datetime)
-  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Start from the beginning of the current month so the calendar UI shows past events for the month
+  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
   const endDate = new Date(now);
   endDate.setDate(endDate.getDate() + days);
   // Set to end of day for proper range inclusion
   endDate.setHours(23, 59, 59, 999);
 
+  const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`;
+  const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
   const events: CalendarEvent[] = [];
 
   // 1. Fetch approved notices with eventDate (role-filtered)
-  const noticeEvents = await getNoticeEvents(user, startDate, endDate);
+  const noticeEvents = await getNoticeEvents(user, startDateStr, endDateStr);
   events.push(...noticeEvents);
 
   // 2. Fetch and expand routines to daily entries (role-filtered)
@@ -94,8 +102,8 @@ export async function getCalendarEvents(
  */
 async function getNoticeEvents(
   user: User,
-  startDate: Date,
-  endDate: Date,
+  startDate: string,
+  endDate: string,
 ): Promise<CalendarEvent[]> {
   const noticeRepo = AppDataSource.getRepository(Notice);
 
@@ -149,13 +157,16 @@ async function getNoticeEvents(
   return notices.map((notice) => {
     const normalizedStartTime = normalizeNoticeTime(notice.startTime);
     const normalizedEndTime = normalizeNoticeTime(notice.endTime);
-    const hasTimeRange = Boolean(normalizedStartTime && normalizedEndTime);
+    const hasTimeRange = Boolean(normalizedStartTime);
     const startDateTime = hasTimeRange
       ? parseLocalDateTime(`${notice.eventDate!}T${normalizedStartTime!}`)
       : parseLocalDate(notice.eventDate!);
-    const endDateTime = hasTimeRange
+    const endDateTime = normalizedEndTime
       ? parseLocalDateTime(`${notice.eventDate!}T${normalizedEndTime!}`)
-      : parseLocalDate(notice.eventDate!);
+      : startDateTime; // default to start time if no end time
+
+    const minutesBefore = 10;
+    const notificationTime = new Date(startDateTime.getTime() - minutesBefore * 60000);
 
     return {
       id: `notice-${notice.id}`,
@@ -168,6 +179,11 @@ async function getNoticeEvents(
       endTime: normalizedEndTime?.slice(0, 5),
       isAllDay: !hasTimeRange,
       source: { noticeId: notice.id },
+      reminder: {
+        enabled: hasTimeRange, // only if start time was provided
+        minutesBefore,
+        notificationTime: notificationTime.toISOString(),
+      },
       metadata: {
         forAll: notice.forAll,
         forTeachers: notice.forTeachers,
@@ -314,6 +330,9 @@ function expandRoutinesToCalendarEvents(
           endDateTime.setHours(firstHour + 1, firstMin, 0, 0);
         }
 
+        const minutesBefore = 15;
+        const notificationTime = new Date(startDateTime.getTime() - minutesBefore * 60000);
+
         events.push({
           id: `routine-${routine.id}-${current.toISOString().split("T")[0]}`,
           type: "routine",
@@ -323,6 +342,11 @@ function expandRoutinesToCalendarEvents(
           endDateTime,
           isAllDay: false,
           source: { routineId: routine.id },
+          reminder: {
+            enabled: routine.remindersEnabled !== false, // Use routine's preference if defined, default true
+            minutesBefore,
+            notificationTime: notificationTime.toISOString(),
+          },
           metadata: {
             confidence: routine.confidence,
             note: routine.note || undefined,
@@ -359,16 +383,27 @@ async function getPersonalFixtureEvents(
         new Date(f.startDateTime) >= startDate &&
         new Date(f.startDateTime) <= endDate,
     )
-    .map((fixture) => ({
-      id: `fixture-${fixture.id}`,
-      type: "personal",
-      title: fixture.title,
-      description: fixture.description,
-      startDateTime: new Date(fixture.startDateTime),
-      endDateTime: new Date(fixture.endDateTime),
-      isAllDay: fixture.isAllDay,
-      source: { fixtureId: fixture.id },
-    }));
+    .map((fixture) => {
+      const minutesBefore = 15;
+      const startDateTime = new Date(fixture.startDateTime);
+      const notificationTime = new Date(startDateTime.getTime() - minutesBefore * 60000);
+      
+      return {
+        id: `fixture-${fixture.id}`,
+        type: "personal",
+        title: fixture.title,
+        description: fixture.description,
+        startDateTime,
+        endDateTime: new Date(fixture.endDateTime),
+        isAllDay: fixture.isAllDay,
+        source: { fixtureId: fixture.id },
+        reminder: {
+          enabled: !fixture.isAllDay,
+          minutesBefore,
+          notificationTime: notificationTime.toISOString(),
+        }
+      };
+    });
 }
 
 /**

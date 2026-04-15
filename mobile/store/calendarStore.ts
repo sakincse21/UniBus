@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { calendarAPI } from "@/lib/api";
 import { ICalendarEvent } from "@/interfaces";
+import { scheduleAllEventReminders } from "@/lib/reminders";
 
 interface CalendarState {
   events: ICalendarEvent[];
@@ -29,6 +30,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       if (response.data.success) {
         const fetchedEvents = response.data.data || [];
         set({ events: fetchedEvents, error: null });
+        scheduleAllEventReminders(fetchedEvents).catch(console.error);
       } else {
         set({ error: response.data.message || "Failed to fetch events" });
       }
@@ -84,7 +86,9 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       if (response.data.success) {
         // Remove from local state
         const currentEvents = get().events;
-        set({ events: currentEvents.filter(e => !(e.type === "personal" && e.source.fixtureId === id)) });
+        const newEvents = currentEvents.filter(e => !(e.type === "personal" && e.source.fixtureId === id));
+        set({ events: newEvents });
+        scheduleAllEventReminders(newEvents).catch(console.error);
       } else {
         set({ error: response.data.message || "Failed to delete fixture" });
       }
@@ -103,7 +107,9 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       if (response.data.success) {
         // Remove from local state
         const currentEvents = get().events;
-        set({ events: currentEvents.filter(e => !(e.type === "notice" && e.source.noticeId === id)) });
+        const newEvents = currentEvents.filter(e => !(e.type === "notice" && e.source.noticeId === id));
+        set({ events: newEvents });
+        scheduleAllEventReminders(newEvents).catch(console.error);
       } else {
         set({ error: response.data.message || "Failed to delete notice" });
       }

@@ -19,4 +19,7 @@ export const env = {
   SMTP_FROM: process.env.SMTP_FROM || "noreply@unibus.com",
   EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || "",
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "nvidia/nemotron-nano-12b-v2-vl:free",
+  OLLAMA_URL: process.env.OLLAMA_URL || "http://localhost:11434/api/generate",
+  OLLAMA_MODEL: process.env.OLLAMA_MODEL || "llama3.2-vision",
+  OLLAMA_TIMEOUT_MS: Number(process.env.OLLAMA_TIMEOUT_MS) || 180_000,
 };

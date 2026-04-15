@@ -227,7 +227,7 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
   const repo = AppDataSource.getRepository(Notice);
   const notice = await repo.findOne({
     where: { id: Number(id) },
-    relations: ["targetBatch"],
+    relations: ["targetBatch", "createdBy"],
   });
 
   if (!notice) {
@@ -239,7 +239,22 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
 
   const io = getSocketServer(req);
   emitPublishedNotice(io, notice);
-  const pushNotifiedUsers = await pushPublishedNotice(notice);
+  
+  let pushNotifiedUsers = await pushPublishedNotice(notice);
+
+  // Notify the creator that their notice was accepted
+  if (notice.createdBy && notice.createdBy.pushToken && notice.createdBy.user_id !== req.user.userId) {
+    await sendPushToUsers([notice.createdBy], {
+      title: "Notice Approved ✅",
+      body: `Your pending notice "${notice.title}" has been approved!`,
+      data: {
+        type: "notice",
+        noticeId: notice.id,
+      },
+      channelId: "default",
+    });
+    pushNotifiedUsers += 1;
+  }
 
   res.json({ success: true, pushNotifiedUsers });
 });
