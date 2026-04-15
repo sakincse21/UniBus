@@ -4,6 +4,7 @@ import { ensureDataSourceInitialized } from "./app/db/data-source";
 import { attachServer, gracefulShutdown } from "./app/utils/globalErrorHandler";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { startCronJobs } from "./app/modules/notification/push.cron";
 import { registerTrackingSockets } from "./app/modules/tracking/tracking.socket";
 import { socketAuth } from "./app/middlewares/socketAuth";
 
@@ -27,6 +28,7 @@ async function start() {
 
   app.set("io", io);
   const stopTrackingCleanup = registerTrackingSockets(io);
+  const stopCronJobs = startCronJobs();
 
   httpServer.listen(env.PORT, () =>
     console.log(`Server running on port ${env.PORT}`),
@@ -37,6 +39,7 @@ async function start() {
 
   const shutdown = (exitCode: number, reason: string) => {
     stopTrackingCleanup();
+    stopCronJobs();
     io.close();
     void gracefulShutdown(exitCode, reason);
   };

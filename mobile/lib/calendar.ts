@@ -292,13 +292,20 @@ export const addRoutineToCalendar = async (
     endFirst.setHours(secondHalf.hour, secondHalf.minute, 0, 0);
 
     if (startFirst < endFirst) {
+      // Calculate duration to schedule the second reminder
+      const durationMs = endFirst.getTime() - startFirst.getTime();
+      const durationMins = Math.floor(durationMs / 60000);
+
       try {
         await Calendar.createEventAsync(calendarId, {
           title: `Class: ${slot.day.charAt(0).toUpperCase() + slot.day.slice(1)}`,
           notes: slot.note || "Class session",
           startDate: startFirst,
           endDate: endFirst,
-          alarms: [{ relativeOffset: -10 }],
+          alarms: [
+            { relativeOffset: -10 },
+            { relativeOffset: durationMins - 10 }
+          ],
           availability: Calendar.Availability.BUSY,
         });
         addedCount++;

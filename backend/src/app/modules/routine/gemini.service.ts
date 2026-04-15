@@ -68,7 +68,7 @@ Strict rules:
 
 1. Time format:
    - Use 24-hour format HH:mm
-   - Always subtract 10 minutes from the detected class start time
+   - Always subtract the detected class start time
 
 2. Session definitions:
    - First half = morning session (before break)
@@ -103,8 +103,8 @@ Output example:
 [
   {
     "day": "sunday",
-    "firstHalfStart": "10:30",
-    "secondHalfStart": "14:20",
+    "firstHalfStart": "10:40",
+    "secondHalfStart": "14:30",
     "confidence": 0.95,
     "note": "morning 10:40, afternoon 14:30"
   }
