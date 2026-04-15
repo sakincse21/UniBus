@@ -6,6 +6,7 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET!,
   JWT_EXPIRES: process.env.JWT_EXPIRES || "7d",
   BCRYPT_SALT: Number(process.env.BCRYPT_SALT || 10),
+  FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
 
   // PostgreSQL Configuration
   DB_HOST: process.env.DB_HOST || "localhost",

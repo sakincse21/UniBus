@@ -17,11 +17,20 @@ async function start() {
   console.log("✅ Initial batches created");
 
   const httpServer = createServer(app);
+
+  // Parse FRONTEND_URL for CORS
+  const frontendUrls = env.FRONTEND_URL
+    ? env.FRONTEND_URL.split(",").map((url) => url.trim())
+    : ["http://localhost:3000"];
+
   const io = new Server(httpServer, {
     cors: {
-      origin: true,
+      origin: frontendUrls,
       credentials: true,
+      methods: ["GET", "POST"],
     },
+    transports: ["websocket", "polling"],
+    allowEIO3: true,
   });
 
   io.use(socketAuth);
