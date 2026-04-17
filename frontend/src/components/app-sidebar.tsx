@@ -26,8 +26,21 @@ function getNavSections(role: UserRole | null) {
 
   if (!role) return sections;
 
-  // ── Student / Teacher ──
-  if (role === "student" || role === "teacher") {
+  // ── Student ──
+  if (role === "student") {
+    sections.push({
+      title: "Navigation",
+      items: [
+        { title: "Buses", url: "/buses" },
+        { title: "Notices", url: "/notice" },
+        { title: "Forum", url: "/forum" },
+        { title: "Calendar", url: "/calendar" },
+      ],
+    });
+  }
+
+  // ── Teacher ──
+  if (role === "teacher") {
     sections.push({
       title: "Navigation",
       items: [
@@ -45,6 +58,7 @@ function getNavSections(role: UserRole | null) {
       items: [
         { title: "Buses", url: "/buses" },
         { title: "Notices", url: "/notice" },
+        { title: "Forum", url: "/forum" },
         { title: "Create Notice", url: "/notice/create" },
         { title: "Calendar", url: "/calendar" },
       ],

@@ -131,6 +131,11 @@ export default function PendingNoticePage() {
                     By {n.createdBy.name || "Unknown"}
                   </p>
                 )}
+                {n.tag && (
+                  <span className="inline-flex w-fit mt-2 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-700/10 capitalize">
+                    {n.tag}
+                  </span>
+                )}
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-relaxed mb-4">{n.content}</p>

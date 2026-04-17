@@ -9,6 +9,22 @@ export interface IUser {
   };
 }
 
+export type NoticeTag =
+  | "general"
+  | "academic"
+  | "exam"
+  | "event"
+  | "transport"
+  | "urgent";
+
+export type NoticeSortBy = "timePosted" | "upcomingEvent" | "tag";
+export type NoticeSortOrder = "asc" | "desc";
+
+export interface INoticeTagOption {
+  value: NoticeTag;
+  label: string;
+}
+
 export interface INotice {
   id: number;
   title: string;
@@ -17,6 +33,7 @@ export interface INotice {
   status: "pending" | "approved" | "rejected";
   forAll: boolean;
   forTeachers: boolean;
+  tag: NoticeTag;
   eventDate?: string; // ISO date string for calendar integration
   startTime?: string; // HH:mm format
   endTime?: string; // HH:mm format
@@ -27,6 +44,36 @@ export interface INotice {
   createdBy?: {
     user_id: string;
     name: string;
+  };
+}
+
+export interface IForumPost {
+  id: number;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  commentCount?: number;
+  batch: {
+    id: number;
+    name: string;
+  };
+  author: {
+    user_id: string;
+    name: string;
+    role: "admin" | "teacher" | "student" | "cr";
+  };
+}
+
+export interface IForumComment {
+  id: number;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    user_id: string;
+    name: string;
+    role: "admin" | "teacher" | "student" | "cr";
   };
 }
 
@@ -68,7 +115,21 @@ export interface IBusTrackingResponse {
   routeId?: number | null;
   startTime: string | null;
   notifiedUsers: number;
+  requestIds?: number[];
   estimate: IBusEstimate | null;
+}
+
+export interface ITrackingRequestItem {
+  id: number;
+  busId: number;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
+  expiresAt?: string | null;
+  requester: {
+    userId: string;
+    name: string;
+    email: string;
+  };
 }
 
 export interface IBusLiveLocation {

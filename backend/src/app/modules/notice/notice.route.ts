@@ -9,6 +9,7 @@ const router = Router();
 // All authenticated users can create and view notices
 router.post("/", authValidate, NoticeController.createNotice);
 router.get("/", authValidate, NoticeController.getVisibleNotices);
+router.get("/tags", authValidate, NoticeController.getNoticeTags);
 
 // Admin, Teacher, and CR can manage pending notices
 router.get(

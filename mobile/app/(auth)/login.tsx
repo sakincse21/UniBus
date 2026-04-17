@@ -6,6 +6,8 @@ import {
   Alert,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +24,9 @@ import {
   Input,
   Button,
 } from "@gluestack-ui/themed";
+import { APP_THEME_COLORS } from "@/lib/theme";
+
+const COLORS = APP_THEME_COLORS;
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -32,16 +37,80 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isForgotPasswordLoading, setIsForgotPasswordLoading] = useState(false);
+  const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotEmailError, setForgotEmailError] = useState<string | null>(
+    null,
+  );
   const [errors, setErrors] = useState<{ email?: string; password?: string }>(
     {},
   );
+
+  const isValidEmail = (value: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+  const openForgotPasswordModal = () => {
+    setForgotEmail(email.trim());
+    setForgotEmailError(null);
+    setForgotPasswordVisible(true);
+  };
+
+  const closeForgotPasswordModal = () => {
+    if (isForgotPasswordLoading) return;
+    setForgotPasswordVisible(false);
+    setForgotEmailError(null);
+  };
+
+  const handleForgotPassword = async () => {
+    const normalizedEmail = forgotEmail.trim();
+
+    if (!normalizedEmail) {
+      setForgotEmailError("Email is required");
+      return;
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      setForgotEmailError("Please enter a valid email");
+      return;
+    }
+
+    setForgotEmailError(null);
+    setIsForgotPasswordLoading(true);
+
+    try {
+      const response = await authAPI.forgotPassword(normalizedEmail);
+
+      if (response.data.success) {
+        Alert.alert(
+          "Password Reset",
+          response.data.message ||
+            "A temporary password has been sent to your email.",
+        );
+        setForgotPasswordVisible(false);
+      } else {
+        Alert.alert(
+          "Reset Failed",
+          response.data.message || "Failed to send reset password email.",
+        );
+      }
+    } catch (error: any) {
+      console.error("Forgot password error:", error);
+      Alert.alert(
+        "Reset Failed",
+        error.response?.data?.message || "Failed to send reset password email.",
+      );
+    } finally {
+      setIsForgotPasswordLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     const newErrors: typeof errors = {};
 
     if (!email?.trim()) {
       newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    } else if (!isValidEmail(email.trim())) {
       newErrors.email = "Please enter a valid email";
     }
 
@@ -122,7 +191,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: COLORS.background }}
     >
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
@@ -145,13 +214,17 @@ export default function LoginScreen() {
                 textAlign: "center",
                 fontSize: 32,
                 fontWeight: "700",
-                color: "#000",
+                color: COLORS.onSurface,
               }}
             >
               UniBus
             </Heading>
             <Text
-              style={{ textAlign: "center", fontSize: 14, color: "#4b5563" }}
+              style={{
+                textAlign: "center",
+                fontSize: 14,
+                color: COLORS.onSurfaceMuted,
+              }}
             >
               University Bus Tracking System
             </Text>
@@ -161,7 +234,11 @@ export default function LoginScreen() {
             <FormControl isInvalid={!!errors.email}>
               <FormControl.Label>
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#000" }}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: COLORS.onSurface,
+                  }}
                 >
                   Email
                 </Text>
@@ -178,7 +255,7 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   editable={!isLoading}
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={COLORS.onSurfaceMuted}
                 />
               </Input>
               {errors.email && (
@@ -192,11 +269,41 @@ export default function LoginScreen() {
 
             <FormControl isInvalid={!!errors.password}>
               <FormControl.Label>
-                <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#000" }}
+                <View
+                  style={{
+                    width: "100%",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
                 >
-                  Password
-                </Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: COLORS.onSurface,
+                    }}
+                  >
+                    Password
+                  </Text>
+                  <TouchableOpacity
+                    onPress={openForgotPasswordModal}
+                    disabled={isLoading}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "600",
+                        color: isLoading
+                          ? COLORS.onSurfaceMuted
+                          : COLORS.primary,
+                      }}
+                    >
+                      Forgot password?
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </FormControl.Label>
               <Input isDisabled={isLoading}>
                 <Input.Input
@@ -209,7 +316,7 @@ export default function LoginScreen() {
                   }}
                   secureTextEntry
                   editable={!isLoading}
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={COLORS.onSurfaceMuted}
                 />
               </Input>
               {errors.password && (
@@ -228,7 +335,9 @@ export default function LoginScreen() {
             style={{
               marginTop: 8,
               width: "100%",
-              backgroundColor: isLoading ? "#d1d5db" : "#0ea5e9",
+              backgroundColor: isLoading
+                ? COLORS.surfaceHigh
+                : COLORS.primary,
               paddingVertical: 12,
               paddingHorizontal: 16,
               borderRadius: 6,
@@ -244,12 +353,12 @@ export default function LoginScreen() {
           </Button>
 
           <VStack style={{ alignItems: "center", gap: 4 }}>
-            <Text style={{ fontSize: 14, color: "#4b5563" }}>
+            <Text style={{ fontSize: 14, color: COLORS.onSurfaceMuted }}>
               Don't have an account?
             </Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
               <Text
-                style={{ fontSize: 14, fontWeight: "600", color: "#0ea5e9" }}
+                style={{ fontSize: 14, fontWeight: "600", color: COLORS.primary }}
               >
                 Sign Up Here
               </Text>
@@ -257,6 +366,134 @@ export default function LoginScreen() {
           </VStack>
         </VStack>
       </ScrollView>
+
+      <Modal
+        visible={forgotPasswordVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeForgotPasswordModal}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(17, 24, 39, 0.45)",
+            justifyContent: "center",
+            paddingHorizontal: 24,
+          }}
+        >
+          <VStack
+            style={{
+              backgroundColor: COLORS.surface,
+              borderWidth: 1,
+              borderColor: COLORS.outline,
+              borderRadius: 12,
+              padding: 20,
+              gap: 12,
+            }}
+          >
+            <VStack style={{ gap: 4 }}>
+              <Heading
+                style={{
+                  fontSize: 22,
+                  fontWeight: "700",
+                  color: COLORS.onSurface,
+                }}
+              >
+                Forgot Password?
+              </Heading>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: COLORS.onSurfaceMuted,
+                  lineHeight: 20,
+                }}
+              >
+                Enter your email address. We will send you a temporary password.
+              </Text>
+            </VStack>
+
+            <FormControl isInvalid={!!forgotEmailError}>
+              <FormControl.Label>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: COLORS.onSurface,
+                  }}
+                >
+                  Email
+                </Text>
+              </FormControl.Label>
+              <Input isDisabled={isForgotPasswordLoading}>
+                <Input.Input
+                  placeholder="Enter your email"
+                  value={forgotEmail}
+                  onChangeText={(text: string) => {
+                    setForgotEmail(text);
+                    if (forgotEmailError) {
+                      setForgotEmailError(null);
+                    }
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!isForgotPasswordLoading}
+                  placeholderTextColor={COLORS.onSurfaceMuted}
+                />
+              </Input>
+              {forgotEmailError ? (
+                <FormControl.Error>
+                  <Text style={{ fontSize: 12, color: "#dc2626" }}>{forgotEmailError}</Text>
+                </FormControl.Error>
+              ) : null}
+            </FormControl>
+
+            <View
+              style={{
+                marginTop: 4,
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                gap: 8,
+              }}
+            >
+              <Button
+                onPress={closeForgotPasswordModal}
+                isDisabled={isForgotPasswordLoading}
+                style={{
+                  backgroundColor: COLORS.surfaceLow,
+                  paddingVertical: 10,
+                  paddingHorizontal: 16,
+                  borderRadius: 6,
+                }}
+              >
+                <Button.Text style={{ color: COLORS.onSurface, fontWeight: "600" }}>
+                  Cancel
+                </Button.Text>
+              </Button>
+
+              <Button
+                onPress={handleForgotPassword}
+                isDisabled={isForgotPasswordLoading}
+                style={{
+                  backgroundColor: isForgotPasswordLoading
+                    ? COLORS.surfaceHigh
+                    : COLORS.primary,
+                  paddingVertical: 10,
+                  paddingHorizontal: 16,
+                  borderRadius: 6,
+                }}
+              >
+                {isForgotPasswordLoading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Button.Text style={{ color: "white", fontWeight: "600" }}>
+                    Send Reset Password
+                  </Button.Text>
+                )}
+              </Button>
+            </View>
+          </VStack>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

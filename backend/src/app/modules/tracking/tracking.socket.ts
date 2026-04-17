@@ -7,6 +7,7 @@ import { pointToPolylineDistance } from "../../utils/estimate.util";
 import { BusSchedule } from "../schedule/busSchedule.entity";
 import { RoutePoint } from "../route/routePoint.entity";
 import { LessThan } from "typeorm";
+import { TrackingRequest, TrackingRequestStatus } from "./trackingRequest.entity";
 
 const SESSION_CLEANUP_INTERVAL_MS = 10000;
 let sessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -146,6 +147,28 @@ export const registerTrackingSockets = (io: any) => {
     socket.on("accept_tracking", async ({ busId }: { busId: number }) => {
       const user = socket.user;
       if (!user) return;
+
+      const trackingRequestRepo = AppDataSource.getRepository(TrackingRequest);
+      const acceptedRequest = await trackingRequestRepo
+        .createQueryBuilder("request")
+        .where("request.receiverId = :receiverId", { receiverId: user.userId })
+        .andWhere("request.busId = :busId", { busId })
+        .andWhere("request.status = :status", {
+          status: TrackingRequestStatus.ACCEPTED,
+        })
+        .andWhere("(request.expiresAt IS NULL OR request.expiresAt > :now)", {
+          now: new Date(),
+        })
+        .orderBy("request.createdAt", "DESC")
+        .getOne();
+
+      if (!acceptedRequest) {
+        socket.emit("tracking_rejected", {
+          busId,
+          message: "No accepted tracking request found for this bus",
+        });
+        return;
+      }
 
       const repo = AppDataSource.getRepository(LiveTrackingSession);
 

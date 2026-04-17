@@ -14,6 +14,9 @@ import { Attachment } from "../modules/notice/attachment.entity";
 import { UserLocation } from "../modules/location/userLocation.entity";
 import { Routine } from "../modules/routine/routine.entity";
 import { UserFixture } from "../modules/calendar/calendar.entity";
+import { TrackingRequest } from "../modules/tracking/trackingRequest.entity";
+import { ForumPost } from "../modules/forum/forumPost.entity";
+import { ForumComment } from "../modules/forum/forumComment.entity";
 
 export const AppDataSource = new DataSource({
   type: "mysql",
@@ -27,7 +30,17 @@ export const AppDataSource = new DataSource({
   entities: [User, Bus, LiveTrackingSession, EstimatedBusLocation,
   Route,
   RoutePoint,
-  BusSchedule, Batch, Notice, Attachment, UserLocation, Routine, UserFixture],
+  BusSchedule,
+  Batch,
+  Notice,
+  Attachment,
+  UserLocation,
+  Routine,
+  UserFixture,
+  TrackingRequest,
+  ForumPost,
+  ForumComment,
+],
 });
 
 let initPromise: Promise<DataSource> | null = null;

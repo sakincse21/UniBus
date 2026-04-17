@@ -1,7 +1,55 @@
 "use client";
 
-export async function fetchNotices(page: number = 1, limit: number = 10) {
-  const res = await fetch(`/api/v1/notice?page=${page}&limit=${limit}`, {
+import type {
+  INoticeListResponse,
+  INoticeResponse,
+  INoticeTagsResponse,
+  NoticeSortBy,
+  NoticeSortOrder,
+  NoticeTag,
+} from "@/lib/interfaces";
+
+interface ICreateNoticePayload {
+  title: string;
+  content: string;
+  forAll?: boolean;
+  forTeachers?: boolean;
+  targetBatchId?: string;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+  tag?: NoticeTag;
+}
+
+interface IFetchNoticesOptions {
+  sortBy?: NoticeSortBy;
+  sortOrder?: NoticeSortOrder;
+  tag?: NoticeTag | "all";
+}
+
+export async function fetchNotices(
+  page: number = 1,
+  limit: number = 10,
+  options: IFetchNoticesOptions = {},
+): Promise<INoticeListResponse> {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+
+  if (options.sortBy) {
+    params.set("sortBy", options.sortBy);
+  }
+
+  if (options.sortOrder) {
+    params.set("sortOrder", options.sortOrder);
+  }
+
+  if (options.tag && options.tag !== "all") {
+    params.set("tag", options.tag);
+  }
+
+  const res = await fetch(`/api/v1/notice?${params.toString()}`, {
     credentials: "include",
   });
 
@@ -10,8 +58,7 @@ export async function fetchNotices(page: number = 1, limit: number = 10) {
   return res.json();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function createNotice(data: any) {
+export async function createNotice(data: ICreateNoticePayload): Promise<INoticeResponse> {
   const res = await fetch(`/api/v1/notice`, {
     method: "POST",
     credentials: "include",
@@ -22,10 +69,22 @@ export async function createNotice(data: any) {
   return res.json();
 }
 
-export async function fetchPendingNotices() {
+export async function fetchPendingNotices(): Promise<INoticeListResponse> {
   const res = await fetch(`/api/v1/notice/pending`, {
     credentials: "include",
   });
+
+  return res.json();
+}
+
+export async function fetchNoticeTags(): Promise<INoticeTagsResponse> {
+  const res = await fetch(`/api/v1/notice/tags`, {
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch notice tags");
+  }
 
   return res.json();
 }
@@ -90,7 +149,7 @@ export async function deleteAttachment(attachmentId: number) {
   return res.json();
 }
 
-export async function fetchNoticeById(id: number) {
+export async function fetchNoticeById(id: number): Promise<INoticeResponse> {
   const res = await fetch(`/api/v1/notice/${id}`, {
     credentials: "include",
   });

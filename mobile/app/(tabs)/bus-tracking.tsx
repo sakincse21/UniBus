@@ -14,6 +14,7 @@ import {
   View,
   Dimensions,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import BottomSheet, {
   BottomSheetFlatList,
@@ -29,7 +30,8 @@ import {
   type MapRefHandle,
 } from "../../components/ui/map";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { busAPI, locationAPI } from "@/lib/api";
+import { useFocusEffect } from "@react-navigation/native";
+import { busAPI, locationAPI, trackingAPI } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import type {
   IBus,
@@ -39,6 +41,7 @@ import type {
 } from "@/interfaces";
 import type { Socket } from "socket.io-client";
 import { useBusTrackingStore } from "@/store/busTrackingStore";
+import { APP_THEME_COLORS } from "@/lib/theme";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DEFAULT_REGION = {
@@ -46,6 +49,15 @@ const DEFAULT_REGION = {
   longitude: 89.5,
   latitudeDelta: 0.08,
   longitudeDelta: 0.08,
+};
+
+const COLORS = APP_THEME_COLORS;
+const MAP_MARKER_COLORS = {
+  routePoint: "#2563EB",
+  start: "#22C55E",
+  end: "#EF4444",
+  liveBus: "#16A34A",
+  estimatedBus: "#F97316",
 };
 
 function deltaToZoom(longitudeDelta: number): number {
@@ -166,56 +178,21 @@ function calculateEstimatedPosition(
   return { lat: routePoints[0].lat, lng: routePoints[0].lng };
 }
 
-/**
- * Get color based on offset progress (0% = green, 50% = orange, 100% = red)
- */
-function getOffsetColor(offsetPercent: number): string {
-  // Clamp between 0 and 1
-  const p = Math.max(0, Math.min(1, offsetPercent));
-  
-  if (p < 0.5) {
-    // Green to Yellow: 0% -> green (#22C55E), 50% -> orange (#F59E0B)
-    const ratio = p * 2; // 0 to 1
-    return interpolateColor("#22C55E", "#F59E0B", ratio);
-  } else {
-    // Yellow to Red: 50% -> orange (#F59E0B), 100% -> red (#EF4444)
-    const ratio = (p - 0.5) * 2; // 0 to 1
-    return interpolateColor("#F59E0B", "#EF4444", ratio);
-  }
-}
-
-function interpolateColor(color1: string, color2: string, t: number): string {
-  const c1 = hexToRgb(color1);
-  const c2 = hexToRgb(color2);
-  const r = Math.round(c1.r + (c2.r - c1.r) * t);
-  const g = Math.round(c1.g + (c2.g - c1.g) * t);
-  const b = Math.round(c1.b + (c2.b - c1.b) * t);
-  return `rgb(${r},${g},${b})`;
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return {
-    r: parseInt(result![1], 16),
-    g: parseInt(result![2], 16),
-    b: parseInt(result![3], 16),
-  };
-}
-
 function StopMarker({
   type,
   time,
   sequence,
-  offsetColor,
 }: {
   type: "start" | "end" | "mid";
   time: string;
   sequence: number;
-  offsetColor?: string;
 }) {
   const bgColor =
-    offsetColor ||
-    (type === "start" ? "#22C55E" : type === "end" ? "#EF4444" : "#3B82F6");
+    type === "start"
+      ? MAP_MARKER_COLORS.start
+      : type === "end"
+        ? MAP_MARKER_COLORS.end
+        : MAP_MARKER_COLORS.routePoint;
   const markerLabel =
     type === "start" ? "S" : type === "end" ? "E" : String(sequence);
   const markerSize = type === "start" || type === "end" ? 24 : 20;
@@ -228,7 +205,7 @@ function StopMarker({
     >
       <View
         style={{
-          backgroundColor: "rgba(255,255,255,0.96)",
+          backgroundColor: COLORS.surface,
           paddingHorizontal: 6,
           paddingVertical: 2,
           borderRadius: 6,
@@ -236,18 +213,18 @@ function StopMarker({
           minWidth: 52,
           alignItems: "center",
           borderWidth: 1,
-          borderColor: "rgba(0,0,0,0.12)",
+          borderColor: COLORS.outline,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.18,
+          shadowOpacity: 0.08,
           shadowRadius: 2,
-          elevation: 3,
+          elevation: 1,
         }}
       >
         <Text
           numberOfLines={1}
           style={{
-            color: "#111827",
+            color: COLORS.onSurface,
             fontSize: 10,
             fontWeight: "700",
             textAlign: "center",
@@ -269,14 +246,14 @@ function StopMarker({
               ? "#86EFAC"
               : type === "end"
                 ? "#FCA5A5"
-                : "#FFFFFF",
+                : "#93C5FD",
           alignItems: "center",
           justifyContent: "center",
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.25,
+          shadowOpacity: 0.12,
           shadowRadius: 3,
-          elevation: 4,
+          elevation: 2,
         }}
       >
         <Text
@@ -297,15 +274,14 @@ function StopMarker({
 
 function BusMarkerDot({
   isLive,
-  confidence,
 }: {
   isLive: boolean;
-  confidence: number;
 }) {
-  const color = isLive ? "#22C55E" : confidence > 0.7 ? "#EAB308" : "#F97316";
+  const color = isLive ? MAP_MARKER_COLORS.liveBus : MAP_MARKER_COLORS.estimatedBus;
+
   return (
-    <View style={styles.busMarkerWrap}>
-      <View style={[styles.busMarkerCore, { backgroundColor: color }]} />
+    <View style={[styles.busMarkerWrap, { backgroundColor: color }]}>
+      <MaterialCommunityIcons name="bus" size={16} color="#FFFFFF" />
     </View>
   );
 }
@@ -337,15 +313,18 @@ export default function BusTrackingTab() {
   const gpsSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const passiveLocationSubscriptionRef =
     useRef<Location.LocationSubscription | null>(null);
-  const promptedBusIdRef = useRef<number | null>(null);
+  const handledRequestIdRef = useRef<number | null>(null);
 
   const mapRef = useRef<MapRefHandle | null>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const socketRef = useRef<Socket | null>(null);
-  const pendingRequest = useBusTrackingStore((state) => state.pendingRequest);
-  const clearPendingRequest = useBusTrackingStore(
-    (state) => state.clearPendingRequest,
+  const requestToStartSharing = useBusTrackingStore(
+    (state) => state.requestToStartSharing,
   );
+  const setRequestToStartSharing = useBusTrackingStore(
+    (state) => state.setRequestToStartSharing,
+  );
+  const setPendingRequests = useBusTrackingStore((state) => state.setPendingRequests);
   const setSharingState = useBusTrackingStore((state) => state.setSharingState);
 
   const snapPoints = useMemo(() => ["15%", "45%", "85%"], []);
@@ -405,7 +384,6 @@ export default function BusTrackingTab() {
       setIsSharingGps(true);
       setSharingForBusId(busId);
       setSharingState(true, busId);
-      clearPendingRequest();
 
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -478,7 +456,7 @@ export default function BusTrackingTab() {
         showToast("Failed to start GPS tracking");
       }
     },
-    [clearPendingRequest, setSharingState, showToast],
+    [setSharingState, showToast],
   );
 
   useEffect(() => {
@@ -532,44 +510,44 @@ export default function BusTrackingTab() {
     };
   }, [showToast]);
 
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      trackingAPI
+        .getPendingRequests()
+        .then((res) => {
+          if (!active) return;
+          setPendingRequests(res.data?.data || []);
+        })
+        .catch(() => {});
+
+      return () => {
+        active = false;
+      };
+    }, [setPendingRequests]),
+  );
+
   useEffect(() => {
-    if (!pendingRequest?.busId) return;
-    if (isSharingRef.current && sharingBusIdRef.current === pendingRequest.busId) {
-      clearPendingRequest();
-      return;
-    }
-    if (isSharingRef.current) {
-      clearPendingRequest();
-      return;
-    }
-    if (promptedBusIdRef.current === pendingRequest.busId) {
+    if (!requestToStartSharing) return;
+    if (handledRequestIdRef.current === requestToStartSharing.id) return;
+
+    handledRequestIdRef.current = requestToStartSharing.id;
+
+    if (
+      isSharingRef.current &&
+      sharingBusIdRef.current === requestToStartSharing.busId
+    ) {
+      setRequestToStartSharing(null);
       return;
     }
 
-    promptedBusIdRef.current = pendingRequest.busId;
-
-    Alert.alert(
-      "Bus Tracking Request",
-      "A nearby user asked for this bus location. Are you currently riding it?",
-      [
-        {
-          text: "No",
-          style: "cancel",
-          onPress: () => {
-            promptedBusIdRef.current = null;
-            clearPendingRequest();
-          },
-        },
-        {
-          text: "Yes, I'm on it",
-          onPress: () => {
-            promptedBusIdRef.current = null;
-            acceptTracking(pendingRequest.busId);
-          },
-        },
-      ],
-    );
-  }, [acceptTracking, clearPendingRequest, pendingRequest]);
+    acceptTracking(requestToStartSharing.busId)
+      .catch(() => {})
+      .finally(() => {
+        setRequestToStartSharing(null);
+      });
+  }, [acceptTracking, requestToStartSharing, setRequestToStartSharing]);
 
   useEffect(() => {
     let mounted = true;
@@ -883,6 +861,7 @@ export default function BusTrackingTab() {
       const isActive = activeBusId === item.id;
       const loc = busLocations[item.id];
       const isLoading = trackingBusId === item.id;
+      const statusTone = !loc ? "idle" : loc.isLive ? "live" : "estimated";
 
       return (
         <View style={[styles.busCard, isActive && styles.busCardActive]}>
@@ -894,31 +873,43 @@ export default function BusTrackingTab() {
                 {item.busNumber}
               </Text>
             </View>
-            {loc && (
+            <View
+              style={[
+                styles.statusBadge,
+                statusTone === "live"
+                  ? styles.statusLive
+                  : statusTone === "estimated"
+                    ? styles.statusEstimated
+                    : styles.statusIdle,
+              ]}
+            >
               <View
                 style={[
-                  styles.statusBadge,
-                  loc.isLive ? styles.statusLive : styles.statusEstimated,
+                  styles.statusDot,
+                  statusTone === "live"
+                    ? styles.dotGreen
+                    : statusTone === "estimated"
+                      ? styles.dotYellow
+                      : styles.dotGray,
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  statusTone === "live"
+                    ? styles.statusLiveText
+                    : statusTone === "estimated"
+                      ? styles.statusEstimatedText
+                      : styles.statusIdleText,
                 ]}
               >
-                <View
-                  style={[
-                    styles.statusDot,
-                    loc.isLive ? styles.dotGreen : styles.dotYellow,
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    loc.isLive
-                      ? styles.statusLiveText
-                      : styles.statusEstimatedText,
-                  ]}
-                >
-                  {loc.isLive ? "Live" : "Est."}
-                </Text>
-              </View>
-            )}
+                {statusTone === "live"
+                  ? "Live"
+                  : statusTone === "estimated"
+                    ? "Est."
+                    : "Idle"}
+              </Text>
+            </View>
           </View>
           <TouchableOpacity
             style={[styles.trackButton, isActive && styles.trackButtonActive]}
@@ -926,9 +917,9 @@ export default function BusTrackingTab() {
             disabled={!isActive && trackingBusId !== null}
           >
             {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={isActive ? COLORS.danger : "#FFFFFF"} />
             ) : (
-              <Text style={styles.trackButtonText}>
+              <Text style={[styles.trackButtonText, isActive && styles.trackButtonTextActive]}>
                 {isActive ? "Stop" : "Track"}
               </Text>
             )}
@@ -955,7 +946,7 @@ export default function BusTrackingTab() {
         {polylineCoords.length > 1 && (
           <MapRoute
             coordinates={polylineCoords}
-            color="#3B82F6"
+            color={COLORS.primary}
             width={4}
             opacity={1}
           />
@@ -968,15 +959,10 @@ export default function BusTrackingTab() {
               : idx === routePoints.length - 1
                 ? "end"
                 : "mid";
-          
-          // Calculate offset color based on progression through route
-          const maxOffset = Math.max(...routePoints.map(p => p.minuteOffset), 1);
-          const offsetPercent = pt.minuteOffset / maxOffset;
-          const offsetColor = getOffsetColor(offsetPercent);
-          
+
           // Calculate time at this point: startTime + minuteOffset
           const time = pointTime(scheduleStartTime, pt.minuteOffset);
-          
+
           return (
             <MapMarker
               key={`stop-${pt.sequence}`}
@@ -989,7 +975,6 @@ export default function BusTrackingTab() {
                   type={type}
                   time={time}
                   sequence={pt.sequence}
-                  offsetColor={offsetColor}
                 />
               </MarkerContent>
             </MapMarker>
@@ -1008,7 +993,7 @@ export default function BusTrackingTab() {
             ? "Your location (sharing)"
             : loc.isLive
               ? "Live location"
-              : `Estimated - ${(loc.confidence * 100).toFixed(0)}% confidence`;
+              : "Estimated location";
           
           return (
             <MapMarker
@@ -1020,7 +1005,6 @@ export default function BusTrackingTab() {
               <MarkerContent>
                 <BusMarkerDot
                   isLive={isSharerMarker ? true : loc.isLive}
-                  confidence={isSharerMarker ? 1 : loc.confidence}
                 />
               </MarkerContent>
               <MarkerPopup
@@ -1038,56 +1022,73 @@ export default function BusTrackingTab() {
         style={[styles.headerOverlay, { top: insets.top + 12 }]}
       >
         <View style={styles.headerCard}>
-          <Text style={styles.headerTitle}>Live Bus Tracking</Text>
-          {activeBus && (
-            <View style={styles.activeBusBadge}>
-              <Text style={styles.activeBusText}>
-                Tracking: {activeBus.busNumber}
-              </Text>
-            </View>
-          )}
-          {activeBusLocation && (
+          <View style={styles.headerTopRow}>
+            <Text style={styles.headerTitle}>Bus Tracking</Text>
             <View
               style={[
                 styles.liveBadge,
-                isSharingGps
-                  ? styles.liveBadgeGreen
-                  : activeBusLocation.isLive
+                activeBusLocation
+                  ? isSharingGps
                     ? styles.liveBadgeGreen
-                    : styles.liveBadgeYellow,
+                    : activeBusLocation.isLive
+                      ? styles.liveBadgeGreen
+                      : styles.liveBadgeYellow
+                  : styles.liveBadgeNeutral,
               ]}
             >
               <View
                 style={[
                   styles.liveDot,
-                  isSharingGps
-                    ? styles.liveDotGreen
-                    : activeBusLocation.isLive
+                  activeBusLocation
+                    ? isSharingGps
                       ? styles.liveDotGreen
-                      : styles.liveDotYellow,
+                      : activeBusLocation.isLive
+                        ? styles.liveDotGreen
+                        : styles.liveDotYellow
+                    : styles.liveDotNeutral,
                 ]}
               />
               <Text
                 style={[
                   styles.liveBadgeText,
-                  isSharingGps
-                    ? styles.liveBadgeTextGreen
-                    : activeBusLocation.isLive
+                  activeBusLocation
+                    ? isSharingGps
                       ? styles.liveBadgeTextGreen
-                      : styles.liveBadgeTextYellow,
+                      : activeBusLocation.isLive
+                        ? styles.liveBadgeTextGreen
+                        : styles.liveBadgeTextYellow
+                    : styles.liveBadgeTextNeutral,
                 ]}
               >
-                {isSharingGps ? "Sharing Location" : activeBusLocation.isLive ? "Live" : "Estimated"}
+                {activeBusLocation
+                  ? isSharingGps
+                    ? "Sharing"
+                    : activeBusLocation.isLive
+                      ? "Live"
+                      : "Estimated"
+                  : "Idle"}
               </Text>
             </View>
-          )}
+          </View>
+
+          <Text style={styles.headerSubtitle}>
+            {activeBus
+              ? `Tracking bus ${activeBus.busNumber}${scheduleStartTime ? ` • Starts ${to12h(scheduleStartTime)}` : ""}`
+              : "Select a bus from the panel to view route and location."}
+          </Text>
+
+          {activeBus ? (
+            <View style={styles.activeBusBadge}>
+              <Text style={styles.activeBusText}>Route focus: {activeBus.busNumber}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
       {toastMsg ? (
         <View
           pointerEvents="none"
-          style={[styles.toast, { top: insets.top + 80 }]}
+          style={[styles.toast, { top: insets.top + 102 }]}
         >
           <Text style={styles.toastText}>{toastMsg}</Text>
         </View>
@@ -1148,7 +1149,7 @@ export default function BusTrackingTab() {
 
         {loadingBuses ? (
           <BottomSheetView style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Fetching buses...</Text>
           </BottomSheetView>
         ) : buses.length === 0 ? (
@@ -1172,7 +1173,7 @@ export default function BusTrackingTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: COLORS.background,
   },
   headerOverlay: {
     position: "absolute",
@@ -1181,48 +1182,69 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   headerCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.outline,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   headerTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#0F172A",
+    fontSize: 26,
+    fontWeight: "800",
+    color: COLORS.onSurface,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: COLORS.onSurfaceMuted,
+    marginTop: 5,
   },
   activeBusBadge: {
-    backgroundColor: "#DBEAFE",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: "#A2C3F8",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 6,
+    marginTop: 8,
+    alignSelf: "flex-start",
   },
   activeBusText: {
     fontSize: 11,
-    fontWeight: "500",
-    color: "#1D4ED8",
+    fontWeight: "700",
+    color: COLORS.primary,
   },
   liveBadge: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
     gap: 4,
   },
   liveBadgeGreen: {
-    backgroundColor: "#DCFCE7",
+    backgroundColor: COLORS.successSoft,
+    borderColor: "#A8DBBC",
   },
   liveBadgeYellow: {
-    backgroundColor: "#FEF9C3",
+    backgroundColor: COLORS.warningSoft,
+    borderColor: "#E4C580",
+  },
+  liveBadgeNeutral: {
+    backgroundColor: COLORS.surfaceLow,
+    borderColor: COLORS.outline,
   },
   liveDot: {
     width: 6,
@@ -1230,87 +1252,99 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   liveDotGreen: {
-    backgroundColor: "#16A34A",
+    backgroundColor: COLORS.success,
   },
   liveDotYellow: {
-    backgroundColor: "#CA8A04",
+    backgroundColor: COLORS.warning,
+  },
+  liveDotNeutral: {
+    backgroundColor: COLORS.onSurfaceMuted,
   },
   liveBadgeText: {
     fontSize: 10,
     fontWeight: "600",
   },
   liveBadgeTextGreen: {
-    color: "#15803D",
+    color: COLORS.success,
   },
   liveBadgeTextYellow: {
-    color: "#A16207",
+    color: COLORS.warning,
+  },
+  liveBadgeTextNeutral: {
+    color: COLORS.onSurfaceMuted,
   },
   toast: {
     position: "absolute",
     alignSelf: "center",
     zIndex: 30,
-    backgroundColor: "rgba(15,23,42,0.9)",
-    paddingHorizontal: 16,
+    backgroundColor: COLORS.dark,
+    borderWidth: 1,
+    borderColor: "#3C4456",
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 10,
     maxWidth: "80%",
   },
   toastText: {
     color: "#fff",
     fontSize: 12,
-    fontWeight: "500",
+    fontWeight: "600",
     textAlign: "center",
   },
   bottomSheetBg: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.outline,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowRadius: 6,
+    elevation: 4,
   },
   bottomSheetHandle: {
-    backgroundColor: "#CBD5E1",
-    width: 40,
+    backgroundColor: COLORS.outline,
+    width: 44,
     height: 4,
   },
   bottomSheetHeader: {
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 14,
+    paddingBottom: 11,
   },
   bottomSheetHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 4,
   },
   bottomSheetTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0F172A",
+    fontSize: 20,
+    fontWeight: "800",
+    color: COLORS.onSurface,
   },
   bottomSheetHint: {
     fontSize: 13,
-    color: "#64748B",
+    color: COLORS.onSurfaceMuted,
     marginTop: 4,
   },
   clearButton: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 6,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: COLORS.dangerSoft,
+    borderWidth: 1,
+    borderColor: "#EAB5B1",
     borderRadius: 8,
   },
   clearButtonText: {
     fontSize: 12,
-    fontWeight: "500",
-    color: "#DC2626",
+    fontWeight: "700",
+    color: COLORS.danger,
   },
   divider: {
     height: 1,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: COLORS.outline,
     marginHorizontal: 16,
     marginBottom: 8,
   },
@@ -1321,7 +1355,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: COLORS.onSurfaceMuted,
   },
   emptyContainer: {
     alignItems: "center",
@@ -1329,63 +1363,72 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: "#94A3B8",
-    fontWeight: "500",
+    color: COLORS.onSurfaceMuted,
+    fontWeight: "600",
   },
   busList: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 40,
-    gap: 10,
+    paddingBottom: 42,
+    gap: 9,
   },
   busCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.outline,
   },
   busCardActive: {
-    borderColor: "#3B82F6",
-    backgroundColor: "#EFF6FF",
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primarySoft,
   },
   busCardInfo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     flex: 1,
   },
   busNumberContainer: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: COLORS.surfaceLow,
+    borderWidth: 1,
+    borderColor: COLORS.outline,
     borderRadius: 8,
   },
   busNumber: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#334155",
+    fontWeight: "700",
+    color: COLORS.onSurface,
   },
   busNumberActive: {
-    color: "#1D4ED8",
+    color: COLORS.primary,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
   },
   statusLive: {
-    backgroundColor: "#DCFCE7",
+    backgroundColor: COLORS.successSoft,
+    borderColor: "#A8DBBC",
   },
   statusEstimated: {
-    backgroundColor: "#FEF9C3",
+    backgroundColor: COLORS.warningSoft,
+    borderColor: "#E4C580",
+  },
+  statusIdle: {
+    backgroundColor: COLORS.surfaceLow,
+    borderColor: COLORS.outline,
   },
   statusDot: {
     width: 5,
@@ -1393,36 +1436,48 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   dotGreen: {
-    backgroundColor: "#16A34A",
+    backgroundColor: COLORS.success,
   },
   dotYellow: {
-    backgroundColor: "#CA8A04",
+    backgroundColor: COLORS.warning,
+  },
+  dotGray: {
+    backgroundColor: COLORS.onSurfaceMuted,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   statusLiveText: {
-    color: "#15803D",
+    color: COLORS.success,
   },
   statusEstimatedText: {
-    color: "#A16207",
+    color: COLORS.warning,
+  },
+  statusIdleText: {
+    color: COLORS.onSurfaceMuted,
   },
   trackButton: {
-    backgroundColor: "#3B82F6",
+    backgroundColor: COLORS.primary,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
     borderRadius: 8,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    minWidth: 70,
+    minWidth: 72,
     alignItems: "center",
   },
   trackButtonActive: {
-    backgroundColor: "#EF4444",
+    backgroundColor: COLORS.dangerSoft,
+    borderColor: "#EAB5B1",
   },
   trackButtonText: {
     color: "#fff",
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  trackButtonTextActive: {
+    color: COLORS.danger,
   },
   gpsFooter: {
     position: "absolute",
@@ -1430,7 +1485,9 @@ const styles = StyleSheet.create({
     right: 16,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(15,23,42,0.95)",
+    backgroundColor: COLORS.dark,
+    borderWidth: 1,
+    borderColor: "#3C4456",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1446,45 +1503,43 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#22C55E",
+    backgroundColor: COLORS.success,
   },
   gpsFooterText: {
     flex: 1,
     color: "#fff",
     fontSize: 12,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   gpsStopButton: {
-    backgroundColor: "#EF4444",
+    backgroundColor: COLORS.dangerSoft,
+    borderWidth: 1,
+    borderColor: "#EAB5B1",
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 8,
   },
   gpsStopText: {
-    color: "#fff",
+    color: COLORS.danger,
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   busMarkerWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.95)",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.09,
     shadowRadius: 4,
-    elevation: 5,
-  },
-  busMarkerCore: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    elevation: 2,
   },
   markerPopupText: {
     fontSize: 12,
-    color: "#334155",
+    color: COLORS.onSurface,
   },
 });

@@ -1,8 +1,11 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
-import { createNotice, uploadAttachments } from "@/lib/action/notice";
+import {
+  createNotice,
+  fetchNoticeTags,
+  uploadAttachments,
+} from "@/lib/action/notice";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,9 +21,18 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { useRole } from "@/components/RoleProvider";
-import { X, Paperclip, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
+import { X, Paperclip, FileText, Trash2 } from "lucide-react";
+import Image from "next/image";
+import type { INoticeTagOption, NoticeTag } from "@/lib/interfaces";
 
 type AudienceType = "forAll" | "forTeachers" | "targetBatch";
 
@@ -29,6 +41,15 @@ interface AttachedFile {
   preview?: string;
   isImage: boolean;
 }
+
+const DEFAULT_TAG_OPTIONS: INoticeTagOption[] = [
+  { value: "general", label: "General" },
+  { value: "academic", label: "Academic" },
+  { value: "exam", label: "Exam" },
+  { value: "event", label: "Event" },
+  { value: "transport", label: "Transport" },
+  { value: "urgent", label: "Urgent" },
+];
 
 export default function CreateNoticePage() {
   const router = useRouter();
@@ -41,6 +62,10 @@ export default function CreateNoticePage() {
   const [eventDate, setEventDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [tag, setTag] = useState<NoticeTag>("general");
+  const [tagOptions, setTagOptions] = useState<INoticeTagOption[]>(
+    DEFAULT_TAG_OPTIONS,
+  );
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
@@ -53,6 +78,25 @@ export default function CreateNoticePage() {
       setAudience("targetBatch");
     }
   }, [role]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchNoticeTags()
+      .then((res) => {
+        if (!isMounted || !res.success || !Array.isArray(res.data) || res.data.length === 0) {
+          return;
+        }
+        setTagOptions(res.data);
+      })
+      .catch(() => {
+        // Keep default options if tag endpoint is temporarily unavailable.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const canSelectAllAudiences = role === "admin" || role === "teacher";
 
@@ -115,6 +159,7 @@ export default function CreateNoticePage() {
         eventDate: eventDate || undefined,
         startTime: startTime || undefined,
         endTime: endTime || undefined,
+        tag,
       });
 
       if (!res.success) {
@@ -141,7 +186,7 @@ export default function CreateNoticePage() {
           : "Notice created successfully"
       );
       router.push("/notice");
-    } catch (error) {
+    } catch {
       toast.error("An error occurred");
     } finally {
       setLoading(false);
@@ -200,6 +245,25 @@ export default function CreateNoticePage() {
               value={content}
               onChange={(e) => setContent(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Tag</label>
+            <Select
+              value={tag}
+              onValueChange={(value) => setTag(value as NoticeTag)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select notice tag" />
+              </SelectTrigger>
+              <SelectContent>
+                {tagOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -295,8 +359,8 @@ export default function CreateNoticePage() {
                       key={index}
                       className="relative group rounded-lg overflow-hidden bg-muted"
                     >
-                      <img
-                        src={attachment.preview}
+                      <Image
+                        src={attachment.preview as string}
                         alt={attachment.file.name}
                         className="w-full h-32 object-cover"
                       />

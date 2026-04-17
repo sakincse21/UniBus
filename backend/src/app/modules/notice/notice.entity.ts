@@ -16,6 +16,15 @@ export enum NoticeStatus {
   REJECTED = "rejected",
 }
 
+export enum NoticeTag {
+  GENERAL = "general",
+  ACADEMIC = "academic",
+  EXAM = "exam",
+  EVENT = "event",
+  TRANSPORT = "transport",
+  URGENT = "urgent",
+}
+
 @Entity("notices")
 export class Notice {
   @PrimaryGeneratedColumn()
@@ -26,6 +35,13 @@ export class Notice {
 
   @Column("text")
   content!: string;
+
+  @Column({
+    type: "enum",
+    enum: NoticeTag,
+    default: NoticeTag.GENERAL,
+  })
+  tag!: NoticeTag;
 
   @ManyToOne(() => User)
   createdBy!: User;

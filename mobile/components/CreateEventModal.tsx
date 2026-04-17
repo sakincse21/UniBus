@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import {
   formatBangladeshDate,
   formatBangladeshTime,
@@ -18,6 +19,7 @@ import {
   formatLocalDateAllDay,
   formatLocalDateEndOfDay,
 } from "@/lib/dateFormatter";
+import { APP_THEME_COLORS } from "@/lib/theme";
 
 interface CreateEventModalProps {
   visible: boolean;
@@ -25,6 +27,8 @@ interface CreateEventModalProps {
   onCreate: (data: any) => Promise<void>;
   initialDate?: Date;
 }
+
+const COLORS = APP_THEME_COLORS;
 
 export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   visible,
@@ -35,9 +39,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isAllDay, setIsAllDay] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date>(
-    initialDate || new Date(),
-  );
+  const [selectedDate, setSelectedDate] = useState<Date>(initialDate || new Date());
   const [startTime, setStartTime] = useState<Date>(() => {
     const date = new Date();
     date.setHours(9, 0, 0, 0);
@@ -53,6 +55,27 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
+  useEffect(() => {
+    if (visible) {
+      setSelectedDate(initialDate || new Date());
+    }
+  }, [visible, initialDate]);
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setIsAllDay(false);
+    setSelectedDate(initialDate || new Date());
+
+    const defaultStart = new Date();
+    defaultStart.setHours(9, 0, 0, 0);
+    setStartTime(defaultStart);
+
+    const defaultEnd = new Date();
+    defaultEnd.setHours(10, 0, 0, 0);
+    setEndTime(defaultEnd);
+  };
+
   const handleCreate = async () => {
     if (!title.trim()) {
       alert("Please enter a title");
@@ -60,6 +83,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     }
 
     setIsLoading(true);
+
     try {
       let startDateTime: string;
       let endDateTime: string;
@@ -80,16 +104,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         endDateTime,
       });
 
-      setTitle("");
-      setDescription("");
-      setIsAllDay(false);
-      setSelectedDate(initialDate || new Date());
-      const defaultStart = new Date();
-      defaultStart.setHours(9, 0, 0, 0);
-      setStartTime(defaultStart);
-      const defaultEnd = new Date();
-      defaultEnd.setHours(10, 0, 0, 0);
-      setEndTime(defaultEnd);
+      resetForm();
       onClose();
     } catch (error) {
       console.error("Error creating event:", error);
@@ -108,135 +123,193 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View className="flex-1 bg-black/50 justify-end">
-        <View className="bg-white rounded-t-3xl p-6 max-h-[85%]">
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-lg font-bold text-gray-900">
-              Create Event
-            </Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text className="text-2xl text-gray-500">×</Text>
-            </TouchableOpacity>
-          </View>
+    <>
+      <Modal visible={visible} animationType="fade" transparent>
+        <View className="flex-1 justify-center items-center p-4" style={{ backgroundColor: "rgba(12, 15, 25, 0.45)" }}>
+          <View
+            className="w-full max-w-md rounded-xl p-5"
+            style={{ backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.outline }}
+          >
+            <View className="flex-row justify-between items-start mb-4">
+              <View className="flex-row items-center gap-2">
+                <View
+                  className="w-9 h-9 rounded-lg items-center justify-center"
+                  style={{ backgroundColor: COLORS.primarySoft, borderWidth: 1, borderColor: "#9FC1FF" }}
+                >
+                  <Ionicons name="calendar-outline" size={18} color={COLORS.primary} />
+                </View>
+                <View>
+                  <Text className="text-xl font-extrabold" style={{ color: COLORS.onSurface }}>
+                    Create Event
+                  </Text>
+                  <Text className="text-sm" style={{ color: COLORS.onSurfaceMuted }}>
+                    Add a personal calendar entry
+                  </Text>
+                </View>
+              </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-2">
-                Title
-              </Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg p-3 text-gray-900"
-                placeholder="Event title"
-                value={title}
-                onChangeText={setTitle}
-                editable={!isLoading}
-              />
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-2">
-                Description
-              </Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg p-3 h-24 text-gray-900"
-                placeholder="Event description (optional)"
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                editable={!isLoading}
-              />
-            </View>
-
-            <View className="flex-row justify-between items-center mb-4 border-b border-gray-200 pb-4">
-              <Text className="text-sm font-semibold text-gray-700">
-                All Day
-              </Text>
-              <Switch
-                value={isAllDay}
-                onValueChange={setIsAllDay}
-                disabled={isLoading}
-              />
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-2">
-                Date
-              </Text>
               <TouchableOpacity
-                onPress={() => setShowDatePicker(true)}
-                className="border border-gray-300 rounded-lg p-3 bg-gray-50"
+                onPress={onClose}
                 disabled={isLoading}
+                className="w-8 h-8 rounded-lg items-center justify-center"
+                style={{ backgroundColor: COLORS.surfaceLow, borderWidth: 1, borderColor: COLORS.outline }}
               >
-                <Text className="text-gray-900">
-                  {formatDate(selectedDate)}
-                </Text>
+                <Feather name="x" size={16} color={COLORS.onSurfaceMuted} />
               </TouchableOpacity>
             </View>
 
-            {!isAllDay && (
-              <>
-                <View className="mb-4">
-                  <Text className="text-sm font-semibold text-gray-700 mb-2">
-                    Start Time
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View className="gap-4">
+                <View>
+                  <Text className="text-sm font-semibold mb-1.5" style={{ color: COLORS.onSurface }}>
+                    Title
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowStartTimePicker(true)}
-                    className="border border-gray-300 rounded-lg p-3 bg-gray-50"
-                    disabled={isLoading}
-                  >
-                    <Text className="text-gray-900">
-                      {formatTime(startTime)}
+                  <TextInput
+                    className="rounded-lg px-3 py-3 text-base"
+                    style={{ borderWidth: 1, borderColor: COLORS.outline, color: COLORS.onSurface }}
+                    placeholder="Event title"
+                    placeholderTextColor="#8B8E97"
+                    value={title}
+                    onChangeText={setTitle}
+                    editable={!isLoading}
+                  />
+                </View>
+
+                <View>
+                  <Text className="text-sm font-semibold mb-1.5" style={{ color: COLORS.onSurface }}>
+                    Description
+                  </Text>
+                  <TextInput
+                    className="rounded-lg px-3 py-3 text-base h-24"
+                    style={{ borderWidth: 1, borderColor: COLORS.outline, color: COLORS.onSurface }}
+                    placeholder="Optional description"
+                    placeholderTextColor="#8B8E97"
+                    value={description}
+                    onChangeText={setDescription}
+                    multiline
+                    textAlignVertical="top"
+                    editable={!isLoading}
+                  />
+                </View>
+
+                <View
+                  className="flex-row justify-between items-center rounded-lg px-3 py-3"
+                  style={{ backgroundColor: COLORS.surfaceLow, borderWidth: 1, borderColor: COLORS.outline }}
+                >
+                  <View>
+                    <Text className="text-sm font-semibold" style={{ color: COLORS.onSurface }}>
+                      All Day
                     </Text>
-                  </TouchableOpacity>
+                    <Text className="text-xs mt-0.5" style={{ color: COLORS.onSurfaceMuted }}>
+                      Skip time selection for this event
+                    </Text>
+                  </View>
+
+                  <Switch
+                    value={isAllDay}
+                    onValueChange={setIsAllDay}
+                    disabled={isLoading}
+                    trackColor={{ false: "#CFCFDA", true: "#9FC1FF" }}
+                    thumbColor={isAllDay ? COLORS.primary : "#F8F8FC"}
+                  />
                 </View>
 
-                <View className="mb-4">
-                  <Text className="text-sm font-semibold text-gray-700 mb-2">
-                    End Time
+                <View>
+                  <Text className="text-sm font-semibold mb-1.5" style={{ color: COLORS.onSurface }}>
+                    Date
                   </Text>
                   <TouchableOpacity
-                    onPress={() => setShowEndTimePicker(true)}
-                    className="border border-gray-300 rounded-lg p-3 bg-gray-50"
+                    onPress={() => setShowDatePicker(true)}
+                    className="rounded-lg px-3 py-3 flex-row items-center justify-between"
+                    style={{ borderWidth: 1, borderColor: COLORS.outline, backgroundColor: COLORS.surfaceLow }}
                     disabled={isLoading}
                   >
-                    <Text className="text-gray-900">{formatTime(endTime)}</Text>
+                    <Text className="text-base" style={{ color: COLORS.onSurface }}>
+                      {formatDate(selectedDate)}
+                    </Text>
+                    <Ionicons name="calendar-number-outline" size={18} color={COLORS.onSurfaceMuted} />
                   </TouchableOpacity>
                 </View>
-              </>
-            )}
 
-            <View className="flex-row gap-3 mt-6">
+                {!isAllDay && (
+                  <>
+                    <View>
+                      <Text className="text-sm font-semibold mb-1.5" style={{ color: COLORS.onSurface }}>
+                        Start Time
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowStartTimePicker(true)}
+                        className="rounded-lg px-3 py-3 flex-row items-center justify-between"
+                        style={{ borderWidth: 1, borderColor: COLORS.outline, backgroundColor: COLORS.surfaceLow }}
+                        disabled={isLoading}
+                      >
+                        <Text className="text-base" style={{ color: COLORS.onSurface }}>
+                          {formatTime(startTime)}
+                        </Text>
+                        <Ionicons name="time-outline" size={18} color={COLORS.onSurfaceMuted} />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View>
+                      <Text className="text-sm font-semibold mb-1.5" style={{ color: COLORS.onSurface }}>
+                        End Time
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowEndTimePicker(true)}
+                        className="rounded-lg px-3 py-3 flex-row items-center justify-between"
+                        style={{ borderWidth: 1, borderColor: COLORS.outline, backgroundColor: COLORS.surfaceLow }}
+                        disabled={isLoading}
+                      >
+                        <Text className="text-base" style={{ color: COLORS.onSurface }}>
+                          {formatTime(endTime)}
+                        </Text>
+                        <Ionicons name="time-outline" size={18} color={COLORS.onSurfaceMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
+            </ScrollView>
+
+            <View className="flex-row gap-3 mt-5">
               <TouchableOpacity
-                className="flex-1 bg-gray-200 rounded-lg p-3 items-center"
+                className="flex-1 rounded-lg min-h-[42px] items-center justify-center"
+                style={{ backgroundColor: COLORS.surfaceLow, borderWidth: 1, borderColor: COLORS.outline }}
                 onPress={onClose}
                 disabled={isLoading}
               >
-                <Text className="font-semibold text-gray-700">Cancel</Text>
+                <Text className="text-sm font-semibold" style={{ color: COLORS.onSurface }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
+
               <TouchableOpacity
-                className="flex-1 bg-blue-600 rounded-lg p-3 items-center"
+                className="flex-1 rounded-lg min-h-[42px] items-center justify-center flex-row gap-2"
+                style={{ backgroundColor: COLORS.primary, borderWidth: 1, borderColor: COLORS.primary }}
                 onPress={handleCreate}
                 disabled={isLoading}
               >
                 {isLoading ? (
-                  <ActivityIndicator size="small" color="white" />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text className="font-semibold text-white">Create</Text>
+                  <>
+                    <Feather name="check" size={15} color="#FFFFFF" />
+                    <Text className="text-sm font-bold text-white">Create</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         </View>
-      </View>
+      </Modal>
 
       {showDatePicker && (
         <DateTimePicker
           value={selectedDate}
           mode="date"
           display={Platform.OS === "ios" ? "spinner" : "calendar"}
-          onChange={(event, date) => {
-            if (event.type === "set" && date) {
+          onChange={(pickerEvent, date) => {
+            if (pickerEvent.type === "set" && date) {
               setSelectedDate(date);
             }
             setShowDatePicker(false);
@@ -249,8 +322,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           value={startTime}
           mode="time"
           display={Platform.OS === "ios" ? "spinner" : "spinner"}
-          onChange={(event, date) => {
-            if (event.type === "set" && date) {
+          onChange={(pickerEvent, date) => {
+            if (pickerEvent.type === "set" && date) {
               setStartTime(date);
             }
             setShowStartTimePicker(false);
@@ -263,15 +336,15 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           value={endTime}
           mode="time"
           display={Platform.OS === "ios" ? "spinner" : "spinner"}
-          onChange={(event, date) => {
-            if (event.type === "set" && date) {
+          onChange={(pickerEvent, date) => {
+            if (pickerEvent.type === "set" && date) {
               setEndTime(date);
             }
             setShowEndTimePicker(false);
           }}
         />
       )}
-    </Modal>
+    </>
   );
 };
 

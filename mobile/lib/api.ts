@@ -2,6 +2,7 @@ import axios from "axios";
 import config from "./config";
 import storage from "./storage";
 import { useAuthStore } from "@/store/authStore";
+import type { NoticeSortBy, NoticeSortOrder, NoticeTag } from "@/interfaces";
 
 console.log("API Base URL:", config.API_BASE_URL);
 
@@ -81,10 +82,35 @@ export const authAPI = {
     api.post("/auth/login", { email, password }),
   register: (name: string, email: string, password: string) =>
     api.post("/auth/register", { name, email, password }),
+  forgotPassword: (email: string) =>
+    api.post("/auth/forgot-password", { email }),
 };
 
 export const noticeAPI = {
-  getNotices: () => api.get("/notice"),
+  getNotices: (
+    options: {
+      sortBy?: NoticeSortBy;
+      sortOrder?: NoticeSortOrder;
+      tag?: NoticeTag | "all";
+    } = {},
+  ) => {
+    const params: Record<string, string> = {};
+
+    if (options.sortBy) {
+      params.sortBy = options.sortBy;
+    }
+
+    if (options.sortOrder) {
+      params.sortOrder = options.sortOrder;
+    }
+
+    if (options.tag && options.tag !== "all") {
+      params.tag = options.tag;
+    }
+
+    return api.get("/notice", { params });
+  },
+  getNoticeTags: () => api.get("/notice/tags"),
   getPendingNotices: () => api.get("/notice/pending"),
   getNoticeById: (id: number) => api.get(`/notice/${id}`),
   createNotice: (data: any) => api.post("/notice", data),
@@ -131,7 +157,13 @@ export const noticeAPI = {
 
 export const busAPI = {
   getBuses: () => api.get("/bus"),
-  requestTracking: (busId: number) => api.post(`/tracking/request/${busId}`),
+  requestTracking: (busId: number) => api.post("/tracking/request", { busId }),
+};
+
+export const trackingAPI = {
+  getPendingRequests: () => api.get("/tracking/pending"),
+  respondToRequest: (id: number, status: "accepted" | "rejected") =>
+    api.patch(`/tracking/${id}/respond`, { status }),
 };
 
 export const batchAPI = {
@@ -172,6 +204,22 @@ export const calendarAPI = {
     api.put(`/calendar/fixtures/${id}`, data),
   deleteFixture: (id: number) => api.delete(`/calendar/fixtures/${id}`),
   deleteNotice: (id: number) => api.delete(`/calendar/notice/${id}`),
+};
+
+export const forumAPI = {
+  getPosts: (search: string = "", page: number = 1, limit: number = 20) =>
+    api.get("/forum/posts", {
+      params: {
+        search,
+        page,
+        limit,
+      },
+    }),
+  createPost: (data: { title: string; content: string }) =>
+    api.post("/forum/posts", data),
+  getComments: (postId: number) => api.get(`/forum/posts/${postId}/comments`),
+  createComment: (postId: number, data: { content: string }) =>
+    api.post(`/forum/posts/${postId}/comments`, data),
 };
 
 export default api;

@@ -1,9 +1,14 @@
+/* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchNoticeById, getAttachmentDownloadUrl, deleteNotice } from "@/lib/action/notice";
+import {
+  fetchNoticeById,
+  getAttachmentDownloadUrl,
+  deleteNotice,
+} from "@/lib/action/notice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +40,11 @@ import {
 import { useRole } from "@/components/RoleProvider";
 import { toast } from "sonner";
 import { formatBangladesh, formatBangladeshDate } from "@/lib/dateTime";
+
+function formatTagLabel(tag: string): string {
+  if (!tag) return "General";
+  return tag.charAt(0).toUpperCase() + tag.slice(1).toLowerCase();
+}
 
 export default function NoticeDetailPage() {
   const params = useParams();
@@ -158,7 +168,9 @@ export default function NoticeDetailPage() {
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <CardTitle className="text-2xl font-bold">{notice.title}</CardTitle>
+              <CardTitle className="text-2xl font-bold">
+                {notice.title}
+              </CardTitle>
               <span className="text-sm text-muted-foreground whitespace-nowrap ml-0 mt-1 block">
                 {formatBangladesh(notice.createdAt, {
                   month: "long",
@@ -191,15 +203,15 @@ export default function NoticeDetailPage() {
                   </span>
                 )}
               </p>
-              
+
               <div className="flex flex-wrap items-center gap-3 mt-3">
                 {/* Viewing Rules / Audience */}
                 <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                   <Users className="w-3.5 h-3.5" />
-                  {notice.forAll 
-                    ? "Visible: All" 
-                    : notice.forTeachers 
-                      ? "Visible: Teachers" 
+                  {notice.forAll
+                    ? "Visible: All"
+                    : notice.forTeachers
+                      ? "Visible: Teachers"
                       : notice.targetBatch?.name
                         ? `Visible: Batch ${notice.targetBatch.name}`
                         : "Specific Audience"}
@@ -214,11 +226,17 @@ export default function NoticeDetailPage() {
                       <>
                         <Clock className="w-3.5 h-3.5 ml-1.5" />
                         {notice.startTime ? notice.startTime.slice(0, 5) : ""}
-                        {notice.endTime ? ` - ${notice.endTime.slice(0, 5)}` : ""}
+                        {notice.endTime
+                          ? ` - ${notice.endTime.slice(0, 5)}`
+                          : ""}
                       </>
                     )}
                   </span>
                 )}
+
+                <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-700/10">
+                  Tag: {formatTagLabel(notice.tag)}
+                </span>
               </div>
             </div>
           )}
@@ -296,7 +314,7 @@ export default function NoticeDetailPage() {
                           className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted transition-colors group"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0">
+                            <div className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0">
                               {getFileIcon(attachment.fileType)}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -308,7 +326,7 @@ export default function NoticeDetailPage() {
                               </p>
                             </div>
                           </div>
-                          <Download className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0 ml-2" />
+                          <Download className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0 ml-2" />
                         </a>
                       ))}
                   </div>
@@ -332,8 +350,8 @@ export default function NoticeDetailPage() {
           </DialogHeader>
           <div className="relative bg-muted rounded-lg overflow-hidden flex justify-center">
             <img
-              src={selectedImage?.url}
-              alt={selectedImage?.title}
+              src={selectedImage?.url as string}
+              alt={selectedImage?.title as string}
               className="max-h-96 object-contain"
             />
           </div>
@@ -357,7 +375,8 @@ export default function NoticeDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Notice</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this notice? This action cannot be undone.
+              Are you sure you want to delete this notice? This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/authStore";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { syncBackgroundLocationTracking } from "@/lib/backgroundLocation";
+import { APP_THEME_COLORS } from "@/lib/theme";
 import "@/global.css";
 
 export default function RootLayout() {
@@ -30,9 +31,9 @@ export default function RootLayout() {
     return (
       <SafeAreaProvider>
         <GestureHandlerRootView>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: APP_THEME_COLORS.background }}>
             <GluestackUIProvider mode="light">
-              <StatusBar hidden={false} />
+              <StatusBar hidden={false} style="dark" />
             </GluestackUIProvider>
           </View>
         </GestureHandlerRootView>
@@ -43,9 +44,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: APP_THEME_COLORS.background }}>
           <GluestackUIProvider mode="light">
-            <StatusBar hidden={false} />
+            <StatusBar hidden={false} style="dark" />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="(auth)" />

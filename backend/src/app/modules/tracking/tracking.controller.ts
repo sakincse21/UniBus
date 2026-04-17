@@ -9,15 +9,39 @@ import { AppError } from "../../errors/AppError";
 import { BusSchedule } from "../schedule/busSchedule.entity";
 import { LiveTrackingSession } from "./liveTrackingSession.entity";
 import { EstimatedBusLocation } from "./estimatedBusLocation.entity";
-import { sendPushToUsers } from "../notification/push.service";
 import { User } from "../user/user.entity";
+import { TrackingRequestService } from "./trackingRequest.service";
+import { TrackingRequestStatus } from "./trackingRequest.entity";
 
-const requestTracking = tryCatch(async (req: Request, res: Response) => {
-  const busId = Number(req.params.busId);
-  const io = req.app.get("io");
+const trackingUserSelect: (keyof User)[] = [
+  "user_id",
+  "name",
+  "email",
+  "pushToken",
+];
 
-  const estimate = await estimateBusLocation(busId, new Date());
+function resolveBusId(req: Request): number {
+  const bodyBusId = Number(req.body?.busId);
+  const paramsBusId = Number(req.params.busId);
 
+  const busId =
+    Number.isFinite(bodyBusId) && bodyBusId > 0
+      ? bodyBusId
+      : paramsBusId;
+
+  if (!Number.isFinite(busId) || busId <= 0) {
+    throw new AppError("Valid busId is required", 400);
+  }
+
+  return busId;
+}
+
+async function getRoutePointsForBus(busId: number): Promise<{
+  points: RoutePoint[];
+  routeId: number | null;
+  startTime: string | null;
+  endTime: string | null;
+}> {
   const scheduleRepo = AppDataSource.getRepository(BusSchedule);
   const schedule = await scheduleRepo.findOne({
     where: { bus: { id: busId } },
@@ -25,7 +49,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
   });
 
   let points: RoutePoint[] = [];
-  if (schedule) {
+  if (schedule?.route?.id) {
     const rpRepo = AppDataSource.getRepository(RoutePoint);
     points = await rpRepo.find({
       where: { route: { id: schedule.route.id } },
@@ -33,17 +57,33 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     });
   }
 
+  return {
+    points,
+    routeId: schedule?.route?.id || null,
+    startTime: schedule?.startTime || null,
+    endTime: schedule?.endTime || null,
+  };
+}
+
+const requestTracking = tryCatch(async (req: Request, res: Response) => {
+  const busId = resolveBusId(req);
+  const io = req.app.get("io");
+
+  const estimate = await estimateBusLocation(busId, new Date());
+  const { points, routeId, startTime, endTime } = await getRoutePointsForBus(busId);
+
   if (!("lat" in estimate)) {
     return res.json({
       success: true,
       estimate,
       points,
-      routeId: schedule?.route?.id || null,
+      routeId,
       isLive: false,
       notifiedUsers: 0,
       pushNotifiedUsers: 0,
-      startTime: schedule?.startTime || null,
-      endTime: schedule?.endTime || null,
+      requestIds: [],
+      startTime,
+      endTime,
     });
   }
 
@@ -62,12 +102,13 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
         ? { lat: liveLoc.lat, lng: liveLoc.lng, confidence: liveLoc.confidence, mode: "live" }
         : estimate,
       points,
-      routeId: schedule?.route?.id || null,
+      routeId,
       notifiedUsers: 0,
       pushNotifiedUsers: 0,
+      requestIds: [],
       isLive: !!liveLoc,
-      startTime: schedule?.startTime || null,
-      endTime: schedule?.endTime || null,
+      startTime,
+      endTime,
     });
   }
 
@@ -85,40 +126,87 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     .filter((user): user is User => {
       return Boolean(user && user.user_id && user.user_id !== req.user.userId);
     });
-
-  nearbyUsers.forEach((user) => {
-    if (io) {
-      io.to(`user:${user.user_id}`).emit("bus_tracking_request", {
-        busId,
-        routeId: schedule?.route?.id,
-        message: "Are you currently on this bus?",
-        estimate,
-      });
-    }
+  const userRepo = AppDataSource.getRepository(User);
+  const requester = await userRepo.findOne({
+    where: { user_id: req.user.userId },
+    select: trackingUserSelect,
   });
 
-  const pushNotifiedUsers = await sendPushToUsers(nearbyUsers, {
-    title: `Bus ${busId} location requested`,
-    body: `Someone nearby requested Bus ${busId}. Are you on this bus right now?`,
-    data: {
-      type: "bus-tracking-request",
-      busId,
-      routeId: schedule?.route?.id || null,
-      estimate,
+  if (!requester) {
+    throw new AppError("Requester not found", 404);
+  }
+
+  const requestResult = await TrackingRequestService.createRequestsAndNotify({
+    requesterId: requester.user_id,
+    requesterName: requester.name,
+    requesterEmail: requester.email,
+    busId,
+    routeId,
+    estimate: {
+      lat: estimate.lat,
+      lng: estimate.lng,
+      confidence: estimate.confidence,
     },
-    channelId: "default",
+    receivers: nearbyUsers,
+    io,
   });
 
   return res.json({
     success: true,
     estimate,
     points,
-    routeId: schedule?.route?.id || null,
-    notifiedUsers: nearbyUsers.length,
-    pushNotifiedUsers,
+    routeId,
+    notifiedUsers: requestResult.notifiedUsers,
+    pushNotifiedUsers: requestResult.pushNotifiedUsers,
+    requestIds: requestResult.requestIds,
     isLive: false,
-    startTime: schedule?.startTime || null,
-    endTime: schedule?.endTime || null,
+    startTime,
+    endTime,
+  });
+});
+
+const getPendingTrackingRequests = tryCatch(async (req: Request, res: Response) => {
+  const data = await TrackingRequestService.getPendingRequests(req.user.userId);
+
+  res.json({
+    success: true,
+    data,
+  });
+});
+
+const respondTrackingRequest = tryCatch(async (req: Request, res: Response) => {
+  const requestId = Number(req.params.id);
+  if (!Number.isFinite(requestId) || requestId <= 0) {
+    throw new AppError("Valid request id is required", 400);
+  }
+
+  const rawStatus = String(req.body?.status || "").toLowerCase();
+  if (
+    rawStatus !== TrackingRequestStatus.ACCEPTED &&
+    rawStatus !== TrackingRequestStatus.REJECTED
+  ) {
+    throw new AppError("status must be either accepted or rejected", 400);
+  }
+
+  const data = await TrackingRequestService.respondToRequest(
+    requestId,
+    req.user.userId,
+    rawStatus as TrackingRequestStatus.ACCEPTED | TrackingRequestStatus.REJECTED,
+  );
+
+  const io = req.app.get("io");
+  if (io) {
+    io.to(`user:${data.requester.userId}`).emit("tracking_request_responded", {
+      requestId: data.id,
+      busId: data.busId,
+      status: data.status,
+      responderId: req.user.userId,
+    });
+  }
+
+  res.json({
+    success: true,
+    data,
   });
 });
 
@@ -133,4 +221,9 @@ const getActiveSessions = tryCatch(async (_req: Request, res: Response) => {
   res.json({ success: true, data: sessions });
 });
 
-export const TrackingController = { requestTracking, getActiveSessions };
+export const TrackingController = {
+  requestTracking,
+  getPendingTrackingRequests,
+  respondTrackingRequest,
+  getActiveSessions,
+};

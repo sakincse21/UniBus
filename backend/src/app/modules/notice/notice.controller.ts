@@ -1,9 +1,46 @@
 import { Request, Response } from "express";
 import tryCatch from "../../utils/tryCatch";
 import { AppDataSource } from "../../db/data-source";
-import { Notice, NoticeStatus } from "./notice.entity";
+import { Notice, NoticeStatus, NoticeTag } from "./notice.entity";
 import { User, UserRole } from "../user/user.entity";
 import { sendPushToUsers } from "../notification/push.service";
+
+type NoticeSortBy = "timePosted" | "upcomingEvent" | "tag";
+type NoticeSortOrder = "asc" | "desc";
+
+const NOTICE_TAG_LABELS: Record<NoticeTag, string> = {
+  [NoticeTag.GENERAL]: "General",
+  [NoticeTag.ACADEMIC]: "Academic",
+  [NoticeTag.EXAM]: "Exam",
+  [NoticeTag.EVENT]: "Event",
+  [NoticeTag.TRANSPORT]: "Transport",
+  [NoticeTag.URGENT]: "Urgent",
+};
+
+function isNoticeTag(value: unknown): value is NoticeTag {
+  return typeof value === "string" && Object.values(NoticeTag).includes(value as NoticeTag);
+}
+
+function parseNoticeSortBy(value: unknown): NoticeSortBy {
+  if (value === "upcomingEvent" || value === "tag") {
+    return value;
+  }
+  return "timePosted";
+}
+
+function parseNoticeSortOrder(value: unknown): NoticeSortOrder | null {
+  if (value === "asc" || value === "desc") {
+    return value;
+  }
+  return null;
+}
+
+function getNoticeTagPayload() {
+  return Object.values(NoticeTag).map((value) => ({
+    value,
+    label: NOTICE_TAG_LABELS[value],
+  }));
+}
 
 type SocketServerLike = {
   emit: (event: string, payload: unknown) => void;
@@ -105,7 +142,17 @@ async function pushPublishedNotice(
 }
 
 const createNotice = tryCatch(async (req: Request, res: Response) => {
-  const { title, content, forAll, forTeachers, targetBatchId, eventDate, startTime, endTime } = req.body;
+  const {
+    title,
+    content,
+    forAll,
+    forTeachers,
+    targetBatchId,
+    eventDate,
+    startTime,
+    endTime,
+    tag,
+  } = req.body;
 
   const user = await AppDataSource.getRepository("User").findOne({
     where: { user_id: req.user.userId },
@@ -184,6 +231,17 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     });
   }
 
+  const normalizedTag =
+    typeof tag === "string" && tag.trim().length > 0
+      ? tag.trim().toLowerCase()
+      : NoticeTag.GENERAL;
+
+  if (!isNoticeTag(normalizedTag)) {
+    return res.status(400).json({
+      message: `Invalid notice tag. Allowed tags: ${Object.values(NoticeTag).join(", ")}`,
+    });
+  }
+
   // Auto-approve for admin, teacher, CR. Pending for students.
   const notice = repo.create({
     title,
@@ -195,6 +253,7 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     eventDate: eventDate || undefined,
     startTime: startTime || undefined,
     endTime: endTime || undefined,
+    tag: normalizedTag,
     status:
       user.role === UserRole.STUDENT
         ? NoticeStatus.PENDING
@@ -262,6 +321,19 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
 const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
   const user = req.user;
   const userRole = user.role as UserRole;
+  const sortBy = parseNoticeSortBy(req.query.sortBy);
+  const requestedSortOrder = parseNoticeSortOrder(req.query.sortOrder);
+  const rawTag = typeof req.query.tag === "string" ? req.query.tag.trim().toLowerCase() : "";
+
+  if (rawTag && rawTag !== "all" && !isNoticeTag(rawTag)) {
+    return res.status(400).json({
+      message: `Invalid notice tag filter. Allowed tags: ${Object.values(NoticeTag).join(", ")}`,
+    });
+  }
+
+  const defaultSortOrder: NoticeSortOrder = sortBy === "timePosted" ? "desc" : "asc";
+  const sortOrder = requestedSortOrder ?? defaultSortOrder;
+  const sqlSortOrder = sortOrder === "asc" ? "ASC" : "DESC";
 
   const ifUser = await AppDataSource.getRepository("User").findOne({
     where: { user_id: user.userId },
@@ -296,9 +368,44 @@ const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
     }
   }
 
-  const notices = await qb.orderBy("notice.createdAt", "DESC").getMany();
+  if (rawTag && rawTag !== "all") {
+    qb.andWhere("notice.tag = :tag", { tag: rawTag });
+  }
+
+  if (sortBy === "upcomingEvent") {
+    const today = new Date().toISOString().slice(0, 10);
+
+    qb.addSelect(
+      `CASE
+         WHEN notice.eventDate IS NULL OR notice.eventDate = '' THEN 2
+         WHEN notice.eventDate < :today THEN 1
+         ELSE 0
+       END`,
+      "event_bucket",
+    );
+    qb.setParameter("today", today);
+    qb.orderBy("event_bucket", "ASC")
+      .addOrderBy("notice.eventDate", sqlSortOrder)
+      .addOrderBy("notice.startTime", sqlSortOrder)
+      .addOrderBy("notice.createdAt", "DESC");
+  } else if (sortBy === "tag") {
+    qb.orderBy("notice.tag", sqlSortOrder)
+      .addOrderBy("notice.eventDate", "ASC")
+      .addOrderBy("notice.createdAt", "DESC");
+  } else {
+    qb.orderBy("notice.createdAt", sqlSortOrder);
+  }
+
+  const notices = await qb.getMany();
 
   res.json({ success: true, data: notices });
+});
+
+const getNoticeTags = tryCatch(async (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    data: getNoticeTagPayload(),
+  });
 });
 
 const getPendingNotices = tryCatch(async (req: Request, res: Response) => {
@@ -401,6 +508,7 @@ const getNoticeById = tryCatch(async (req: Request, res: Response) => {
 export const NoticeController = {
   createNotice,
   getVisibleNotices,
+  getNoticeTags,
   approveNotice,
   getPendingNotices,
   rejectNotice,

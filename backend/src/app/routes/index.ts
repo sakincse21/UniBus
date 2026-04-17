@@ -11,6 +11,7 @@ import { ScheduleRouter } from "../modules/schedule/schedule.route";
 import { RoutineRouter } from "../modules/routine/routine.route";
 import { CalendarRouter } from "../modules/calendar/calendar.route";
 import { BatchRouter } from "../modules/batch/batch.route";
+import { ForumRouter } from "../modules/forum/forum.route";
 // import { ScheduleRouter } from "../modules/schedule/schedule.route";
 
 const router = Router();
@@ -27,5 +28,6 @@ router.use("/route", RouteRouter);
 router.use("/schedule", ScheduleRouter);
 router.use("/routine", RoutineRouter);
 router.use("/calendar", CalendarRouter);
+router.use("/forum", ForumRouter);
 
 export default router;

@@ -2,7 +2,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchNotices, getAttachmentDownloadUrl, deleteNotice } from "@/lib/action/notice";
+import {
+  deleteNotice,
+  fetchNoticeTags,
+  fetchNotices,
+  getAttachmentDownloadUrl,
+} from "@/lib/action/notice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -34,20 +39,55 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Image from "next/image";
 import { formatBangladesh, formatBangladeshDate } from "@/lib/dateTime";
+import type {
+  INotice,
+  INoticeTagOption,
+  NoticeSortBy,
+  NoticeSortOrder,
+  NoticeTag,
+} from "@/lib/interfaces";
 
 const ITEMS_PER_PAGE = 10;
+
+const DEFAULT_TAG_OPTIONS: INoticeTagOption[] = [
+  { value: "general", label: "General" },
+  { value: "academic", label: "Academic" },
+  { value: "exam", label: "Exam" },
+  { value: "event", label: "Event" },
+  { value: "transport", label: "Transport" },
+  { value: "urgent", label: "Urgent" },
+];
+
+function getDefaultSortOrder(sortBy: NoticeSortBy): NoticeSortOrder {
+  return sortBy === "timePosted" ? "desc" : "asc";
+}
 
 export default function NoticePage() {
   const router = useRouter();
   const role = useRole();
-  const [notices, setNotices] = useState<any[]>([]);
+  const [notices, setNotices] = useState<INotice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<{
     url: string;
     title: string;
   } | null>(null);
+  const [sortBy, setSortBy] = useState<NoticeSortBy>("timePosted");
+  const [sortOrder, setSortOrder] = useState<NoticeSortOrder>(
+    getDefaultSortOrder("timePosted"),
+  );
+  const [tagFilter, setTagFilter] = useState<NoticeTag | "all">("all");
+  const [tagOptions, setTagOptions] = useState<INoticeTagOption[]>(
+    DEFAULT_TAG_OPTIONS,
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -55,7 +95,11 @@ export default function NoticePage() {
 
   useEffect(() => {
     let isMounted = true;
-    fetchNotices(currentPage, ITEMS_PER_PAGE)
+    fetchNotices(currentPage, ITEMS_PER_PAGE, {
+      sortBy,
+      sortOrder,
+      tag: tagFilter,
+    })
       .then((res) => {
         if (isMounted) {
           setNotices(res.data);
@@ -75,14 +119,39 @@ export default function NoticePage() {
     return () => {
       isMounted = false;
     };
-  }, [currentPage]);
+  }, [currentPage, sortBy, sortOrder, tagFilter]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchNoticeTags()
+      .then((res) => {
+        if (!isMounted || !res.success || !Array.isArray(res.data) || res.data.length === 0) {
+          return;
+        }
+        setTagOptions(res.data);
+      })
+      .catch(() => {
+        // Keep default tag options if the endpoint is unavailable.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const onPublished = (event: Event) => {
-      if (currentPage !== 1) return;
+      if (currentPage !== 1 || sortBy !== "timePosted" || sortOrder !== "desc") {
+        return;
+      }
 
-      const notice = (event as CustomEvent<any>).detail;
+      const notice = (event as CustomEvent<INotice>).detail;
       if (!notice?.id) return;
+
+      if (tagFilter !== "all" && notice.tag !== tagFilter) {
+        return;
+      }
 
       setNotices((prev) => {
         if (prev.some((n) => n.id === notice.id)) {
@@ -106,7 +175,11 @@ export default function NoticePage() {
       window.removeEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
       window.removeEventListener("NOTICE_DELETED", onDeleted as EventListener);
     };
-  }, [currentPage]);
+  }, [currentPage, sortBy, sortOrder, tagFilter]);
+
+  const getTagLabel = (value: NoticeTag): string => {
+    return tagOptions.find((option) => option.value === value)?.label || value;
+  };
 
   const isImage = (fileType: string): boolean => {
     return fileType.startsWith("image/");
@@ -151,6 +224,76 @@ export default function NoticePage() {
           <Button>New Notice</Button>
         </Link>
       </div>
+
+      <Card>
+        <CardContent className="pt-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Sort By</p>
+              <Select
+                value={sortBy}
+                onValueChange={(value) => {
+                  const nextSortBy = value as NoticeSortBy;
+                  setSortBy(nextSortBy);
+                  setSortOrder(getDefaultSortOrder(nextSortBy));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select sort field" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="timePosted">Time Posted</SelectItem>
+                  <SelectItem value="upcomingEvent">Upcoming Event</SelectItem>
+                  <SelectItem value="tag">Tags</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Order</p>
+              <Select
+                value={sortOrder}
+                onValueChange={(value) => {
+                  setSortOrder(value as NoticeSortOrder);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">Ascending</SelectItem>
+                  <SelectItem value="desc">Descending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Tag Filter</p>
+              <Select
+                value={tagFilter}
+                onValueChange={(value) => {
+                  setTagFilter(value as NoticeTag | "all");
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="All tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tags</SelectItem>
+                  {tagOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {loading ? (
         <div className="space-y-4">
@@ -217,6 +360,10 @@ export default function NoticePage() {
                           )}
                         </span>
                       )}
+
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-700/10 capitalize">
+                        {getTagLabel(n.tag)}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 border-l pl-4 ml-2">

@@ -19,11 +19,139 @@ export interface IRegUser {
   password: string;
 }
 
+export type NoticeTag =
+  | "general"
+  | "academic"
+  | "exam"
+  | "event"
+  | "transport"
+  | "urgent";
+
+export type NoticeSortBy = "timePosted" | "upcomingEvent" | "tag";
+export type NoticeSortOrder = "asc" | "desc";
+
+export interface INoticeTagOption {
+  value: NoticeTag;
+  label: string;
+}
+
+export interface INoticeAttachment {
+  id: number;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+}
+
+export interface INotice {
+  id: number;
+  title: string;
+  content: string;
+  status: "pending" | "approved" | "rejected";
+  forAll: boolean;
+  forTeachers: boolean;
+  tag: NoticeTag;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+  createdAt: string;
+  targetBatch?: {
+    id: number;
+    name: string;
+  };
+  createdBy?: {
+    user_id: string;
+    name: string;
+    role?: "admin" | "teacher" | "student" | "cr";
+  };
+  attachments?: INoticeAttachment[];
+}
+
+export interface INoticeListResponse {
+  success: boolean;
+  data: INotice[];
+  meta?: {
+    page?: number;
+    limit?: number;
+    totalItems?: number;
+    totalPages?: number;
+  };
+  message?: string;
+}
+
+export interface INoticeResponse {
+  success: boolean;
+  data: INotice;
+  message?: string;
+}
+
+export interface INoticeTagsResponse {
+  success: boolean;
+  data: INoticeTagOption[];
+  message?: string;
+}
+
 export interface IRoutePoint {
   sequence: number;
   lat: number;
   lng: number;
   minuteOffset: number;
+}
+
+export interface IForumPost {
+  id: number;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  commentCount?: number;
+  batch: {
+    id: number;
+    name: string;
+  };
+  author: {
+    user_id: string;
+    name: string;
+    role: "admin" | "teacher" | "student" | "cr";
+  };
+}
+
+export interface IForumComment {
+  id: number;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    user_id: string;
+    name: string;
+    role: "admin" | "teacher" | "student" | "cr";
+  };
+}
+
+export interface IForumPaginationMeta {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface IForumPostsResponse {
+  success: boolean;
+  data: IForumPost[];
+  meta: IForumPaginationMeta;
+  message?: string;
+}
+
+export interface IForumPostResponse {
+  success: boolean;
+  data: IForumPost;
+  message?: string;
+}
+
+export interface IForumCommentsResponse {
+  success: boolean;
+  data: IForumComment[];
+  message?: string;
 }
 
 // Calendar Types

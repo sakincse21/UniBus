@@ -6,10 +6,12 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest"
   },
   "dependencies": {
     "@expo/html-elements": "^0.10.1",
+    "@expo/vector-icons": "^15.1.1",
     "@gluestack-style/react": "^1.0.57",
     "@gluestack-ui/core": "^3.0.12",
     "@gluestack-ui/nativewind-utils": "^1.0.28",
@@ -28,6 +30,7 @@
     "expo": "~54.0.33",
     "expo-calendar": "~15.0.8",
     "expo-constants": "^18.0.13",
+    "expo-dev-client": "~6.0.20",
     "expo-file-system": "~19.0.21",
     "expo-image-picker": "~17.0.10",
     "expo-intent-launcher": "~13.0.8",
@@ -60,14 +63,19 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.3.2",
     "@types/react": "~19.1.0",
     "@types/react-native": "latest",
     "babel-plugin-module-resolver": "^5.0.2",
     "babel-preset-expo": "^54.0.10",
     "eas-cli": "^18.6.0",
+    "jest": "^30.3.0",
+    "jest-expo": "^55.0.16",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "tailwindcss": "^3.4.19",
+    "ts-jest": "^29.4.9",
     "typescript": "~5.9.2"
   },
   "private": true

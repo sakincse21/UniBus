@@ -1,7 +1,15 @@
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
-import { AppState, View, Text } from "react-native";
-import { useEffect } from "react";
+import {
+  ActivityIndicator,
+  AppState,
+  Modal,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/authStore";
 import { useBusTrackingStore } from "@/store/busTrackingStore";
 import { useCalendarStore } from "@/store/calendarStore";
@@ -12,31 +20,100 @@ import {
   requestNotificationPermissions,
   sendLocalNotification,
 } from "@/lib/notifications";
-import { useRouter } from "expo-router";
-import { userAPI } from "@/lib/api";
+import { trackingAPI, userAPI } from "@/lib/api";
+import { ITrackingRequestItem } from "@/interfaces";
+import { APP_THEME_COLORS } from "@/lib/theme";
+
+const COLORS = APP_THEME_COLORS;
 
 const TabIcon = ({
-  name,
   focused,
-  iconChar,
+  iconName,
 }: {
-  name: string;
   focused: boolean;
-  iconChar: string;
+  iconName: React.ComponentProps<typeof Feather>["name"];
 }) => (
-  <View className="items-center justify-center gap-1">
-    <Text className={`text-2xl ${focused ? "text-blue-600" : "text-gray-500"}`}>
-      {iconChar}
-    </Text>
+  <View style={{ alignItems: "center", justifyContent: "center" }}>
+    <View
+      style={{
+        width: focused ? 44 : 40,
+        height: focused ? 36 : 34,
+        borderRadius: 11,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: focused ? COLORS.primarySoft : COLORS.surfaceLow,
+        borderWidth: 1,
+        borderColor: focused ? "#A2C3F8" : "#D8DAE5",
+      }}
+    >
+      <Feather
+        name={iconName}
+        size={20}
+        color={focused ? COLORS.primary : COLORS.onSurfaceMuted}
+      />
+    </View>
   </View>
 );
+
+function parseNotificationRequestId(data: Record<string, unknown>): number | null {
+  const raw = data.requestId;
+  const parsed = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export default function TabsLayout() {
   const { user, isAuthenticated, isLoading } = useAuthStore();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const setPendingRequest = useBusTrackingStore((state) => state.setPendingRequest);
+  const normalizedRole = String(user?.role || "").toLowerCase();
+  // Keep Forum visible while auth is hydrating to avoid transient tab disappearance.
+  const showForumTab = isLoading || normalizedRole === "student" || normalizedRole === "cr";
+
   const fetchCalendarEvents = useCalendarStore((state) => state.fetchCalendarEvents);
+  const pendingRequests = useBusTrackingStore((state) => state.pendingRequests);
+  const shownRequestId = useBusTrackingStore((state) => state.shownRequestId);
+  const setPendingRequests = useBusTrackingStore((state) => state.setPendingRequests);
+  const removePendingRequest = useBusTrackingStore((state) => state.removePendingRequest);
+  const setShownRequestId = useBusTrackingStore((state) => state.setShownRequestId);
+  const setRequestToStartSharing = useBusTrackingStore(
+    (state) => state.setRequestToStartSharing,
+  );
+
+  const [isRespondingRequestId, setIsRespondingRequestId] = useState<number | null>(
+    null,
+  );
+
+  const refreshPendingTrackingRequests = useCallback(
+    async (preferredRequestId?: number | null) => {
+      if (!user?.user_id) return;
+
+      try {
+        const response = await trackingAPI.getPendingRequests();
+        const requests = (response.data?.data || []) as ITrackingRequestItem[];
+        setPendingRequests(requests);
+
+        if (!requests.length) {
+          setShownRequestId(null);
+          return;
+        }
+
+        if (
+          preferredRequestId &&
+          requests.some((request) => request.id === preferredRequestId)
+        ) {
+          setShownRequestId(preferredRequestId);
+          return;
+        }
+
+        if (!shownRequestId || !requests.some((request) => request.id === shownRequestId)) {
+          setShownRequestId(requests[0].id);
+        }
+      } catch (error) {
+        console.warn("Failed to fetch pending tracking requests:", error);
+      }
+    },
+    [setPendingRequests, setShownRequestId, shownRequestId, user?.user_id],
+  );
 
   useEffect(() => {
     if (isLoading) return;
@@ -75,21 +152,25 @@ export default function TabsLayout() {
       }
     };
 
-    const registerPushAndSyncCalendar = async () => {
+    const registerPushAndSyncState = async () => {
       await syncPushTokenWithRetry();
 
       if (!cancelled) {
-        await fetchCalendarEvents(30).catch(() => {});
+        await Promise.all([
+          fetchCalendarEvents(30).catch(() => {}),
+          refreshPendingTrackingRequests(),
+        ]);
       }
     };
 
-    registerPushAndSyncCalendar();
+    registerPushAndSyncState();
 
     const appStateSubscription = AppState.addEventListener(
       "change",
       (nextState) => {
         if (nextState === "active" && !cancelled) {
           syncPushTokenWithRetry().catch(() => {});
+          refreshPendingTrackingRequests().catch(() => {});
         }
       },
     );
@@ -101,7 +182,7 @@ export default function TabsLayout() {
       }
       appStateSubscription.remove();
     };
-  }, [fetchCalendarEvents, user?.user_id]);
+  }, [fetchCalendarEvents, refreshPendingTrackingRequests, user?.user_id]);
 
   useEffect(() => {
     requestNotificationPermissions().catch(() => {});
@@ -109,52 +190,22 @@ export default function TabsLayout() {
     let socket: any;
 
     const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
-      const data = response.notification.request.content.data;
+      const rawData = response.notification.request.content.data;
+      const data = (rawData || {}) as Record<string, unknown>;
+      const type = String(data.type || "");
 
-      if (data?.type === "notice") {
+      if (type === "notice") {
         router.push("/(tabs)");
         return;
       }
 
-      if (data?.type !== "bus-tracking-request") return;
+      if (type !== "TRACKING_REQUEST" && type !== "bus-tracking-request") {
+        return;
+      }
 
-      const busId =
-        typeof data.busId === "number" ? data.busId : Number(data.busId);
-      if (!busId) return;
-
-      const parsedRouteId =
-        typeof data.routeId === "number" ? data.routeId : Number(data.routeId);
-
-      const estimateData =
-        typeof data.estimate === "object" && data.estimate
-          ? (data.estimate as {
-              lat?: number;
-              lng?: number;
-              confidence?: number;
-            })
-          : undefined;
-
-      setPendingRequest({
-        busId,
-        routeId: Number.isFinite(parsedRouteId) ? parsedRouteId : null,
-        estimate: estimateData
-          ? {
-              lat:
-                typeof estimateData.lat === "number"
-                  ? estimateData.lat
-                  : undefined,
-              lng:
-                typeof estimateData.lng === "number"
-                  ? estimateData.lng
-                  : undefined,
-              confidence:
-                typeof estimateData.confidence === "number"
-                  ? estimateData.confidence
-                  : undefined,
-            }
-          : undefined,
-      });
+      const requestId = parseNotificationRequestId(data);
       router.push("/(tabs)/bus-tracking");
+      refreshPendingTrackingRequests(requestId).catch(() => {});
     };
 
     const init = async () => {
@@ -162,33 +213,35 @@ export default function TabsLayout() {
 
       socket.on("bus_tracking_request", (payload: any) => {
         const trackingState = useBusTrackingStore.getState();
+        const busId = Number(payload?.busId);
+
         if (
           trackingState.isSharingGps &&
-          trackingState.sharingForBusId === payload.busId
+          trackingState.sharingForBusId &&
+          trackingState.sharingForBusId === busId
         ) {
           return;
         }
-        if (trackingState.isSharingGps) {
-          return;
-        }
 
-        setPendingRequest({
-          busId: payload.busId,
-          routeId: payload.routeId || null,
-          estimate: payload.estimate,
-        });
+        const requestId = Number(payload?.requestId);
+        refreshPendingTrackingRequests(Number.isFinite(requestId) ? requestId : null).catch(
+          () => {},
+        );
 
         sendLocalNotification(
-          `Bus ${payload.busId} location requested`,
-          "Someone nearby asked if you are on this bus.",
+          `Bus ${payload?.busId} tracking request`,
+          "A nearby rider asked if you are currently on this bus.",
           {
-            type: "bus-tracking-request",
-            busId: payload.busId,
-            routeId: payload.routeId || null,
-            estimate: payload.estimate,
+            type: "TRACKING_REQUEST",
+            requestId: payload?.requestId,
+            busId: payload?.busId,
           },
           "bus-tracking-requests",
         ).catch(() => {});
+      });
+
+      socket.on("tracking_request_responded", () => {
+        refreshPendingTrackingRequests().catch(() => {});
       });
     };
 
@@ -210,91 +263,223 @@ export default function TabsLayout() {
     return () => {
       if (socket) {
         socket.off("bus_tracking_request");
+        socket.off("tracking_request_responded");
       }
       responseSubscription.remove();
     };
-  }, [router, setPendingRequest]);
+  }, [refreshPendingTrackingRequests, router]);
+
+  const activeRequest = useMemo(() => {
+    if (!pendingRequests.length) {
+      return null;
+    }
+
+    if (shownRequestId) {
+      return pendingRequests.find((request) => request.id === shownRequestId) || null;
+    }
+
+    return pendingRequests[0];
+  }, [pendingRequests, shownRequestId]);
+
+  useEffect(() => {
+    if (!pendingRequests.length) {
+      if (shownRequestId !== null) {
+        setShownRequestId(null);
+      }
+      return;
+    }
+
+    if (!shownRequestId || !pendingRequests.some((request) => request.id === shownRequestId)) {
+      setShownRequestId(pendingRequests[0].id);
+    }
+  }, [pendingRequests, setShownRequestId, shownRequestId]);
+
+  const respondToRequest = useCallback(
+    async (status: "accepted" | "rejected") => {
+      if (!activeRequest || isRespondingRequestId) {
+        return;
+      }
+
+      setIsRespondingRequestId(activeRequest.id);
+
+      try {
+        await trackingAPI.respondToRequest(activeRequest.id, status);
+        removePendingRequest(activeRequest.id);
+        setShownRequestId(null);
+
+        if (status === "accepted") {
+          setRequestToStartSharing(activeRequest);
+          router.push("/(tabs)/bus-tracking");
+        }
+
+        await refreshPendingTrackingRequests();
+      } catch (error) {
+        console.warn("Failed to respond to tracking request:", error);
+        await refreshPendingTrackingRequests(activeRequest.id);
+      } finally {
+        setIsRespondingRequestId(null);
+      }
+    },
+    [
+      activeRequest,
+      isRespondingRequestId,
+      refreshPendingTrackingRequests,
+      removePendingRequest,
+      router,
+      setRequestToStartSharing,
+      setShownRequestId,
+    ],
+  );
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: "#2563eb",
-        tabBarInactiveTintColor: "#6b7280",
-        tabBarStyle: {
-          backgroundColor: "#ffffff",
-          borderTopWidth: 1,
-          borderTopColor: "#e5e7eb",
-          paddingBottom: Math.max(insets.bottom, 12),
-          paddingTop: 10,
-          height: 70 + Math.max(insets.bottom, 0),
-          paddingHorizontal: 4,
-          elevation: 12,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.15,
-          shadowRadius: 6,
-        },
-        tabBarItemStyle: {
-          paddingVertical: 6,
-          gap: 2,
-          flex: 1,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "700",
-          marginTop: 2,
-        },
-        sceneStyle: {
-          backgroundColor: "#f9fafb",
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Notices",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Notices" focused={focused} iconChar="📢" />
-          ),
+    <>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: COLORS.primary,
+          tabBarInactiveTintColor: COLORS.onSurfaceMuted,
+          tabBarStyle: {
+            backgroundColor: COLORS.surface,
+            borderWidth: 1,
+            borderColor: COLORS.outline,
+            borderRadius: 18,
+            marginHorizontal: 12,
+            marginBottom: 14,
+            paddingBottom: Math.max(insets.bottom, 10),
+            paddingTop: 10,
+            height: 70 + Math.max(insets.bottom, 0),
+            paddingHorizontal: 8,
+            elevation: 16,
+            shadowColor: "#111827",
+            shadowOffset: { width: 0, height: -1 },
+            shadowOpacity: 0.1,
+            shadowRadius: 10,
+          },
+          tabBarItemStyle: {
+            paddingVertical: 6,
+            flex: 1,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: "700",
+            marginTop: 2,
+          },
+          sceneStyle: {
+            backgroundColor: COLORS.background,
+          },
         }}
-      />
-      <Tabs.Screen
-        name="bus-tracking"
-        options={{
-          title: "Bus Track",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Bus Track" focused={focused} iconChar="🚌" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="weekly-routine"
-        options={{
-          title: "Routine",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Routine" focused={focused} iconChar="📋" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: "Calendar",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Calendar" focused={focused} iconChar="📅" />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="Profile" focused={focused} iconChar="👤" />
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Notices",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon focused={focused} iconName="bell" />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="forum"
+          options={{
+            title: "Forum",
+            ...(showForumTab ? {} : { href: null }),
+            tabBarIcon: ({ focused }) => (
+              <TabIcon focused={focused} iconName="message-circle" />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="bus-tracking"
+          options={{
+            title: "Bus Track",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon focused={focused} iconName="truck" />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="weekly-routine"
+          options={{
+            title: "Routine",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon focused={focused} iconName="clipboard" />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="calendar"
+          options={{
+            title: "Calendar",
+            tabBarIcon: ({ focused }) => (
+              <TabIcon focused={focused} iconName="calendar" />
+            ),
+          }}
+        />
+      </Tabs>
+
+      <Modal visible={Boolean(activeRequest)} transparent animationType="fade">
+        <View className="flex-1 bg-black/55 items-center justify-center px-5">
+          <View
+            className="w-full max-w-md rounded-2xl p-5"
+            style={{
+              backgroundColor: COLORS.surface,
+              borderWidth: 1,
+              borderColor: COLORS.outline,
+            }}
+          >
+            <Text className="text-lg font-bold" style={{ color: COLORS.onSurface }}>
+              Bus Tracking Request
+            </Text>
+            <Text className="mt-3 text-sm" style={{ color: COLORS.onSurfaceMuted }}>
+              {activeRequest?.requester.name} requested live location for Bus {activeRequest?.busId}.
+            </Text>
+            <Text className="mt-1 text-xs" style={{ color: COLORS.onSurfaceMuted }}>
+              Requester: {activeRequest?.requester.email}
+            </Text>
+            <Text className="mt-1 text-xs" style={{ color: COLORS.onSurfaceMuted }}>
+              Received: {activeRequest ? new Date(activeRequest.createdAt).toLocaleString() : ""}
+            </Text>
+
+            <View className="mt-5 flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 rounded-lg py-3 items-center"
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#F3B9B9",
+                  backgroundColor: COLORS.dangerSoft,
+                }}
+                onPress={() => respondToRequest("rejected")}
+                disabled={isRespondingRequestId === activeRequest?.id}
+              >
+                {isRespondingRequestId === activeRequest?.id ? (
+                  <ActivityIndicator size="small" color={COLORS.danger} />
+                ) : (
+                  <Text className="font-semibold" style={{ color: COLORS.danger }}>
+                    Reject
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="flex-1 rounded-lg py-3 items-center"
+                style={{
+                  backgroundColor: COLORS.primary,
+                  borderWidth: 1,
+                  borderColor: COLORS.primary,
+                }}
+                onPress={() => respondToRequest("accepted")}
+                disabled={isRespondingRequestId === activeRequest?.id}
+              >
+                {isRespondingRequestId === activeRequest?.id ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text className="font-semibold text-white">Accept</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
