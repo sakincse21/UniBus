@@ -7,14 +7,14 @@ import { requestNotificationPermissions as ensureNotificationPermission } from "
 
 export { requestNotificationPermissions } from "@/lib/notifications";
 
-const SCHEDULED_REMINDERS_KEY = "@unibus_scheduled_reminders_v2";
+const SCHEDULED_REMINDERS_KEY = "@tracku_scheduled_reminders_v2";
 
 interface ScheduledReminder {
   eventId: string;
   notificationId: string;
   notificationTime: number; // Unix timestamp
   eventTitle: string;
-  eventType: "notice" | "routine" | "personal";
+  eventType: "notice" | "routine" | "personal" | "public";
   minutesBefore: number;
 }
 
@@ -203,6 +203,10 @@ const getNotificationBody = (event: ICalendarEvent): string => {
   }
 
   if (event.type === "personal") {
+    return `${event.title} starts in ${minutesBefore} minutes`;
+  }
+
+  if (event.type === "public") {
     return `${event.title} starts in ${minutesBefore} minutes`;
   }
 

@@ -217,6 +217,9 @@ export const forumAPI = {
     }),
   createPost: (data: { title: string; content: string }) =>
     api.post("/forum/posts", data),
+  updatePost: (postId: number, data: { title: string; content: string }) =>
+    api.put(`/forum/posts/${postId}`, data),
+  deletePost: (postId: number) => api.delete(`/forum/posts/${postId}`),
   getComments: (postId: number) => api.get(`/forum/posts/${postId}/comments`),
   createComment: (postId: number, data: { content: string }) =>
     api.post(`/forum/posts/${postId}/comments`, data),

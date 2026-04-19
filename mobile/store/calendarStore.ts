@@ -86,7 +86,13 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
       if (response.data.success) {
         // Remove from local state
         const currentEvents = get().events;
-        const newEvents = currentEvents.filter(e => !(e.type === "personal" && e.source.fixtureId === id));
+        const newEvents = currentEvents.filter(
+          (e) =>
+            !(
+              (e.type === "personal" || e.type === "public") &&
+              e.source.fixtureId === id
+            ),
+        );
         set({ events: newEvents });
         scheduleAllEventReminders(newEvents).catch(console.error);
       } else {

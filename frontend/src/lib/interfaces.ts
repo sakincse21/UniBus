@@ -175,7 +175,7 @@ export interface ICalendarEventMetadata {
 
 export interface ICalendarEvent {
   id: string;
-  type: "notice" | "routine" | "personal";
+  type: "notice" | "routine" | "personal" | "public";
   title: string;
   description?: string;
   startDateTime: string;
@@ -194,6 +194,7 @@ export interface IUserFixture {
   startDateTime: string;
   endDateTime: string;
   isAllDay: boolean;
+  isPublic: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -204,6 +205,7 @@ export interface ICreateFixturePayload {
   startDateTime: string;
   endDateTime: string;
   isAllDay: boolean;
+  isPublic: boolean;
 }
 
 export interface IUpdateFixturePayload {
@@ -212,4 +214,5 @@ export interface IUpdateFixturePayload {
   startDateTime?: string;
   endDateTime?: string;
   isAllDay?: boolean;
+  isPublic?: boolean;
 }

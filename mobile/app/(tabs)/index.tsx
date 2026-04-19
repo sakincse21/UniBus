@@ -605,7 +605,7 @@ export default function NoticesTab() {
 
       <View className="px-4 pb-3">
         <View
-          className="rounded-xl p-3"
+          className="rounded-xl p-3 flex-row items-center justify-end"
           style={{ backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.outline }}
         >
           <View className="flex-row justify-end">

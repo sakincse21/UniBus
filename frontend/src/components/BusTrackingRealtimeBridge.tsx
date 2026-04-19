@@ -7,13 +7,34 @@ import { startLocationUpdates, stopLocationUpdates } from "@/lib/location";
 
 type BusTrackingRequestPayload = {
   busId?: number;
+  busNumber?: string | null;
   routeId?: number | null;
+  expiresAt?: string | null;
   estimate?: {
     lat?: number;
     lng?: number;
     confidence?: number;
   };
 };
+
+function resolveBusLabel(payload: {
+  busId?: number;
+  busNumber?: string | null;
+}): string | null {
+  const normalizedBusNumber =
+    typeof payload.busNumber === "string" ? payload.busNumber.trim() : "";
+
+  if (normalizedBusNumber) {
+    return `Bus ${normalizedBusNumber}`;
+  }
+
+  const busId = Number(payload.busId);
+  if (Number.isFinite(busId)) {
+    return `Bus ${busId}`;
+  }
+
+  return null;
+}
 
 function supportsBrowserNotifications(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
@@ -32,17 +53,22 @@ function showBusTrackingNotification(payload: BusTrackingRequestPayload): void {
   if (!supportsBrowserNotifications()) return;
   if (Notification.permission !== "granted") return;
 
-  const busId = Number(payload.busId);
-  if (!Number.isFinite(busId)) return;
+  const busLabel = resolveBusLabel(payload);
+  if (!busLabel) return;
 
   const body =
     payload.estimate?.lat != null && payload.estimate?.lng != null
       ? `Estimated near ${payload.estimate.lat.toFixed(4)}, ${payload.estimate.lng.toFixed(4)}.`
-      : "Please confirm if you are currently on this bus.";
+      : `Please confirm if you are currently on ${busLabel}.`;
 
-  const notification = new Notification(`Bus ${busId} location requested`, {
+  const tagBusId = Number(payload.busId);
+  const tag = Number.isFinite(tagBusId)
+    ? `bus-track-request-${tagBusId}`
+    : `bus-track-request-${busLabel}`;
+
+  const notification = new Notification(`${busLabel} location requested`, {
     body,
-    tag: `bus-track-request-${busId}`,
+    tag,
     requireInteraction: true,
   });
 
@@ -82,32 +108,40 @@ export default function BusTrackingRealtimeBridge() {
     let socket: Awaited<ReturnType<typeof getSocket>> | null = null;
 
     const onBusTrackingRequest = (payload: BusTrackingRequestPayload) => {
+      const expiresAtMs =
+        typeof payload.expiresAt === "string"
+          ? Date.parse(payload.expiresAt)
+          : Number.NaN;
+      if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+        return;
+      }
+
       window.dispatchEvent(
         new CustomEvent("BUS_TRACK_REQUEST", { detail: payload }),
       );
 
-      const busId = Number(payload.busId);
-      if (Number.isFinite(busId)) {
-        toast.info(`Location requested for Bus ${busId}`);
+      const busLabel = resolveBusLabel(payload);
+      if (busLabel) {
+        toast.info(`Location requested for ${busLabel}`);
       }
 
       showBusTrackingNotification(payload);
     };
 
-    const onTrackingStarted = (payload: { busId?: number }) => {
-      const busId = Number(payload?.busId);
-      if (!Number.isFinite(busId)) return;
-      toast.success(`Live tracking started for Bus ${busId}`);
+    const onTrackingStarted = (payload: { busId?: number; busNumber?: string | null }) => {
+      const busLabel = resolveBusLabel(payload);
+      if (!busLabel) return;
+      toast.success(`Live tracking started for ${busLabel}`);
     };
 
-    const onTrackingEnded = (payload: { busId?: number }) => {
+    const onTrackingEnded = (payload: { busId?: number; busNumber?: string | null }) => {
       window.dispatchEvent(
         new CustomEvent("BUS_TRACKING_ENDED", { detail: payload }),
       );
 
-      const busId = Number(payload?.busId);
-      if (!Number.isFinite(busId)) return;
-      toast.info(`Tracking ended for Bus ${busId}`);
+      const busLabel = resolveBusLabel(payload);
+      if (!busLabel) return;
+      toast.info(`Tracking ended for ${busLabel}`);
     };
 
     (async () => {

@@ -1,6 +1,7 @@
 import request from "supertest";
 import app from "./app";
 import { AppDataSource } from "./app/db/data-source";
+import { Bus } from "./app/modules/bus/bus.entity";
 import { BusSchedule } from "./app/modules/schedule/busSchedule.entity";
 import { RoutePoint } from "./app/modules/route/routePoint.entity";
 import { LiveTrackingSession } from "./app/modules/tracking/liveTrackingSession.entity";
@@ -8,7 +9,10 @@ import { EstimatedBusLocation } from "./app/modules/tracking/estimatedBusLocatio
 import { UserLocation } from "./app/modules/location/userLocation.entity";
 import { User } from "./app/modules/user/user.entity";
 import { TrackingRequestService } from "./app/modules/tracking/trackingRequest.service";
-import { estimateBusLocation } from "./app/modules/tracking/tracking.service";
+import {
+  estimateBusLocation,
+  getScheduleEndTime,
+} from "./app/modules/tracking/tracking.service";
 
 jest.mock("./app/db/data-source", () => ({
   ensureDataSourceInitialized: jest.fn().mockResolvedValue(true),
@@ -40,6 +44,7 @@ jest.mock("./app/modules/tracking/tracking.service", () => ({
 
 const getRepositoryMock = AppDataSource.getRepository as unknown as jest.Mock;
 const estimateBusLocationMock = estimateBusLocation as jest.Mock;
+const getScheduleEndTimeMock = getScheduleEndTime as jest.Mock;
 const createRequestsAndNotifyMock =
   TrackingRequestService.createRequestsAndNotify as jest.Mock;
 const getPendingRequestsMock = TrackingRequestService.getPendingRequests as jest.Mock;
@@ -48,6 +53,7 @@ const respondToRequestMock = TrackingRequestService.respondToRequest as jest.Moc
 describe("Tracking API", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    getScheduleEndTimeMock.mockResolvedValue(new Date("2026-01-01T09:00:00.000Z"));
   });
 
   it("creates tracking requests via POST /tracking/request", async () => {
@@ -61,9 +67,13 @@ describe("Tracking API", () => {
     const scheduleRepo = {
       findOne: jest.fn().mockResolvedValue({
         route: { id: 9 },
+        bus: { id: 33, busNumber: "A-33" },
         startTime: "08:00:00",
         endTime: "09:00:00",
       }),
+    };
+    const busRepo = {
+      findOne: jest.fn().mockResolvedValue({ id: 33, busNumber: "A-33" }),
     };
     const routePointRepo = {
       find: jest.fn().mockResolvedValue([{ lat: 23.8, lng: 90.4, sequence: 1 }]),
@@ -74,30 +84,34 @@ describe("Tracking API", () => {
     const estimatedLocationRepo = {
       findOne: jest.fn().mockResolvedValue(null),
     };
+    const receiverUser = {
+      user_id: "user-2",
+      name: "Receiver One",
+      email: "receiver1@tracku.test",
+      pushToken: "ExponentPushToken[receiver-1]",
+    };
+
     const userLocationRepo = {
       find: jest.fn().mockResolvedValue([
         {
           lat: 23.8005,
           lng: 90.4005,
-          user: {
-            user_id: "user-2",
-            name: "Receiver One",
-            email: "receiver1@unibus.test",
-            pushToken: "ExponentPushToken[receiver-1]",
-          },
+          user: receiverUser,
         },
       ]),
     };
     const userRepo = {
+      find: jest.fn().mockResolvedValue([receiverUser]),
       findOne: jest.fn().mockResolvedValue({
         user_id: "user-1",
         name: "Requester",
-        email: "requester@unibus.test",
+        email: "requester@tracku.test",
         pushToken: null,
       }),
     };
 
     getRepositoryMock.mockImplementation((entity: unknown) => {
+      if (entity === Bus) return busRepo;
       if (entity === BusSchedule) return scheduleRepo;
       if (entity === RoutePoint) return routePointRepo;
       if (entity === LiveTrackingSession) return liveSessionRepo;
@@ -149,7 +163,7 @@ describe("Tracking API", () => {
         requester: {
           userId: "user-9",
           name: "Nearby Rider",
-          email: "nearby@unibus.test",
+          email: "nearby@tracku.test",
         },
       },
     ]);
@@ -195,7 +209,7 @@ describe("Tracking API", () => {
       requester: {
         userId: "requester-55",
         name: "Requester",
-        email: "requester@unibus.test",
+        email: "requester@tracku.test",
       },
     });
 

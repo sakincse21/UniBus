@@ -217,7 +217,7 @@ export default function LoginScreen() {
                 color: COLORS.onSurface,
               }}
             >
-              UniBus
+              TrackU
             </Heading>
             <Text
               style={{

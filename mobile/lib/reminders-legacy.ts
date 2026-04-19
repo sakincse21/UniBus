@@ -7,8 +7,8 @@ import { requestNotificationPermissions as ensureNotificationPermission } from "
 
 export { requestNotificationPermissions } from "@/lib/notifications";
 
-const ROUTINE_REMINDER_IDS_KEY = "@unibus_routine_reminder_ids_v1";
-const CALENDAR_REMINDER_MAP_KEY = "@unibus_calendar_reminder_map_v1";
+const ROUTINE_REMINDER_IDS_KEY = "@tracku_routine_reminder_ids_v1";
+const CALENDAR_REMINDER_MAP_KEY = "@tracku_calendar_reminder_map_v1";
 
 type CalendarReminderMap = Record<string, string>;
 
@@ -134,8 +134,11 @@ function getCalendarReminderKey(event: ICalendarEvent): string {
     return `notice:${event.source.noticeId}`;
   }
 
-  if (event.type === "personal" && event.source.fixtureId) {
-    return `personal:${event.source.fixtureId}`;
+  if (
+    (event.type === "personal" || event.type === "public") &&
+    event.source.fixtureId
+  ) {
+    return `fixture:${event.source.fixtureId}`;
   }
 
   if (event.type === "routine" && event.source.routineId) {

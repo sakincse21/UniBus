@@ -1,6 +1,7 @@
 import { Tabs, useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 import {
+  Alert,
   ActivityIndicator,
   AppState,
   Modal,
@@ -8,7 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/authStore";
 import { useBusTrackingStore } from "@/store/busTrackingStore";
@@ -16,11 +18,13 @@ import { useCalendarStore } from "@/store/calendarStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getSocket } from "@/lib/socket";
 import {
+  getPushTokenBlockReason,
   initializePushNotifications,
+  isPushTokenRegistrationBlocked,
   requestNotificationPermissions,
   sendLocalNotification,
 } from "@/lib/notifications";
-import { trackingAPI, userAPI } from "@/lib/api";
+import { locationAPI, trackingAPI, userAPI } from "@/lib/api";
 import { ITrackingRequestItem } from "@/interfaces";
 import { APP_THEME_COLORS } from "@/lib/theme";
 
@@ -55,10 +59,55 @@ const TabIcon = ({
   </View>
 );
 
-function parseNotificationRequestId(data: Record<string, unknown>): number | null {
-  const raw = data.requestId;
-  const parsed = typeof raw === "number" ? raw : Number(raw);
+function formatBusLabel(busId: number, busNumber?: string | null): string {
+  const normalizedBusNumber =
+    typeof busNumber === "string" ? busNumber.trim() : "";
+  return `Bus ${normalizedBusNumber || String(busId)}`;
+}
+
+function parseNumericId(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isRequestExpired(expiresAt?: string | null): boolean {
+  if (!expiresAt) return false;
+  const expiresAtMs = Date.parse(expiresAt);
+  return Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now();
+}
+
+function buildFallbackRequestFromNotification(
+  data: Record<string, unknown>,
+): ITrackingRequestItem | null {
+  const requestId = parseNumericId(data.requestId);
+  const busId = parseNumericId(data.busId);
+
+  if (requestId === null || busId === null) {
+    return null;
+  }
+
+  const busNumber =
+    typeof data.busNumber === "string" ? data.busNumber : null;
+  const expiresAt =
+    typeof data.expiresAt === "string" ? data.expiresAt : null;
+
+  if (isRequestExpired(expiresAt)) {
+    return null;
+  }
+
+  return {
+    id: requestId,
+    busId,
+    busNumber,
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    expiresAt,
+    requester: {
+      userId: "",
+      name: "A nearby rider",
+      email: "",
+    },
+  };
 }
 
 export default function TabsLayout() {
@@ -70,50 +119,63 @@ export default function TabsLayout() {
   const showForumTab = isLoading || normalizedRole === "student" || normalizedRole === "cr";
 
   const fetchCalendarEvents = useCalendarStore((state) => state.fetchCalendarEvents);
-  const pendingRequests = useBusTrackingStore((state) => state.pendingRequests);
-  const shownRequestId = useBusTrackingStore((state) => state.shownRequestId);
-  const setPendingRequests = useBusTrackingStore((state) => state.setPendingRequests);
-  const removePendingRequest = useBusTrackingStore((state) => state.removePendingRequest);
-  const setShownRequestId = useBusTrackingStore((state) => state.setShownRequestId);
   const setRequestToStartSharing = useBusTrackingStore(
     (state) => state.setRequestToStartSharing,
+  );
+  const ignoredRequestIdsRef = useRef<Set<number>>(new Set());
+  const [activeRequest, setActiveRequest] = useState<ITrackingRequestItem | null>(
+    null,
   );
 
   const [isRespondingRequestId, setIsRespondingRequestId] = useState<number | null>(
     null,
   );
+  const activeRequestBusLabel = activeRequest
+    ? formatBusLabel(activeRequest.busId, activeRequest.busNumber)
+    : "this bus";
 
-  const refreshPendingTrackingRequests = useCallback(
-    async (preferredRequestId?: number | null) => {
-      if (!user?.user_id) return;
+  const fetchLatestPendingRequest = useCallback(async () => {
+    try {
+      const response = await trackingAPI.getPendingRequests();
+      const pending = Array.isArray(response.data?.data)
+        ? (response.data.data as ITrackingRequestItem[])
+        : [];
 
-      try {
-        const response = await trackingAPI.getPendingRequests();
-        const requests = (response.data?.data || []) as ITrackingRequestItem[];
-        setPendingRequests(requests);
+      const latestPending = [...pending]
+        .filter((request) => {
+          const requestId = parseNumericId(request?.id);
+          if (requestId !== null && ignoredRequestIdsRef.current.has(requestId)) {
+            return false;
+          }
 
-        if (!requests.length) {
-          setShownRequestId(null);
-          return;
-        }
+          return (
+            requestId !== null &&
+            parseNumericId(request?.busId) !== null &&
+            !isRequestExpired(request?.expiresAt)
+          );
+        })
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )[0];
 
-        if (
-          preferredRequestId &&
-          requests.some((request) => request.id === preferredRequestId)
-        ) {
-          setShownRequestId(preferredRequestId);
-          return;
-        }
-
-        if (!shownRequestId || !requests.some((request) => request.id === shownRequestId)) {
-          setShownRequestId(requests[0].id);
-        }
-      } catch (error) {
-        console.warn("Failed to fetch pending tracking requests:", error);
+      if (latestPending) {
+        setActiveRequest((current) => {
+          if (current?.id === latestPending.id) {
+            return current;
+          }
+          return latestPending;
+        });
+      } else {
+        setActiveRequest((current) => {
+          if (!current) return null;
+          return isRequestExpired(current.expiresAt) ? null : current;
+        });
       }
-    },
-    [setPendingRequests, setShownRequestId, shownRequestId, user?.user_id],
-  );
+    } catch {
+      // Keep current modal state if fetch fails.
+    }
+  }, []);
 
   useEffect(() => {
     if (isLoading) return;
@@ -132,6 +194,14 @@ export default function TabsLayout() {
       const pushToken = await initializePushNotifications();
 
       if (!pushToken) {
+        if (isPushTokenRegistrationBlocked()) {
+          const reason = getPushTokenBlockReason();
+          if (reason) {
+            console.warn("Push token sync paused:", reason);
+          }
+          return;
+        }
+
         if (!cancelled && attempt < 3) {
           retryTimer = setTimeout(() => {
             syncPushTokenWithRetry(attempt + 1).catch(() => {});
@@ -156,10 +226,8 @@ export default function TabsLayout() {
       await syncPushTokenWithRetry();
 
       if (!cancelled) {
-        await Promise.all([
-          fetchCalendarEvents(30).catch(() => {}),
-          refreshPendingTrackingRequests(),
-        ]);
+        await fetchCalendarEvents(30).catch(() => {});
+        await fetchLatestPendingRequest();
       }
     };
 
@@ -170,7 +238,7 @@ export default function TabsLayout() {
       (nextState) => {
         if (nextState === "active" && !cancelled) {
           syncPushTokenWithRetry().catch(() => {});
-          refreshPendingTrackingRequests().catch(() => {});
+          fetchLatestPendingRequest().catch(() => {});
         }
       },
     );
@@ -182,12 +250,75 @@ export default function TabsLayout() {
       }
       appStateSubscription.remove();
     };
-  }, [fetchCalendarEvents, refreshPendingTrackingRequests, user?.user_id]);
+  }, [fetchCalendarEvents, fetchLatestPendingRequest, user?.user_id]);
 
   useEffect(() => {
+    if (!user?.user_id) return;
+
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
+
+    const syncLocation = async (lat: number, lng: number) => {
+      await locationAPI.updateLocation(lat, lng).catch(() => {});
+
+      try {
+        const socket = await getSocket();
+        socket.emit("location_update", { lat, lng });
+      } catch {
+        // Keep API location sync as fallback when socket is reconnecting.
+      }
+    };
+
+    const startForegroundLocationSync = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted" || cancelled) {
+          return;
+        }
+
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        if (!cancelled) {
+          await syncLocation(current.coords.latitude, current.coords.longitude);
+        }
+
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 15000,
+            distanceInterval: 25,
+          },
+          (position) => {
+            if (cancelled) return;
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            syncLocation(lat, lng).catch(() => {});
+          },
+        );
+      } catch {
+        // Non-fatal. Request and tracking fallback still work via sockets when available.
+      }
+    };
+
+    startForegroundLocationSync().catch(() => {});
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+      subscription = null;
+    };
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (!user?.user_id) return;
+
     requestNotificationPermissions().catch(() => {});
 
     let socket: any;
+    let removeSocketConnectListener: (() => void) | null = null;
+    let pendingPollTimer: ReturnType<typeof setInterval> | null = null;
 
     const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
       const rawData = response.notification.request.content.data;
@@ -203,17 +334,46 @@ export default function TabsLayout() {
         return;
       }
 
-      const requestId = parseNotificationRequestId(data);
+      const fallbackRequest = buildFallbackRequestFromNotification(data);
+      if (fallbackRequest) {
+        if (ignoredRequestIdsRef.current.has(fallbackRequest.id)) {
+          return;
+        }
+
+        setActiveRequest((current) => {
+          if (current?.id === fallbackRequest.id) {
+            return current;
+          }
+          return fallbackRequest;
+        });
+      } else {
+        fetchLatestPendingRequest().catch(() => {});
+      }
+
       router.push("/(tabs)/bus-tracking");
-      refreshPendingTrackingRequests(requestId).catch(() => {});
     };
 
     const init = async () => {
       socket = await getSocket();
 
+      const handleSocketConnect = () => {
+        fetchLatestPendingRequest().catch(() => {});
+      };
+
+      socket.on("connect", handleSocketConnect);
+      removeSocketConnectListener = () => {
+        socket.off("connect", handleSocketConnect);
+      };
+
       socket.on("bus_tracking_request", (payload: any) => {
         const trackingState = useBusTrackingStore.getState();
-        const busId = Number(payload?.busId);
+        const busId = parseNumericId(payload?.busId);
+        const expiresAtRaw =
+          typeof payload?.expiresAt === "string" ? payload.expiresAt : null;
+
+        if (busId === null || isRequestExpired(expiresAtRaw)) {
+          return;
+        }
 
         if (
           trackingState.isSharingGps &&
@@ -223,26 +383,64 @@ export default function TabsLayout() {
           return;
         }
 
-        const requestId = Number(payload?.requestId);
-        refreshPendingTrackingRequests(Number.isFinite(requestId) ? requestId : null).catch(
-          () => {},
-        );
+        const requestId = parseNumericId(payload?.requestId);
+        if (requestId === null) {
+          return;
+        }
+
+        if (ignoredRequestIdsRef.current.has(requestId)) {
+          return;
+        }
+
+        const busNumber =
+          typeof payload?.busNumber === "string" ? payload.busNumber : null;
+        const busLabel = formatBusLabel(busId, busNumber);
+
+        const incomingRequest: ITrackingRequestItem = {
+          id: requestId,
+          busId,
+          busNumber,
+          status: "pending",
+          createdAt:
+            typeof payload?.createdAt === "string"
+              ? payload.createdAt
+              : new Date().toISOString(),
+          expiresAt:
+            typeof payload?.expiresAt === "string" ? payload.expiresAt : null,
+          requester: {
+            userId: String(payload?.requester?.userId || ""),
+            name: String(payload?.requester?.name || "A nearby rider"),
+            email: String(payload?.requester?.email || ""),
+          },
+        };
+
+        setActiveRequest((current) => {
+          if (current?.id === incomingRequest.id) {
+            return current;
+          }
+          return incomingRequest;
+        });
 
         sendLocalNotification(
-          `Bus ${payload?.busId} tracking request`,
-          "A nearby rider asked if you are currently on this bus.",
+          `${busLabel} tracking request`,
+          `A nearby rider asked if you are currently on ${busLabel}.`,
           {
             type: "TRACKING_REQUEST",
             requestId: payload?.requestId,
             busId: payload?.busId,
+            busNumber,
+            expiresAt: expiresAtRaw,
           },
           "bus-tracking-requests",
         ).catch(() => {});
       });
 
-      socket.on("tracking_request_responded", () => {
-        refreshPendingTrackingRequests().catch(() => {});
-      });
+      fetchLatestPendingRequest().catch(() => {});
+
+      // Fallback poll keeps pending request modal reliable when a socket event is missed.
+      pendingPollTimer = setInterval(() => {
+        fetchLatestPendingRequest().catch(() => {});
+      }, 12000);
     };
 
     init();
@@ -261,38 +459,16 @@ export default function TabsLayout() {
       .catch(() => {});
 
     return () => {
+      removeSocketConnectListener?.();
+      if (pendingPollTimer) {
+        clearInterval(pendingPollTimer);
+      }
       if (socket) {
         socket.off("bus_tracking_request");
-        socket.off("tracking_request_responded");
       }
       responseSubscription.remove();
     };
-  }, [refreshPendingTrackingRequests, router]);
-
-  const activeRequest = useMemo(() => {
-    if (!pendingRequests.length) {
-      return null;
-    }
-
-    if (shownRequestId) {
-      return pendingRequests.find((request) => request.id === shownRequestId) || null;
-    }
-
-    return pendingRequests[0];
-  }, [pendingRequests, shownRequestId]);
-
-  useEffect(() => {
-    if (!pendingRequests.length) {
-      if (shownRequestId !== null) {
-        setShownRequestId(null);
-      }
-      return;
-    }
-
-    if (!shownRequestId || !pendingRequests.some((request) => request.id === shownRequestId)) {
-      setShownRequestId(pendingRequests[0].id);
-    }
-  }, [pendingRequests, setShownRequestId, shownRequestId]);
+  }, [fetchLatestPendingRequest, router, user?.user_id]);
 
   const respondToRequest = useCallback(
     async (status: "accepted" | "rejected") => {
@@ -300,22 +476,46 @@ export default function TabsLayout() {
         return;
       }
 
-      setIsRespondingRequestId(activeRequest.id);
+      const request = activeRequest;
+      ignoredRequestIdsRef.current.add(request.id);
+      setIsRespondingRequestId(request.id);
+      // Close immediately so the modal does not feel stuck on slow/failed requests.
+      setActiveRequest(null);
 
-      try {
-        await trackingAPI.respondToRequest(activeRequest.id, status);
-        removePendingRequest(activeRequest.id);
-        setShownRequestId(null);
+      if (status === "accepted") {
+        try {
+          await trackingAPI.respondToRequest(request.id, "accepted");
+        } catch (error) {
+          const responseStatus = Number((error as any)?.response?.status);
 
-        if (status === "accepted") {
-          setRequestToStartSharing(activeRequest);
-          router.push("/(tabs)/bus-tracking");
+          if (responseStatus !== 404 && responseStatus !== 410) {
+            console.warn("Failed to pre-accept tracking request:", error);
+          }
         }
 
-        await refreshPendingTrackingRequests();
+        // Let the tracking socket acceptance path atomically accept+start sharing.
+        setRequestToStartSharing(request);
+        router.push("/(tabs)/bus-tracking");
+        setIsRespondingRequestId(null);
+        return;
+      }
+
+      try {
+        await trackingAPI.respondToRequest(request.id, "rejected");
       } catch (error) {
+        const responseStatus = Number((error as any)?.response?.status);
+        const responseMessage =
+          typeof (error as any)?.response?.data?.message === "string"
+            ? (error as any).response.data.message
+            : "Unable to reject this request. Please try again.";
+
+        if (responseStatus !== 404 && responseStatus !== 410) {
+          ignoredRequestIdsRef.current.delete(request.id);
+          setActiveRequest(request);
+        }
+
+        Alert.alert("Tracking Request", responseMessage);
         console.warn("Failed to respond to tracking request:", error);
-        await refreshPendingTrackingRequests(activeRequest.id);
       } finally {
         setIsRespondingRequestId(null);
       }
@@ -323,11 +523,8 @@ export default function TabsLayout() {
     [
       activeRequest,
       isRespondingRequestId,
-      refreshPendingTrackingRequests,
-      removePendingRequest,
       router,
       setRequestToStartSharing,
-      setShownRequestId,
     ],
   );
 
@@ -393,7 +590,7 @@ export default function TabsLayout() {
           options={{
             title: "Bus Track",
             tabBarIcon: ({ focused }) => (
-              <TabIcon focused={focused} iconName="truck" />
+              <TabIcon focused={focused} iconName="map-pin" />
             ),
           }}
         />
@@ -431,7 +628,7 @@ export default function TabsLayout() {
               Bus Tracking Request
             </Text>
             <Text className="mt-3 text-sm" style={{ color: COLORS.onSurfaceMuted }}>
-              {activeRequest?.requester.name} requested live location for Bus {activeRequest?.busId}.
+              {activeRequest?.requester.name} requested live location for {activeRequestBusLabel}.
             </Text>
             <Text className="mt-1 text-xs" style={{ color: COLORS.onSurfaceMuted }}>
               Requester: {activeRequest?.requester.email}

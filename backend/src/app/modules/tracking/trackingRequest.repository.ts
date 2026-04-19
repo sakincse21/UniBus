@@ -44,8 +44,20 @@ class TrackingRequestRepository {
       .where("request.receiverId = :receiverId", { receiverId })
       .andWhere("request.status = :status", { status: TrackingRequestStatus.PENDING })
       .andWhere("(request.expiresAt IS NULL OR request.expiresAt > :now)", { now })
-      .orderBy("request.createdAt", "ASC")
+      .orderBy("request.createdAt", "DESC")
       .getMany();
+  }
+
+  async findByIdForReceiver(
+    id: number,
+    receiverId: string,
+  ): Promise<TrackingRequest | null> {
+    return this.repo
+      .createQueryBuilder("request")
+      .innerJoinAndSelect("request.requester", "requester")
+      .where("request.id = :id", { id })
+      .andWhere("request.receiverId = :receiverId", { receiverId })
+      .getOne();
   }
 
   async findPendingByIdForReceiver(

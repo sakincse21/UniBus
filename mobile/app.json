@@ -1,7 +1,7 @@
 {
   "expo": {
     "owner": "saleheen007",
-    "name": "UniBus Mobile",
+    "name": "TrackU Mobile",
     "slug": "unibus-mobile-2024-1",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.unibus.mobile.sakin",
+      "bundleIdentifier": "com.tracku.mobile.sakin",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
@@ -32,7 +32,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.unibus.mobile.sakin",
+      "package": "com.tracku.mobile.sakin",
       "enableBackgroundHttp": true,
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
@@ -50,7 +50,7 @@
         "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
-    "scheme": "unibus",
+    "scheme": "tracku",
     "web": {
       "bundler": "metro",
       "output": "static",
@@ -61,8 +61,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow UniBus to access your photos to upload routine images.",
-          "cameraPermission": "Allow UniBus to use the camera to take photos of your routine."
+          "photosPermission": "Allow TrackU to access your photos to upload routine images.",
+          "cameraPermission": "Allow TrackU to use the camera to take photos of your routine."
         }
       ],
       [
@@ -75,8 +75,8 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow UniBus to access your location to show your bus and nearby riders.",
-          "locationAlwaysAndWhenInUsePermission": "Allow UniBus to access your location in the background to notify nearby riders.",
+          "locationWhenInUsePermission": "Allow TrackU to access your location to show your bus and nearby riders.",
+          "locationAlwaysAndWhenInUsePermission": "Allow TrackU to access your location in the background to notify nearby riders.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true,
           "isIosBackgroundLocationEnabled": true
@@ -85,7 +85,7 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Allow UniBus to create routine events in your calendar."
+          "calendarPermission": "Allow TrackU to create routine events in your calendar."
         }
       ],
       "@maplibre/maplibre-react-native"

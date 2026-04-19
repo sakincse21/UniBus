@@ -46,6 +46,13 @@ const EVENT_META: Record<string, EventMeta> = {
     surface: "#EDF8F1",
     border: "#A7D8BF",
   },
+  public: {
+    label: "Public",
+    icon: "people-outline",
+    accent: "#B45309",
+    surface: "#FFF7ED",
+    border: "#FCD9AC",
+  },
   routine: {
     label: "Routine",
     icon: "calendar-outline",
@@ -108,11 +115,12 @@ export const EventCard: React.FC<EventCardProps> = ({
     }
   };
 
-  const shouldShowDelete = event.type === "personal" || event.metadata?.canDelete;
+  const shouldShowDelete = event.type === "personal" || Boolean(event.metadata?.canDelete);
   const meta = getEventMeta(event.type);
 
   const getMetadataDisplay = () => {
     const parts: string[] = [];
+    if (event.type === "public") parts.push("Visible to all roles");
     if (event.metadata?.forAll) parts.push("For all");
     if (event.metadata?.forTeachers) parts.push("For teachers");
     if (event.metadata?.batchName) parts.push(`Batch ${event.metadata.batchName}`);

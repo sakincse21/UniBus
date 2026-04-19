@@ -1,17 +1,19 @@
 import { Request, Response } from "express";
 import tryCatch from "../../utils/tryCatch";
-import { estimateBusLocation } from "./tracking.service";
+import { estimateBusLocation, getScheduleEndTime } from "./tracking.service";
 import { AppDataSource } from "../../db/data-source";
 import { UserLocation } from "../location/userLocation.entity";
 import { haversine } from "../../utils/haversine";
 import { RoutePoint } from "../route/routePoint.entity";
 import { AppError } from "../../errors/AppError";
 import { BusSchedule } from "../schedule/busSchedule.entity";
+import { Bus } from "../bus/bus.entity";
 import { LiveTrackingSession } from "./liveTrackingSession.entity";
 import { EstimatedBusLocation } from "./estimatedBusLocation.entity";
 import { User } from "../user/user.entity";
 import { TrackingRequestService } from "./trackingRequest.service";
 import { TrackingRequestStatus } from "./trackingRequest.entity";
+import { In } from "typeorm";
 
 const trackingUserSelect: (keyof User)[] = [
   "user_id",
@@ -19,6 +21,73 @@ const trackingUserSelect: (keyof User)[] = [
   "email",
   "pushToken",
 ];
+
+const NEARBY_RADIUS_METERS = 500;
+
+type SocketLikeWithUser = {
+  user?: {
+    userId?: string;
+  };
+};
+
+type SocketServerLike = {
+  sockets?: {
+    adapter?: {
+      rooms?: Map<string, Set<string>>;
+    };
+    sockets?: Map<string, SocketLikeWithUser>;
+  };
+};
+
+function collectOnlineUserIds(io: unknown, requesterId: string): string[] {
+  const server = io as SocketServerLike | null;
+  const socketMap = server?.sockets?.sockets;
+
+  if (!socketMap) {
+    return [];
+  }
+
+  const userIds = new Set<string>();
+
+  socketMap.forEach((connectedSocket) => {
+    const userId = connectedSocket?.user?.userId;
+    if (typeof userId === "string" && userId && userId !== requesterId) {
+      userIds.add(userId);
+    }
+  });
+
+  return [...userIds];
+}
+
+function collectRoomUserIds(
+  io: unknown,
+  rooms: string[],
+  requesterId: string,
+): string[] {
+  const server = io as SocketServerLike | null;
+  const roomMap = server?.sockets?.adapter?.rooms;
+  const socketMap = server?.sockets?.sockets;
+
+  if (!roomMap || !socketMap) {
+    return [];
+  }
+
+  const userIds = new Set<string>();
+
+  rooms.forEach((room) => {
+    const socketIds = roomMap.get(room);
+    if (!socketIds) return;
+
+    socketIds.forEach((socketId) => {
+      const userId = socketMap.get(socketId)?.user?.userId;
+      if (typeof userId === "string" && userId && userId !== requesterId) {
+        userIds.add(userId);
+      }
+    });
+  });
+
+  return [...userIds];
+}
 
 function resolveBusId(req: Request): number {
   const bodyBusId = Number(req.body?.busId);
@@ -41,11 +110,12 @@ async function getRoutePointsForBus(busId: number): Promise<{
   routeId: number | null;
   startTime: string | null;
   endTime: string | null;
+  busNumber: string | null;
 }> {
   const scheduleRepo = AppDataSource.getRepository(BusSchedule);
   const schedule = await scheduleRepo.findOne({
     where: { bus: { id: busId } },
-    relations: ["route"],
+    relations: ["route", "bus"],
   });
 
   let points: RoutePoint[] = [];
@@ -62,6 +132,7 @@ async function getRoutePointsForBus(busId: number): Promise<{
     routeId: schedule?.route?.id || null,
     startTime: schedule?.startTime || null,
     endTime: schedule?.endTime || null,
+    busNumber: schedule?.bus?.busNumber || null,
   };
 }
 
@@ -70,22 +141,23 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
   const io = req.app.get("io");
 
   const estimate = await estimateBusLocation(busId, new Date());
-  const { points, routeId, startTime, endTime } = await getRoutePointsForBus(busId);
+  const { points, routeId, startTime, endTime, busNumber } = await getRoutePointsForBus(busId);
 
-  if (!("lat" in estimate)) {
-    return res.json({
-      success: true,
-      estimate,
-      points,
-      routeId,
-      isLive: false,
-      notifiedUsers: 0,
-      pushNotifiedUsers: 0,
-      requestIds: [],
-      startTime,
-      endTime,
-    });
+  let scheduleEndsAt: Date | null = null;
+  try {
+    scheduleEndsAt = await getScheduleEndTime(busId);
+  } catch {
+    scheduleEndsAt = null;
   }
+
+  const resolvedBusNumber = busNumber
+    ? busNumber
+    : (
+        await AppDataSource.getRepository(Bus).findOne({
+          where: { id: busId },
+          select: ["id", "busNumber"],
+        })
+      )?.busNumber || null;
 
   const sessionRepo = AppDataSource.getRepository(LiveTrackingSession);
   const activeSession = await sessionRepo.findOne({
@@ -103,6 +175,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
         : estimate,
       points,
       routeId,
+      busNumber: resolvedBusNumber,
       notifiedUsers: 0,
       pushNotifiedUsers: 0,
       requestIds: [],
@@ -112,21 +185,60 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     });
   }
 
+  const userRepo = AppDataSource.getRepository(User);
+
   const userLocRepo = AppDataSource.getRepository(UserLocation);
   const locations = await userLocRepo.find({ relations: ["user"] });
 
-  const radiusUsers = locations.filter((u) => {
-    if (!u.user) return false;
-    const d = haversine(estimate.lat as number, estimate.lng as number, u.lat, u.lng);
-    return d <= 500;
-  });
+  const requesterLocation = locations.find(
+    (entry) => entry.user?.user_id === req.user.userId,
+  );
 
-  const nearbyUsers = radiusUsers
-    .map((entry) => entry.user)
-    .filter((user): user is User => {
-      return Boolean(user && user.user_id && user.user_id !== req.user.userId);
-    });
-  const userRepo = AppDataSource.getRepository(User);
+  const proximityTarget =
+    "lat" in estimate &&
+    typeof estimate.lat === "number" &&
+    typeof estimate.lng === "number"
+      ? { lat: estimate.lat, lng: estimate.lng }
+      : requesterLocation
+        ? { lat: requesterLocation.lat, lng: requesterLocation.lng }
+        : null;
+
+  const nearbyUserIds = proximityTarget
+    ? locations
+        .filter((entry) => {
+          if (!entry.user?.user_id) return false;
+          const distance = haversine(
+            proximityTarget.lat,
+            proximityTarget.lng,
+            entry.lat,
+            entry.lng,
+          );
+          return distance <= NEARBY_RADIUS_METERS;
+        })
+        .map((entry) => entry.user.user_id)
+        .filter((userId) => userId !== req.user.userId)
+    : [];
+
+  const routeRooms = [
+    routeId ? `route:${routeId}` : null,
+    `bus:${busId}`,
+  ].filter((room): room is string => Boolean(room));
+
+  const routeRoomUserIds = collectRoomUserIds(io, routeRooms, req.user.userId);
+
+  const onlineFallbackUserIds = collectOnlineUserIds(io, req.user.userId);
+
+  const targetedReceiverIds = [...new Set([...nearbyUserIds, ...routeRoomUserIds])];
+  const receiverIds =
+    targetedReceiverIds.length > 0 ? targetedReceiverIds : onlineFallbackUserIds;
+
+  const receivers = receiverIds.length
+    ? await userRepo.find({
+        where: { user_id: In(receiverIds) },
+        select: trackingUserSelect,
+      })
+    : [];
+
   const requester = await userRepo.findOne({
     where: { user_id: req.user.userId },
     select: trackingUserSelect,
@@ -136,18 +248,27 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     throw new AppError("Requester not found", 404);
   }
 
+  const estimatePayload =
+    "lat" in estimate &&
+    typeof estimate.lat === "number" &&
+    typeof estimate.lng === "number"
+      ? {
+          lat: estimate.lat,
+          lng: estimate.lng,
+          confidence: estimate.confidence,
+        }
+      : undefined;
+
   const requestResult = await TrackingRequestService.createRequestsAndNotify({
     requesterId: requester.user_id,
     requesterName: requester.name,
     requesterEmail: requester.email,
     busId,
+    busNumber: resolvedBusNumber,
     routeId,
-    estimate: {
-      lat: estimate.lat,
-      lng: estimate.lng,
-      confidence: estimate.confidence,
-    },
-    receivers: nearbyUsers,
+    scheduleEndsAt,
+    estimate: estimatePayload,
+    receivers,
     io,
   });
 
@@ -156,6 +277,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
     estimate,
     points,
     routeId,
+    busNumber: resolvedBusNumber,
     notifiedUsers: requestResult.notifiedUsers,
     pushNotifiedUsers: requestResult.pushNotifiedUsers,
     requestIds: requestResult.requestIds,

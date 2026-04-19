@@ -3,10 +3,11 @@ import Constants from "expo-constants";
 import { Alert, Platform } from "react-native";
 
 let channelsInitialized = false;
+let pushTokenRegistrationBlocked = false;
+let pushTokenBlockReason: string | null = null;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
     shouldShowBanner: true,
@@ -110,6 +111,10 @@ export async function requestNotificationPermissions(
 }
 
 export async function initializePushNotifications(): Promise<string | null> {
+  if (pushTokenRegistrationBlocked) {
+    return null;
+  }
+
   const granted = await requestNotificationPermissions(false);
   if (!granted) {
     return null;
@@ -125,10 +130,35 @@ export async function initializePushNotifications(): Promise<string | null> {
     const token = await Notifications.getExpoPushTokenAsync({ projectId });
     return token.data;
   } catch (error) {
-    // Expo Go on Android cannot provide push tokens in SDK 53+, so fail gracefully.
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : JSON.stringify(error);
+
+    // In development builds this usually means Firebase Cloud Messaging is not configured yet.
+    if (/complete the guide|firebase|fcm/i.test(message)) {
+      pushTokenRegistrationBlocked = true;
+      pushTokenBlockReason = message;
+      console.warn(
+        "Push token registration blocked until Android FCM is configured:",
+        message,
+      );
+      return null;
+    }
+
     console.warn("Failed to get Expo push token:", error);
     return null;
   }
+}
+
+export function isPushTokenRegistrationBlocked(): boolean {
+  return pushTokenRegistrationBlocked;
+}
+
+export function getPushTokenBlockReason(): string | null {
+  return pushTokenBlockReason;
 }
 
 export async function scheduleNotification(

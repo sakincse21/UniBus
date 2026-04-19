@@ -4,14 +4,14 @@ import { CalendarController } from "./calendar.controller";
 
 const router = Router();
 
-// Calendar events (aggregated: notices + routines + personal fixtures)
+// Calendar events (aggregated: notices + routines + fixtures)
 router.get(
   "/events",
   authValidate,
   CalendarController.getCalendarEventsHandler,
 );
 
-// Personal fixtures (CRUD)
+// Fixtures (owner CRUD, with optional public visibility)
 router.post("/fixtures", authValidate, CalendarController.createPersonalFixture);
 router.get(
   "/fixtures",

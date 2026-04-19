@@ -39,6 +39,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isAllDay, setIsAllDay] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate || new Date());
   const [startTime, setStartTime] = useState<Date>(() => {
     const date = new Date();
@@ -65,6 +66,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     setTitle("");
     setDescription("");
     setIsAllDay(false);
+    setIsPublic(false);
     setSelectedDate(initialDate || new Date());
 
     const defaultStart = new Date();
@@ -100,6 +102,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         title: title.trim(),
         description: description.trim(),
         isAllDay,
+        isPublic,
         startDateTime,
         endDateTime,
       });
@@ -143,7 +146,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     Create Event
                   </Text>
                   <Text className="text-sm" style={{ color: COLORS.onSurfaceMuted }}>
-                    Add a personal calendar entry
+                    Add a personal or public calendar entry
                   </Text>
                 </View>
               </View>
@@ -211,6 +214,28 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     disabled={isLoading}
                     trackColor={{ false: "#CFCFDA", true: "#9FC1FF" }}
                     thumbColor={isAllDay ? COLORS.primary : "#F8F8FC"}
+                  />
+                </View>
+
+                <View
+                  className="flex-row justify-between items-center rounded-lg px-3 py-3"
+                  style={{ backgroundColor: COLORS.surfaceLow, borderWidth: 1, borderColor: COLORS.outline }}
+                >
+                  <View>
+                    <Text className="text-sm font-semibold" style={{ color: COLORS.onSurface }}>
+                      Public Event
+                    </Text>
+                    <Text className="text-xs mt-0.5" style={{ color: COLORS.onSurfaceMuted }}>
+                      Visible to all roles in calendar
+                    </Text>
+                  </View>
+
+                  <Switch
+                    value={isPublic}
+                    onValueChange={setIsPublic}
+                    disabled={isLoading}
+                    trackColor={{ false: "#CFCFDA", true: "#9FC1FF" }}
+                    thumbColor={isPublic ? COLORS.primary : "#F8F8FC"}
                   />
                 </View>
 

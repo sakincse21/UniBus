@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 import config from "@/lib/config";
 import storage from "@/lib/storage";
 
-export const BACKGROUND_LOCATION_TASK_NAME = "unibus-background-location";
+export const BACKGROUND_LOCATION_TASK_NAME = "tracku-background-location";
 
 async function postLocationUpdate(lat: number, lng: number): Promise<void> {
   const token = await storage.getToken();
@@ -109,7 +109,7 @@ export async function startBackgroundLocationTracking(): Promise<boolean> {
 
     if (Platform.OS === "android") {
       options.foregroundService = {
-        notificationTitle: "UniBus location service is active",
+        notificationTitle: "TrackU location service is active",
         notificationBody:
           "Updating location in the background to ensure you never miss alerts.",
         notificationColor: "#2563eb",

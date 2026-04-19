@@ -47,6 +47,13 @@ export default function ForumTab() {
   const [postContent, setPostContent] = useState("");
   const [isCreatingPost, setIsCreatingPost] = useState(false);
 
+  const [editPostVisible, setEditPostVisible] = useState(false);
+  const [editingPost, setEditingPost] = useState<IForumPost | null>(null);
+  const [editPostTitle, setEditPostTitle] = useState("");
+  const [editPostContent, setEditPostContent] = useState("");
+  const [isUpdatingPost, setIsUpdatingPost] = useState(false);
+  const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
+
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<IForumPost | null>(null);
   const [comments, setComments] = useState<IForumComment[]>([]);
@@ -94,6 +101,11 @@ export default function ForumTab() {
     setActiveSearch(searchInput.trim());
   };
 
+  const isOwnPost = useCallback(
+    (post: IForumPost) => Boolean(user?.user_id && post.author?.user_id === user.user_id),
+    [user?.user_id],
+  );
+
   const resetCreatePostForm = () => {
     setPostTitle("");
     setPostContent("");
@@ -103,6 +115,29 @@ export default function ForumTab() {
   const closeCreatePostModal = () => {
     setCreatePostVisible(false);
     resetCreatePostForm();
+  };
+
+  const resetEditPostForm = () => {
+    setEditingPost(null);
+    setEditPostTitle("");
+    setEditPostContent("");
+    setIsUpdatingPost(false);
+  };
+
+  const closeEditPostModal = () => {
+    if (isUpdatingPost) {
+      return;
+    }
+
+    setEditPostVisible(false);
+    resetEditPostForm();
+  };
+
+  const openEditPostModal = (post: IForumPost) => {
+    setEditingPost(post);
+    setEditPostTitle(post.title);
+    setEditPostContent(post.content);
+    setEditPostVisible(true);
   };
 
   const handleCreatePost = async () => {
@@ -143,6 +178,120 @@ export default function ForumTab() {
       }
       setIsCreatingPost(false);
     }
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editingPost) {
+      return;
+    }
+
+    const title = editPostTitle.trim();
+    const content = editPostContent.trim();
+
+    if (!title) {
+      Alert.alert("Title Required", "Please enter a title for your post.");
+      return;
+    }
+
+    if (!content) {
+      Alert.alert("Content Required", "Please write some content for your post.");
+      return;
+    }
+
+    if (title.length > 180) {
+      Alert.alert("Too Long", "Post title must be 180 characters or fewer.");
+      return;
+    }
+
+    if (content.length > 5000) {
+      Alert.alert("Too Long", "Post content must be 5000 characters or fewer.");
+      return;
+    }
+
+    setIsUpdatingPost(true);
+
+    try {
+      const response = await forumAPI.updatePost(editingPost.id, { title, content });
+      const updated = (response.data?.data as IForumPost | undefined) || {
+        ...editingPost,
+        title,
+        content,
+      };
+
+      setPosts((prev) =>
+        prev.map((item) =>
+          item.id === editingPost.id
+            ? {
+                ...item,
+                title: updated.title,
+                content: updated.content,
+                updatedAt: updated.updatedAt || new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
+
+      setSelectedPost((prev) =>
+        prev && prev.id === editingPost.id
+          ? {
+              ...prev,
+              title: updated.title,
+              content: updated.content,
+              updatedAt: updated.updatedAt || new Date().toISOString(),
+            }
+          : prev,
+      );
+
+      setEditPostVisible(false);
+      resetEditPostForm();
+    } catch (error) {
+      const fallback = "Failed to update post.";
+      if (axios.isAxiosError(error)) {
+        Alert.alert("Update Failed", error.response?.data?.message || fallback);
+      } else {
+        Alert.alert("Update Failed", fallback);
+      }
+    } finally {
+      setIsUpdatingPost(false);
+    }
+  };
+
+  const handleDeletePost = (post: IForumPost) => {
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          setDeletingPostId(post.id);
+
+          try {
+            await forumAPI.deletePost(post.id);
+            setPosts((prev) => prev.filter((item) => item.id !== post.id));
+
+            if (selectedPost?.id === post.id) {
+              closeCommentsModal();
+            }
+
+            if (activeSearch) {
+              await loadPosts(activeSearch);
+            }
+          } catch (error) {
+            const fallback = "Failed to delete post.";
+            if (axios.isAxiosError(error)) {
+              Alert.alert("Delete Failed", error.response?.data?.message || fallback);
+            } else {
+              Alert.alert("Delete Failed", fallback);
+            }
+          } finally {
+            setDeletingPostId(null);
+          }
+        },
+      },
+    ]);
   };
 
   const closeCommentsModal = () => {
@@ -393,7 +542,7 @@ export default function ForumTab() {
                 {post.content}
               </Text>
 
-              <View className="mt-4 flex-row">
+              <View className="mt-4 flex-row items-center" style={{ gap: 8, flexWrap: "wrap" }}>
                 <TouchableOpacity
                   onPress={() => handleOpenComments(post)}
                   activeOpacity={0.86}
@@ -409,6 +558,44 @@ export default function ForumTab() {
                     Comments ({post.commentCount || 0})
                   </Text>
                 </TouchableOpacity>
+
+                {isOwnPost(post) ? (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => openEditPostModal(post)}
+                      activeOpacity={0.86}
+                      className="rounded-lg px-3 py-2 flex-row items-center"
+                      style={{
+                        backgroundColor: COLORS.surfaceLow,
+                        borderWidth: 1,
+                        borderColor: COLORS.outline,
+                      }}
+                    >
+                      <Feather name="edit-2" size={14} color={COLORS.onSurface} />
+                      <Text className="ml-2 text-sm font-semibold" style={{ color: COLORS.onSurface }}>
+                        Edit
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => handleDeletePost(post)}
+                      disabled={deletingPostId === post.id}
+                      activeOpacity={0.86}
+                      className="rounded-lg px-3 py-2 flex-row items-center"
+                      style={{
+                        backgroundColor: COLORS.dangerSoft,
+                        borderWidth: 1,
+                        borderColor: COLORS.danger,
+                        opacity: deletingPostId === post.id ? 0.7 : 1,
+                      }}
+                    >
+                      <Feather name="trash-2" size={14} color={COLORS.danger} />
+                      <Text className="ml-2 text-sm font-semibold" style={{ color: COLORS.danger }}>
+                        {deletingPostId === post.id ? "Deleting..." : "Delete"}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : null}
               </View>
             </View>
           ))
@@ -552,6 +739,124 @@ export default function ForumTab() {
                 ) : (
                   <Text className="text-sm font-bold" style={{ color: "#FFFFFF" }}>
                     Post
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={editPostVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeEditPostModal}
+      >
+        <View
+          className="flex-1 items-center justify-center px-5"
+          style={{ backgroundColor: "rgba(0,0,0,0.28)" }}
+        >
+          <View
+            className="w-full rounded-xl p-4"
+            style={{
+              backgroundColor: COLORS.surface,
+              borderWidth: 1,
+              borderColor: COLORS.outline,
+              maxWidth: 430,
+            }}
+          >
+            <Text className="text-xl font-extrabold" style={{ color: COLORS.onSurface }}>
+              Edit Post
+            </Text>
+            <Text className="text-sm mt-1" style={{ color: COLORS.onSurfaceMuted }}>
+              Update your forum post.
+            </Text>
+
+            <View className="mt-4">
+              <Text className="text-sm font-semibold mb-1.5" style={{ color: COLORS.onSurface }}>
+                Title
+              </Text>
+              <TextInput
+                value={editPostTitle}
+                onChangeText={setEditPostTitle}
+                editable={!isUpdatingPost}
+                placeholder="Post title"
+                placeholderTextColor={COLORS.onSurfaceMuted}
+                style={{
+                  minHeight: 44,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: COLORS.outline,
+                  backgroundColor: COLORS.surfaceLow,
+                  color: COLORS.onSurface,
+                  fontSize: 15,
+                  fontWeight: "500",
+                }}
+              />
+            </View>
+
+            <View className="mt-3">
+              <Text className="text-sm font-semibold mb-1.5" style={{ color: COLORS.onSurface }}>
+                Content
+              </Text>
+              <TextInput
+                value={editPostContent}
+                onChangeText={setEditPostContent}
+                editable={!isUpdatingPost}
+                multiline
+                textAlignVertical="top"
+                placeholder="Write your post"
+                placeholderTextColor={COLORS.onSurfaceMuted}
+                style={{
+                  minHeight: 116,
+                  paddingHorizontal: 12,
+                  paddingTop: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: COLORS.outline,
+                  backgroundColor: COLORS.surfaceLow,
+                  color: COLORS.onSurface,
+                  fontSize: 15,
+                  fontWeight: "500",
+                }}
+              />
+            </View>
+
+            <View className="flex-row mt-5" style={{ gap: 8 }}>
+              <TouchableOpacity
+                onPress={closeEditPostModal}
+                disabled={isUpdatingPost}
+                activeOpacity={0.86}
+                className="flex-1 min-h-[42px] rounded-lg items-center justify-center"
+                style={{
+                  backgroundColor: COLORS.surfaceLow,
+                  borderWidth: 1,
+                  borderColor: COLORS.outline,
+                }}
+              >
+                <Text className="text-sm font-bold" style={{ color: COLORS.onSurfaceMuted }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleUpdatePost}
+                disabled={isUpdatingPost}
+                activeOpacity={0.86}
+                className="flex-1 min-h-[42px] rounded-lg items-center justify-center"
+                style={{
+                  backgroundColor: COLORS.primary,
+                  borderWidth: 1,
+                  borderColor: COLORS.primary,
+                }}
+              >
+                {isUpdatingPost ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text className="text-sm font-bold" style={{ color: "#FFFFFF" }}>
+                    Save
                   </Text>
                 )}
               </TouchableOpacity>

@@ -7,7 +7,7 @@ import { parseLocalDate, parseLocalDateTime } from "../../utils/dateUtils";
 
 export interface CalendarEvent {
   id: string;
-  type: "notice" | "routine" | "personal";
+  type: "notice" | "routine" | "personal" | "public";
   title: string;
   description?: string;
   startDateTime: Date;
@@ -40,7 +40,7 @@ export interface CalendarEvent {
 
 /**
  * Get calendar events for next N days based on user role and batch
- * Aggregates: notices with eventDate + expanded routines + personal fixtures
+ * Aggregates: notices with eventDate + expanded routines + fixtures
  */
 export async function getCalendarEvents(
   userId: string,
@@ -82,11 +82,11 @@ export async function getCalendarEvents(
   events.push(...noticeEvents);
 
   // 2. Fetch and expand routines to daily entries (role-filtered)
-  const routineEvents = await getRoutineEvents(user, now, endDate);
+  const routineEvents = await getRoutineEvents(user, startDate, endDate);
   events.push(...routineEvents);
 
-  // 3. Fetch personal fixtures
-  const fixtureEvents = await getPersonalFixtureEvents(user, now, endDate);
+  // 3. Fetch fixtures (owner personal fixtures + all public fixtures)
+  const fixtureEvents = await getFixtureEvents(user, startDate, endDate);
   events.push(...fixtureEvents);
 
   // Sort by start date
@@ -362,41 +362,49 @@ function expandRoutinesToCalendarEvents(
 }
 
 /**
- * Get personal fixture events for user
+ * Get fixture events visible to user:
+ * - Personal fixtures created by the user
+ * - Public fixtures created by any user
  */
-async function getPersonalFixtureEvents(
+async function getFixtureEvents(
   user: User,
   startDate: Date,
   endDate: Date,
 ): Promise<CalendarEvent[]> {
   const fixtureRepo = AppDataSource.getRepository(UserFixture);
 
-  const fixtures = await fixtureRepo.find({
-    where: {
-      user: { user_id: user.user_id },
-    },
-  });
+  const fixtures = await fixtureRepo
+    .createQueryBuilder("fixture")
+    .leftJoinAndSelect("fixture.user", "user")
+    .where("(user.user_id = :userId OR fixture.isPublic = :isPublic)", {
+      userId: user.user_id,
+      isPublic: true,
+    })
+    .andWhere("fixture.startDateTime >= :startDate", { startDate })
+    .andWhere("fixture.startDateTime <= :endDate", { endDate })
+    .orderBy("fixture.startDateTime", "ASC")
+    .getMany();
 
-  return fixtures
-    .filter(
-      (f) =>
-        new Date(f.startDateTime) >= startDate &&
-        new Date(f.startDateTime) <= endDate,
-    )
-    .map((fixture) => {
+  return fixtures.map((fixture) => {
+      const isOwner = fixture.user?.user_id === user.user_id;
+      const isPublicFixture = !!fixture.isPublic;
       const minutesBefore = 15;
       const startDateTime = new Date(fixture.startDateTime);
       const notificationTime = new Date(startDateTime.getTime() - minutesBefore * 60000);
       
       return {
         id: `fixture-${fixture.id}`,
-        type: "personal",
+        type: isPublicFixture ? "public" : "personal",
         title: fixture.title,
         description: fixture.description,
         startDateTime,
         endDateTime: new Date(fixture.endDateTime),
         isAllDay: fixture.isAllDay,
         source: { fixtureId: fixture.id },
+        metadata: {
+          canDelete: isOwner,
+          createdBy: isPublicFixture ? fixture.user?.name : undefined,
+        },
         reminder: {
           enabled: !fixture.isAllDay,
           minutesBefore,

@@ -122,7 +122,7 @@ Output example:
         "Content-Type": "application/json",
         Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
         "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "UniBus",
+        "X-Title": "TrackU",
       },
       body: JSON.stringify({
         model: MODEL,

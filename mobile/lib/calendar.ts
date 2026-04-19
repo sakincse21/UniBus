@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ICalendarEvent, IRoutineSlot, INotice } from "@/interfaces";
 import { parseApiDate } from "@/lib/dateFormatter";
 
-const MANUAL_SYNC_MAP_KEY = "@unibus_manual_calendar_sync_map_v1";
+const MANUAL_SYNC_MAP_KEY = "@tracku_manual_calendar_sync_map_v1";
 
 let defaultCalendarId: string | null = null;
 
@@ -132,13 +132,13 @@ const getDefaultCalendar = async (): Promise<string | null> => {
     const source = calendars.find((cal) => cal.source?.id)?.source;
     if (source?.id) {
       const newCalendarId = await Calendar.createCalendarAsync({
-        title: "UniBus",
+        title: "TrackU",
         color: "#2563eb",
         entityType: Calendar.EntityTypes.EVENT,
         sourceId: source.id,
         source,
-        name: "unibus",
-        ownerAccount: source.name || "unibus",
+        name: "tracku",
+        ownerAccount: source.name || "tracku",
         accessLevel: Calendar.CalendarAccessLevel.OWNER,
       });
 
@@ -314,7 +314,7 @@ export const toggleNoticeInCalendar = async (
   }
 };
 
-const ROUTINE_SYNC_MAP_KEY = "@unibus_routine_calendar_sync_v1";
+const ROUTINE_SYNC_MAP_KEY = "@tracku_routine_calendar_sync_v1";
 
 export const clearSyncedRoutinesFromCalendar = async (): Promise<void> => {
   try {

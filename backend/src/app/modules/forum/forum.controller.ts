@@ -158,6 +158,45 @@ const createForumPost = tryCatch(async (req: Request, res: Response) => {
   });
 });
 
+const updateForumPost = tryCatch(async (req: Request, res: Response) => {
+  const actor = await getForumActor(req);
+  const postId = Number(req.params.postId);
+  const title = String(req.body.title || "").trim();
+  const content = String(req.body.content || "").trim();
+
+  if (!Number.isFinite(postId) || postId <= 0) return res.status(400).json({ message: "Invalid post id" });
+  
+  if (!title || !content) return res.status(400).json({ message: "Title and content required" });
+
+  const postRepo = AppDataSource.getRepository(ForumPost);
+  const post = await postRepo.findOne({ where: { id: postId }, relations: ["author", "batch"] });
+  if (!post) return res.status(404).json({ message: "Post not found" });
+
+  if (post.author.user_id !== actor.user_id) return res.status(403).json({ message: "You can only edit your own posts" });
+
+  post.title = title;
+  post.content = content;
+  await postRepo.save(post);
+
+  res.json({ success: true, data: post });
+});
+
+const deleteForumPost = tryCatch(async (req: Request, res: Response) => {
+  const actor = await getForumActor(req);
+  const postId = Number(req.params.postId);
+
+  if (!Number.isFinite(postId) || postId <= 0) return res.status(400).json({ message: "Invalid post id" });
+
+  const postRepo = AppDataSource.getRepository(ForumPost);
+  const post = await postRepo.findOne({ where: { id: postId }, relations: ["author"] });
+  
+  if (!post) return res.status(404).json({ message: "Post not found" });
+  if (post.author.user_id !== actor.user_id) return res.status(403).json({ message: "You can only delete your own posts" });
+
+  await postRepo.remove(post);
+  res.json({ success: true, message: "Post deleted" });
+});
+
 const getForumComments = tryCatch(async (req: Request, res: Response) => {
   const actor = await getForumActor(req);
   const postId = Number(req.params.postId);
@@ -241,10 +280,52 @@ const createForumComment = tryCatch(async (req: Request, res: Response) => {
   });
 });
 
+const updateForumComment = tryCatch(async (req: Request, res: Response) => {
+  const actor = await getForumActor(req);
+  const commentId = Number(req.params.commentId);
+  const content = String(req.body.content || "").trim();
+
+  if (!Number.isFinite(commentId)) return res.status(400).json({ message: "Invalid comment id" });
+  if (!content) return res.status(400).json({ message: "Comment content required" });
+
+  const commentRepo = AppDataSource.getRepository(ForumComment);
+  const comment = await commentRepo.findOne({ where: { id: commentId }, relations: ["author"] });
+
+  if (!comment) return res.status(404).json({ message: "Comment not found" });
+  if (comment.author.user_id !== actor.user_id) return res.status(403).json({ message: "You can only edit your own comment" });
+
+  comment.content = content;
+  await commentRepo.save(comment);
+
+  res.json({ success: true, data: comment });
+});
+
+const deleteForumComment = tryCatch(async (req: Request, res: Response) => {
+  const actor = await getForumActor(req);
+  const commentId = Number(req.params.commentId);
+
+  if (!Number.isFinite(commentId)) return res.status(400).json({ message: "Invalid comment id" });
+
+  const commentRepo = AppDataSource.getRepository(ForumComment);
+  const comment = await commentRepo.findOne({ where: { id: commentId }, relations: ["author"] });
+
+  if (!comment) return res.status(404).json({ message: "Comment not found" });
+  if (comment.author.user_id !== actor.user_id) return res.status(403).json({ message: "You can only delete your own comment" });
+
+  await commentRepo.remove(comment);
+  
+  res.json({ success: true, message: "Comment deleted" });
+});
+
+
 export const ForumController = {
   getForumPosts,
   getForumPostById,
   createForumPost,
+  updateForumPost,
+  deleteForumPost,
   getForumComments,
   createForumComment,
+  updateForumComment,
+  deleteForumComment
 };

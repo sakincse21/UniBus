@@ -16,7 +16,7 @@ export const env = {
   SMTP_PORT: Number(process.env.SMTP_PORT || 587),
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
-  SMTP_FROM: process.env.SMTP_FROM || "noreply@unibus.com",
+  SMTP_FROM: process.env.SMTP_FROM || "noreply@tracku.com",
   EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || "",
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "nvidia/nemotron-nano-12b-v2-vl:free",
   OLLAMA_URL: process.env.OLLAMA_URL || "http://localhost:11434/api/generate",

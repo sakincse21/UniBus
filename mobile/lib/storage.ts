@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORAGE_KEYS = {
-  TOKEN: "@unibus_token",
-  USER: "@unibus_user",
+  TOKEN: "@tracku_token",
+  USER: "@tracku_user",
   AUTH_STATE: "auth-storage",
 };
 

@@ -2,11 +2,19 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MessageSquare, Plus, Search } from "lucide-react";
+import { MessageSquare, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/components/RoleProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Pagination,
@@ -17,7 +25,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { fetchForumPosts } from "@/lib/action/forum";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  deleteForumPost,
+  fetchForumPosts,
+  fetchForumViewerId,
+  updateForumPost,
+} from "@/lib/action/forum";
 import { formatBangladesh } from "@/lib/dateTime";
 import { IForumPaginationMeta, IForumPost } from "@/lib/interfaces";
 
@@ -76,6 +90,13 @@ export default function ForumPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [meta, setMeta] = useState<IForumPaginationMeta>(EMPTY_META);
   const [loading, setLoading] = useState(true);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+
+  const [editingPost, setEditingPost] = useState<IForumPost | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
 
   const loadPosts = useCallback(async (page: number, search: string) => {
     setLoading(true);
@@ -107,6 +128,17 @@ export default function ForumPage() {
     loadPosts(currentPage, activeSearch);
   }, [activeSearch, currentPage, isForumAllowed, loadPosts]);
 
+  useEffect(() => {
+    if (!isForumAllowed) {
+      setViewerId(null);
+      return;
+    }
+
+    fetchForumViewerId()
+      .then((id) => setViewerId(id))
+      .catch(() => setViewerId(null));
+  }, [isForumAllowed]);
+
   const hasPosts = useMemo(() => posts.length > 0, [posts]);
   const pageTokens = useMemo(
     () => getPageTokens(currentPage, Math.max(meta.totalPages, 1)),
@@ -122,6 +154,107 @@ export default function ForumPage() {
     event.preventDefault();
     setCurrentPage(1);
     setActiveSearch(searchInput.trim());
+  };
+
+  const openEditDialog = (post: IForumPost) => {
+    setEditingPost(post);
+    setEditTitle(post.title);
+    setEditContent(post.content);
+  };
+
+  const closeEditDialog = () => {
+    setEditingPost(null);
+    setEditTitle("");
+    setEditContent("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPost) {
+      return;
+    }
+
+    const title = editTitle.trim();
+    const content = editContent.trim();
+
+    if (!title) {
+      toast.error("Post title is required");
+      return;
+    }
+
+    if (!content) {
+      toast.error("Post content is required");
+      return;
+    }
+
+    if (title.length > 180) {
+      toast.error("Post title must be 180 characters or fewer");
+      return;
+    }
+
+    if (content.length > 5000) {
+      toast.error("Post content must be 5000 characters or fewer");
+      return;
+    }
+
+    setSavingEdit(true);
+
+    try {
+      const response = await updateForumPost(editingPost.id, { title, content });
+
+      if (!response?.success) {
+        toast.error(response?.message || "Failed to update post");
+        return;
+      }
+
+      setPosts((prev) =>
+        prev.map((item) =>
+          item.id === editingPost.id
+            ? {
+                ...item,
+                title,
+                content,
+                updatedAt: new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
+
+      toast.success("Post updated");
+      closeEditDialog();
+    } catch {
+      toast.error("Failed to update post");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeletePost = async (post: IForumPost) => {
+    const confirmed =
+      typeof window !== "undefined"
+        ? window.confirm("Delete this post permanently?")
+        : false;
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingPostId(post.id);
+
+    try {
+      const response = await deleteForumPost(post.id);
+
+      if (!response?.success) {
+        toast.error(response?.message || "Failed to delete post");
+        return;
+      }
+
+      toast.success("Post deleted");
+      await loadPosts(currentPage, activeSearch);
+    } catch {
+      toast.error("Failed to delete post");
+    } finally {
+      setDeletingPostId(null);
+    }
   };
 
   if (!isForumAllowed) {
@@ -218,9 +351,35 @@ export default function ForumPage() {
                         })}
                       </p>
                     </div>
-                    <Button variant="outline" asChild>
-                      <Link href={`/forum/${post.id}`}>Open</Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" asChild>
+                        <Link href={`/forum/${post.id}`}>Open</Link>
+                      </Button>
+
+                      {viewerId && post.author?.user_id === viewerId ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditDialog(post)}
+                          >
+                            <Pencil className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeletePost(post)}
+                            disabled={deletingPostId === post.id}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            {deletingPostId === post.id ? "Deleting..." : "Delete"}
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
 
                   <p className="text-sm whitespace-pre-wrap">{getPreview(post.content)}</p>
@@ -302,6 +461,56 @@ export default function ForumPage() {
           </Card>
         </div>
       )}
+
+      <Dialog
+        open={Boolean(editingPost)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeEditDialog();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Post</DialogTitle>
+            <DialogDescription>
+              Update your post title and content.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Title</p>
+              <Input
+                value={editTitle}
+                onChange={(event) => setEditTitle(event.target.value)}
+                maxLength={180}
+                placeholder="Post title"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Content</p>
+              <Textarea
+                value={editContent}
+                onChange={(event) => setEditContent(event.target.value)}
+                maxLength={5000}
+                className="min-h-32"
+                placeholder="Write your post"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeEditDialog}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleSaveEdit} disabled={savingEdit}>
+              {savingEdit ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

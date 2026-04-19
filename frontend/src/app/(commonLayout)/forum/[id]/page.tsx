@@ -1,24 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Pencil, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/components/RoleProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   createForumComment,
+  deleteForumPost,
   fetchForumComments,
   fetchForumPostById,
+  fetchForumViewerId,
+  updateForumPost,
 } from "@/lib/action/forum";
 import { formatBangladesh } from "@/lib/dateTime";
 import { IForumComment, IForumPost } from "@/lib/interfaces";
 
 export default function ForumPostDetailPage() {
   const role = useRole();
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const isForumAllowed = role === "student" || role === "cr";
   const postId = Number(params?.id);
@@ -29,6 +34,12 @@ export default function ForumPostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [isEditingPost, setIsEditingPost] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [savingPostEdit, setSavingPostEdit] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
 
   const isValidPostId = useMemo(
     () => Number.isFinite(postId) && postId > 0,
@@ -75,6 +86,129 @@ export default function ForumPostDetailPage() {
 
     loadPostData();
   }, [isForumAllowed, loadPostData]);
+
+  useEffect(() => {
+    if (!isForumAllowed) {
+      setViewerId(null);
+      return;
+    }
+
+    fetchForumViewerId()
+      .then((id) => setViewerId(id))
+      .catch(() => setViewerId(null));
+  }, [isForumAllowed]);
+
+  const isOwnPost = Boolean(post && viewerId && post.author?.user_id === viewerId);
+
+  const startEditPost = () => {
+    if (!post) {
+      return;
+    }
+
+    setEditTitle(post.title);
+    setEditContent(post.content);
+    setIsEditingPost(true);
+  };
+
+  const cancelEditPost = () => {
+    if (savingPostEdit) {
+      return;
+    }
+
+    setIsEditingPost(false);
+    setEditTitle("");
+    setEditContent("");
+  };
+
+  const handleSavePostEdit = async () => {
+    if (!post) {
+      return;
+    }
+
+    const title = editTitle.trim();
+    const content = editContent.trim();
+
+    if (!title) {
+      toast.error("Post title is required");
+      return;
+    }
+
+    if (!content) {
+      toast.error("Post content is required");
+      return;
+    }
+
+    if (title.length > 180) {
+      toast.error("Post title must be 180 characters or fewer");
+      return;
+    }
+
+    if (content.length > 5000) {
+      toast.error("Post content must be 5000 characters or fewer");
+      return;
+    }
+
+    setSavingPostEdit(true);
+
+    try {
+      const response = await updateForumPost(post.id, { title, content });
+
+      if (!response?.success) {
+        toast.error(response?.message || "Failed to update post");
+        return;
+      }
+
+      setPost((prev) =>
+        prev
+          ? {
+              ...prev,
+              title,
+              content,
+              updatedAt: new Date().toISOString(),
+            }
+          : prev,
+      );
+      setIsEditingPost(false);
+      toast.success("Post updated");
+    } catch {
+      toast.error("Failed to update post");
+    } finally {
+      setSavingPostEdit(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!post) {
+      return;
+    }
+
+    const confirmed =
+      typeof window !== "undefined"
+        ? window.confirm("Delete this post permanently?")
+        : false;
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingPost(true);
+
+    try {
+      const response = await deleteForumPost(post.id);
+
+      if (!response?.success) {
+        toast.error(response?.message || "Failed to delete post");
+        return;
+      }
+
+      toast.success("Post deleted");
+      router.push("/forum");
+    } catch {
+      toast.error("Failed to delete post");
+    } finally {
+      setDeletingPost(false);
+    }
+  };
 
   const handleAddComment = async () => {
     if (!post) {
@@ -182,18 +316,78 @@ export default function ForumPostDetailPage() {
 
       <Card>
         <CardContent className="pt-6 space-y-3">
-          <h1 className="text-xl font-semibold">{post.title}</h1>
-          <p className="text-xs text-muted-foreground">
-            By {post.author?.name || "Unknown"} · Batch {post.batch?.name || "-"} · {" "}
-            {formatBangladesh(post.createdAt, {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-          <p className="text-sm whitespace-pre-wrap">{post.content}</p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <h1 className="text-xl font-semibold">{post.title}</h1>
+              <p className="text-xs text-muted-foreground">
+                By {post.author?.name || "Unknown"} · Batch {post.batch?.name || "-"} · {" "}
+                {formatBangladesh(post.createdAt, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+
+            {isOwnPost && !isEditingPost ? (
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={startEditPost}>
+                  <Pencil className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={deletingPost}
+                  onClick={handleDeletePost}
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  {deletingPost ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
+          {isOwnPost && isEditingPost ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Title</p>
+                <Input
+                  value={editTitle}
+                  onChange={(event) => setEditTitle(event.target.value)}
+                  maxLength={180}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Content</p>
+                <Textarea
+                  value={editContent}
+                  onChange={(event) => setEditContent(event.target.value)}
+                  maxLength={5000}
+                  className="min-h-36"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <Button type="button" variant="outline" onClick={cancelEditPost}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSavePostEdit}
+                  disabled={savingPostEdit}
+                >
+                  {savingPostEdit ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm whitespace-pre-wrap">{post.content}</p>
+          )}
         </CardContent>
       </Card>
 

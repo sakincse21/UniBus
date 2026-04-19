@@ -41,6 +41,51 @@ export async function createForumPost(data: { title: string; content: string }) 
   return res.json();
 }
 
+export async function updateForumPost(
+  postId: number,
+  data: { title: string; content: string },
+) {
+  const res = await fetch(`/api/v1/forum/posts/${postId}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  return res.json();
+}
+
+export async function deleteForumPost(postId: number) {
+  const res = await fetch(`/api/v1/forum/posts/${postId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  return res.json();
+}
+
+export async function fetchForumViewerId(): Promise<string | null> {
+  const res = await fetch("/api/v1/user/me", {
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const payload = (await res.json()) as {
+    data?: {
+      user_id?: string;
+    };
+  };
+
+  return typeof payload.data?.user_id === "string"
+    ? payload.data.user_id
+    : null;
+}
+
 export async function fetchForumPostById(postId: number): Promise<IForumPostResponse> {
   const res = await fetch(`/api/v1/forum/posts/${postId}`, {
     credentials: "include",

@@ -225,7 +225,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
   const handleDeleteEvent = async (event: ICalendarEvent) => {
     setDeletingEventId(event.id);
     try {
-      if (event.type === "personal" && event.source.fixtureId) {
+      if ((event.type === "personal" || event.type === "public") && event.source.fixtureId) {
         await deleteFixture(event.source.fixtureId);
         await silentRemoveEventFromCalendar(event.id);
       } else if (event.type === "notice" && event.source.noticeId) {
@@ -290,6 +290,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
         return "#0053DC";
       case "personal":
         return "#0D7A43";
+      case "public":
+        return "#B45309";
       default:
         return "#6B7280";
     }
@@ -326,6 +328,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
   const legendItems = [
     { label: "Notice", color: "#0053DC" },
     { label: "Personal", color: "#0D7A43" },
+    { label: "Public", color: "#B45309" },
   ];
 
   return (
@@ -553,7 +556,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
                       No upcoming events
                     </Text>
                     <Text className="text-sm mt-1" style={{ color: COLORS.onSurfaceMuted }}>
-                      Create a personal event to get started.
+                      Create a personal or public event to get started.
                     </Text>
 
                     <View className="mt-4 w-full">
@@ -688,7 +691,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ daysToShow = 30 }) => {
                       No events on this day
                     </Text>
                     <Text className="text-sm mt-1" style={{ color: COLORS.onSurfaceMuted }}>
-                      Add a personal event in one tap.
+                      Add a personal or public event in one tap.
                     </Text>
 
                     <View className="mt-4 w-full px-5">

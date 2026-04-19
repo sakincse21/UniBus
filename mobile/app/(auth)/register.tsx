@@ -134,7 +134,7 @@ export default function RegisterScreen() {
                 color: COLORS.onSurfaceMuted,
               }}
             >
-              Join UniBus Tracking
+              Join TrackU Tracking
             </Text>
           </VStack>
 

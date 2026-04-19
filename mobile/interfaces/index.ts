@@ -114,6 +114,7 @@ export interface IBusTrackingResponse {
   points: IRoutePoint[];
   routeId?: number | null;
   startTime: string | null;
+  busNumber?: string | null;
   notifiedUsers: number;
   requestIds?: number[];
   estimate: IBusEstimate | null;
@@ -122,6 +123,7 @@ export interface IBusTrackingResponse {
 export interface ITrackingRequestItem {
   id: number;
   busId: number;
+  busNumber?: string | null;
   status: "pending" | "accepted" | "rejected";
   createdAt: string;
   expiresAt?: string | null;
@@ -179,7 +181,7 @@ export interface ICalendarEventSource {
 
 export interface ICalendarEvent {
   id: string;
-  type: "notice" | "routine" | "personal";
+  type: "notice" | "routine" | "personal" | "public";
   title: string;
   description?: string;
   startDateTime: string; // ISO date string
@@ -201,6 +203,7 @@ export interface IUserFixture {
   title: string;
   description?: string;
   isAllDay: boolean;
+  isPublic: boolean;
   startDateTime: string; // ISO date string
   endDateTime: string; // ISO date string
   user_id?: string;
@@ -210,6 +213,7 @@ export interface ICreateFixturePayload {
   title: string;
   description?: string;
   isAllDay: boolean;
+  isPublic: boolean;
   startDateTime: string; // ISO date string
   endDateTime: string; // ISO date string
 }
@@ -218,6 +222,7 @@ export interface IUpdateFixturePayload {
   title?: string;
   description?: string;
   isAllDay?: boolean;
+  isPublic?: boolean;
   startDateTime?: string; // ISO date string
   endDateTime?: string; // ISO date string
 }
