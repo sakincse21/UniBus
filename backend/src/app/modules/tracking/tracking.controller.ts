@@ -24,71 +24,6 @@ const trackingUserSelect: (keyof User)[] = [
 
 const NEARBY_RADIUS_METERS = 500;
 
-type SocketLikeWithUser = {
-  user?: {
-    userId?: string;
-  };
-};
-
-type SocketServerLike = {
-  sockets?: {
-    adapter?: {
-      rooms?: Map<string, Set<string>>;
-    };
-    sockets?: Map<string, SocketLikeWithUser>;
-  };
-};
-
-function collectOnlineUserIds(io: unknown, requesterId: string): string[] {
-  const server = io as SocketServerLike | null;
-  const socketMap = server?.sockets?.sockets;
-
-  if (!socketMap) {
-    return [];
-  }
-
-  const userIds = new Set<string>();
-
-  socketMap.forEach((connectedSocket) => {
-    const userId = connectedSocket?.user?.userId;
-    if (typeof userId === "string" && userId && userId !== requesterId) {
-      userIds.add(userId);
-    }
-  });
-
-  return [...userIds];
-}
-
-function collectRoomUserIds(
-  io: unknown,
-  rooms: string[],
-  requesterId: string,
-): string[] {
-  const server = io as SocketServerLike | null;
-  const roomMap = server?.sockets?.adapter?.rooms;
-  const socketMap = server?.sockets?.sockets;
-
-  if (!roomMap || !socketMap) {
-    return [];
-  }
-
-  const userIds = new Set<string>();
-
-  rooms.forEach((room) => {
-    const socketIds = roomMap.get(room);
-    if (!socketIds) return;
-
-    socketIds.forEach((socketId) => {
-      const userId = socketMap.get(socketId)?.user?.userId;
-      if (typeof userId === "string" && userId && userId !== requesterId) {
-        userIds.add(userId);
-      }
-    });
-  });
-
-  return [...userIds];
-}
-
 function resolveBusId(req: Request): number {
   const bodyBusId = Number(req.body?.busId);
   const paramsBusId = Number(req.params.busId);
@@ -190,18 +125,12 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
   const userLocRepo = AppDataSource.getRepository(UserLocation);
   const locations = await userLocRepo.find({ relations: ["user"] });
 
-  const requesterLocation = locations.find(
-    (entry) => entry.user?.user_id === req.user.userId,
-  );
-
   const proximityTarget =
     "lat" in estimate &&
     typeof estimate.lat === "number" &&
     typeof estimate.lng === "number"
       ? { lat: estimate.lat, lng: estimate.lng }
-      : requesterLocation
-        ? { lat: requesterLocation.lat, lng: requesterLocation.lng }
-        : null;
+      : null;
 
   const nearbyUserIds = proximityTarget
     ? locations
@@ -219,18 +148,7 @@ const requestTracking = tryCatch(async (req: Request, res: Response) => {
         .filter((userId) => userId !== req.user.userId)
     : [];
 
-  const routeRooms = [
-    routeId ? `route:${routeId}` : null,
-    `bus:${busId}`,
-  ].filter((room): room is string => Boolean(room));
-
-  const routeRoomUserIds = collectRoomUserIds(io, routeRooms, req.user.userId);
-
-  const onlineFallbackUserIds = collectOnlineUserIds(io, req.user.userId);
-
-  const targetedReceiverIds = [...new Set([...nearbyUserIds, ...routeRoomUserIds])];
-  const receiverIds =
-    targetedReceiverIds.length > 0 ? targetedReceiverIds : onlineFallbackUserIds;
+  const receiverIds = [...new Set(nearbyUserIds)];
 
   const receivers = receiverIds.length
     ? await userRepo.find({
