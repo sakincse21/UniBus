@@ -202,7 +202,7 @@ export default function CreateNoticePage() {
         </p>
       </div>
 
-      {/* Role-specific info banner */}
+
       {role === "student" && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
           <p className="text-sm text-amber-600 dark:text-amber-400">
@@ -321,7 +321,7 @@ export default function CreateNoticePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* File Upload Input */}
+
           <div>
             <label className="cursor-pointer">
               <input
@@ -343,14 +343,14 @@ export default function CreateNoticePage() {
             </label>
           </div>
 
-          {/* Attached Files Preview */}
+
           {attachments.length > 0 && (
             <div className="space-y-3">
               <p className="text-sm font-medium">
                 Attached Files ({attachments.length})
               </p>
               
-              {/* Image Previews Grid */}
+
               <div className="grid grid-cols-2 gap-3">
                 {attachments
                   .filter((a) => a.isImage)
@@ -379,7 +379,7 @@ export default function CreateNoticePage() {
                   ))}
               </div>
 
-              {/* File List (non-images) */}
+
               {attachments.filter((a) => !a.isImage).length > 0 && (
                 <div className="space-y-2">
                   {attachments

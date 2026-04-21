@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 import {parse} from "cookie";
 import { cookies } from "next/headers";

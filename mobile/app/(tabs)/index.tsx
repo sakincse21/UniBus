@@ -67,6 +67,7 @@ function FilterTrigger({
       activeOpacity={0.86}
       className="rounded-lg px-3 py-2"
       style={{
+        width: 132,
         backgroundColor: COLORS.surfaceLow,
         borderWidth: 1,
         borderColor: COLORS.outline,
@@ -89,7 +90,12 @@ function FilterTrigger({
       </View>
 
       <View className="flex-row items-center mt-1">
-        <Text className="text-xs font-semibold mr-1" style={{ color: COLORS.onSurfaceMuted }}>
+        <Text
+          className="text-xs font-semibold mr-1 flex-1"
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{ color: COLORS.onSurfaceMuted }}
+        >
           {value}
         </Text>
         <Feather name="chevron-down" size={12} color={COLORS.onSurfaceMuted} />
@@ -605,10 +611,10 @@ export default function NoticesTab() {
 
       <View className="px-4 pb-3">
         <View
-          className="rounded-xl p-3 flex-row items-center justify-end"
+          className="rounded-xl p-3"
           style={{ backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.outline }}
         >
-          <View className="flex-row justify-end">
+          <View className="flex items-center justify-center w-full">
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -637,23 +643,25 @@ export default function NoticesTab() {
             </ScrollView>
           </View>
 
-          {!isDefaultControlState ? (
-            <TouchableOpacity
-              onPress={resetControls}
-              activeOpacity={0.86}
-              className="self-start mt-2.5 px-3 py-1.5 rounded-lg flex-row items-center"
-              style={{
-                backgroundColor: COLORS.surfaceLow,
-                borderWidth: 1,
-                borderColor: COLORS.outline,
-              }}
-            >
-              <Feather name="rotate-ccw" size={13} color={COLORS.onSurfaceMuted} />
-              <Text className="text-sm font-semibold ml-1.5" style={{ color: COLORS.onSurfaceMuted }}>
-                Reset filters
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+          <View style={{ marginTop: 10, minHeight: 34, alignItems: "flex-start" }}>
+            {!isDefaultControlState ? (
+              <TouchableOpacity
+                onPress={resetControls}
+                activeOpacity={0.86}
+                className="px-3 py-1.5 rounded-lg flex-row items-center"
+                style={{
+                  backgroundColor: COLORS.surfaceLow,
+                  borderWidth: 1,
+                  borderColor: COLORS.outline,
+                }}
+              >
+                <Feather name="rotate-ccw" size={13} color={COLORS.onSurfaceMuted} />
+                <Text className="text-sm font-semibold ml-1.5" style={{ color: COLORS.onSurfaceMuted }}>
+                  Reset filters
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       </View>
 

@@ -5,21 +5,19 @@ import { Routine, DayOfWeek } from "./routine.entity";
 import { analyzeRoutineImageWithOllama } from "./ollama.service";
 import fs from "fs";
 import { analyzeRoutineImage } from "./gemini.service";
+import { analyzeRoutineImageWithGroq } from "./groq.service";
 
 const routineRepo = () => AppDataSource.getRepository(Routine);
 
-/**
- * POST /routine/upload
- * Upload a routine image → Gemini analysis → return editable draft
- */
+// POST /routine/upload -> Analyze image and return routine draft.
 const uploadAndAnalyze = tryCatch(async (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).json({ message: "No image uploaded" });
   }
 
   try {
-    console.log('trying image analysis')
-    const slots = await analyzeRoutineImageWithOllama(req.file.path);
+    const slots = await analyzeRoutineImageWithGroq(req.file.path);
+    // const slots = await analyzeRoutineImageWithOllama(req.file.path);
     // const slots = await analyzeRoutineImage(req.file.path);
 
     // Clean up uploaded file after analysis
@@ -46,11 +44,7 @@ const uploadAndAnalyze = tryCatch(async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /routine/confirm
- * Save user-confirmed routine entries (replaces all existing for user)
- * Body: { slots: Array<{ day, firstHalfStart, secondHalfStart, confidence, note }> }
- */
+// POST /routine/confirm -> Save user-confirmed routine entries.
 const confirmRoutine = tryCatch(async (req: Request, res: Response) => {
   const { slots } = req.body;
   const userId = req.user.userId;
@@ -125,10 +119,7 @@ const confirmRoutine = tryCatch(async (req: Request, res: Response) => {
   });
 });
 
-/**
- * GET /routine
- * Get the current user's confirmed routine
- */
+// GET /routine -> Return current user's confirmed routine.
 const getMyRoutine = tryCatch(async (req: Request, res: Response) => {
   const userId = req.user.userId;
 
@@ -143,10 +134,7 @@ const getMyRoutine = tryCatch(async (req: Request, res: Response) => {
   });
 });
 
-/**
- * PATCH /routine/:id
- * Update a single routine entry (inline edit)
- */
+// PATCH /routine/:id -> Update one routine entry.
 const updateSlot = tryCatch(async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const userId = req.user.userId;
@@ -194,10 +182,7 @@ const updateSlot = tryCatch(async (req: Request, res: Response) => {
   });
 });
 
-/**
- * DELETE /routine
- * Delete all routine entries for the current user
- */
+// DELETE /routine -> Delete all current user routine entries.
 const deleteMyRoutine = tryCatch(async (req: Request, res: Response) => {
   const userId = req.user.userId;
   await routineRepo().delete({ user: { user_id: userId } });

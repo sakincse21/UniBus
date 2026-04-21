@@ -71,7 +71,7 @@ export default function HomePage() {
         </p>
       </div>
 
-      {/* Pending notices alert for CR/admin */}
+
       {(role === "cr" || role === "admin") && pendingCount > 0 && (
         <Link href="/notice/pending">
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 cursor-pointer hover:bg-amber-500/10 transition-colors">
@@ -86,7 +86,7 @@ export default function HomePage() {
         </Link>
       )}
 
-      {/* Quick links grid */}
+
       <div className="grid gap-4 sm:grid-cols-2">
         {quickLinks.map((link) => (
           <Link key={link.url} href={link.url}>
@@ -102,7 +102,7 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* Admin shortcut */}
+
       {role === "admin" && (
         <div>
           <h2 className="text-base font-semibold mt-6 mb-3">Administration</h2>

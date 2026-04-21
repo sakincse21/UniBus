@@ -768,9 +768,7 @@ export const registerTrackingSockets = (io: any) => {
       },
     );
 
-    /**
-     * User stops tracking voluntarily
-     */
+    // Handle voluntary stop-tracking requests.
     socket.on("stop_tracking", async ({ busId }: { busId: number }) => {
       const user = socket.user;
       if (!user) return;

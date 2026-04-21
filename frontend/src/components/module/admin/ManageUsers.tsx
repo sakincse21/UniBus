@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import {
   Table,
@@ -204,7 +203,7 @@ export default function AllUsers() {
                         {user.batch?.name || "N/A"}
                       </TableCell>
                       <TableCell className="text-right flex flex-row gap-2 justify-end">
-                        {/* <ActionDialog userId={user._id} role={userData?.data?.role} /> */}
+
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive">Delete</Button>

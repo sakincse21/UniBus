@@ -1,5 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -205,7 +203,7 @@ export default function NoticeDetailPage() {
               </p>
 
               <div className="flex flex-wrap items-center gap-3 mt-3">
-                {/* Viewing Rules / Audience */}
+
                 <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                   <Users className="w-3.5 h-3.5" />
                   {notice.forAll
@@ -217,7 +215,7 @@ export default function NoticeDetailPage() {
                         : "Specific Audience"}
                 </span>
 
-                {/* Event Details */}
+
                 {notice.eventDate && (
                   <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-600/10">
                     <Calendar className="w-3.5 h-3.5" />
@@ -249,12 +247,12 @@ export default function NoticeDetailPage() {
             </p>
           </div>
 
-          {/* Attachments Section */}
+
           {notice.attachments && notice.attachments.length > 0 && (
             <div className="space-y-4 pt-4 border-t">
               <h3 className="text-sm font-semibold">Attachments</h3>
 
-              {/* Images Grid */}
+
               {notice.attachments.filter((a: any) => isImage(a.fileType))
                 .length > 0 && (
                 <div>
@@ -296,7 +294,7 @@ export default function NoticeDetailPage() {
                 </div>
               )}
 
-              {/* File List (non-images) */}
+
               {notice.attachments.filter((a: any) => !isImage(a.fileType))
                 .length > 0 && (
                 <div>
@@ -337,7 +335,7 @@ export default function NoticeDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Image Preview Modal */}
+
       <Dialog
         open={!!selectedImage}
         onOpenChange={() => setSelectedImage(null)}
@@ -369,7 +367,7 @@ export default function NoticeDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+
       <AlertDialog open={deleteConfirm} onOpenChange={setDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>

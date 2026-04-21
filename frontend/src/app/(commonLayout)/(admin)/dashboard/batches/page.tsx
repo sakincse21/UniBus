@@ -73,7 +73,7 @@ export default function ManageBatches() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-5xl mx-auto">
       <Card>
         <CardHeader>
           <CardTitle>Create New Batch</CardTitle>

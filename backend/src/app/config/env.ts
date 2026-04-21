@@ -12,6 +12,7 @@ export const env = {
   MYSQL_PASSWORD: process.env.MYSQL_PASSWORD || "",
   MYSQL_DB: process.env.MYSQL_DB || "test_db",
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
+  GROQ_API_KEY: process.env.GROQ_API_KEY || "",
   SMTP_HOST: process.env.SMTP_HOST || "",
   SMTP_PORT: Number(process.env.SMTP_PORT || 587),
   SMTP_USER: process.env.SMTP_USER || "",
@@ -19,6 +20,9 @@ export const env = {
   SMTP_FROM: process.env.SMTP_FROM || "noreply@tracku.com",
   EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || "",
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "nvidia/nemotron-nano-12b-v2-vl:free",
+  GROQ_MODEL:
+    process.env.GROQ_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct",
+  GROQ_TIMEOUT_MS: Number(process.env.GROQ_TIMEOUT_MS) || 60_000,
   OLLAMA_URL: process.env.OLLAMA_URL || "http://localhost:11434/api/generate",
   OLLAMA_MODEL: process.env.OLLAMA_MODEL || "llama3.2-vision",
   OLLAMA_TIMEOUT_MS: Number(process.env.OLLAMA_TIMEOUT_MS) || 180_000,

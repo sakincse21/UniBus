@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Modal,
   View,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -40,9 +41,7 @@ export default function LoginScreen() {
   const [isForgotPasswordLoading, setIsForgotPasswordLoading] = useState(false);
   const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotEmailError, setForgotEmailError] = useState<string | null>(
-    null,
-  );
+  const [forgotEmailError, setForgotEmailError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>(
     {},
   );
@@ -168,7 +167,10 @@ export default function LoginScreen() {
         }
 
         startBackgroundLocationTracking().catch((trackingError) => {
-          console.warn("Background location tracking start failed:", trackingError);
+          console.warn(
+            "Background location tracking start failed:",
+            trackingError,
+          );
         });
 
         await refreshProfile();
@@ -208,7 +210,18 @@ export default function LoginScreen() {
             gap: 16,
           }}
         >
-          <VStack style={{ alignItems: "center", marginBottom: 16, gap: 12 }}>
+          <Image
+            source={require("../../assets/icon.png")}
+            style={{
+              width: 160,
+              height: 160,
+              alignSelf: "center",
+              marginBottom: 6,
+            }}
+            resizeMode="contain"
+            accessibilityLabel="TrackU logo"
+          />
+          {/* <VStack style={{ alignItems: "center", marginBottom: 16, gap: 12 }}>
             <Heading
               style={{
                 textAlign: "center",
@@ -226,9 +239,9 @@ export default function LoginScreen() {
                 color: COLORS.onSurfaceMuted,
               }}
             >
-              University Bus Tracking System
+              University Bus Tracking & Companion System
             </Text>
-          </VStack>
+          </VStack> */}
 
           <VStack style={{ gap: 12 }}>
             <FormControl isInvalid={!!errors.email}>
@@ -335,9 +348,7 @@ export default function LoginScreen() {
             style={{
               marginTop: 8,
               width: "100%",
-              backgroundColor: isLoading
-                ? COLORS.surfaceHigh
-                : COLORS.primary,
+              backgroundColor: isLoading ? COLORS.surfaceHigh : COLORS.primary,
               paddingVertical: 12,
               paddingHorizontal: 16,
               borderRadius: 6,
@@ -351,19 +362,23 @@ export default function LoginScreen() {
               </Button.Text>
             )}
           </Button>
-
+{/* 
           <VStack style={{ alignItems: "center", gap: 4 }}>
             <Text style={{ fontSize: 14, color: COLORS.onSurfaceMuted }}>
               Don't have an account?
             </Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
               <Text
-                style={{ fontSize: 14, fontWeight: "600", color: COLORS.primary }}
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: COLORS.primary,
+                }}
               >
                 Sign Up Here
               </Text>
             </TouchableOpacity>
-          </VStack>
+          </VStack> */}
         </VStack>
       </ScrollView>
 
@@ -442,7 +457,9 @@ export default function LoginScreen() {
               </Input>
               {forgotEmailError ? (
                 <FormControl.Error>
-                  <Text style={{ fontSize: 12, color: "#dc2626" }}>{forgotEmailError}</Text>
+                  <Text style={{ fontSize: 12, color: "#dc2626" }}>
+                    {forgotEmailError}
+                  </Text>
                 </FormControl.Error>
               ) : null}
             </FormControl>
@@ -465,7 +482,9 @@ export default function LoginScreen() {
                   borderRadius: 6,
                 }}
               >
-                <Button.Text style={{ color: COLORS.onSurface, fontWeight: "600" }}>
+                <Button.Text
+                  style={{ color: COLORS.onSurface, fontWeight: "600" }}
+                >
                   Cancel
                 </Button.Text>
               </Button>

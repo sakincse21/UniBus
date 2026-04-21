@@ -38,10 +38,7 @@ export interface CalendarEvent {
   };
 }
 
-/**
- * Get calendar events for next N days based on user role and batch
- * Aggregates: notices with eventDate + expanded routines + fixtures
- */
+// Get calendar events for the next N days based on role and visibility.
 export async function getCalendarEvents(
   userId: string,
   days: number = 30,
@@ -97,9 +94,7 @@ export async function getCalendarEvents(
   );
 }
 
-/**
- * Get notice events filtered by role and batch
- */
+// Get notice events filtered by role and batch.
 async function getNoticeEvents(
   user: User,
   startDate: string,
@@ -197,10 +192,7 @@ async function getNoticeEvents(
   });
 }
 
-/**
- * Expand user routines into daily calendar entries for next N days
- * Only shows user's own routines + teacher routines visible to student/cr in their batch
- */
+// Expand visible routines into daily calendar events.
 async function getRoutineEvents(
   user: User,
   startDate: Date,
@@ -285,9 +277,7 @@ async function getRoutineEvents(
   return events;
 }
 
-/**
- * Helper: expand weekly routines into daily calendar entries
- */
+// Expand weekly routine rows into dated calendar events.
 function expandRoutinesToCalendarEvents(
   routines: Routine[],
   startDate: Date,
@@ -361,11 +351,7 @@ function expandRoutinesToCalendarEvents(
   return events;
 }
 
-/**
- * Get fixture events visible to user:
- * - Personal fixtures created by the user
- * - Public fixtures created by any user
- */
+// Get fixture events visible to the current user.
 async function getFixtureEvents(
   user: User,
   startDate: Date,
@@ -414,12 +400,7 @@ async function getFixtureEvents(
     });
 }
 
-/**
- * Determine if a user can delete a notice based on role and notice properties
- * - CR can delete: forAll notices, batchwise notices for their batch
- * - Teacher can delete: forTeachers notices, any notice they created
- * - Admin can delete: all notices they can see
- */
+// Determine whether the current user can delete a given notice.
 export function canDeleteNotice(notice: Notice, user: User): boolean {
   // If no user or notice, cannot delete
   if (!user || !notice || !user.role) {

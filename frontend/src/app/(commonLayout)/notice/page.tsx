@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -395,10 +394,10 @@ export default function NoticePage() {
               <CardContent className="space-y-4">
                 <p className="text-sm leading-relaxed">{n.content}</p>
 
-                {/* Image Attachments Preview */}
+
                 {n.attachments && n.attachments.length > 0 && (
                   <div className="space-y-3 pt-2 border-t">
-                    {/* Images Grid */}
+
                     {n.attachments.filter((a: any) => isImage(a.fileType))
                       .length > 0 && (
                       <div className="grid grid-cols-2 gap-3">
@@ -451,7 +450,7 @@ export default function NoticePage() {
                       </div>
                     )}
 
-                    {/* File List (non-images) */}
+
                     {n.attachments.filter((a: any) => !isImage(a.fileType))
                       .length > 0 && (
                       <div className="space-y-2">
@@ -493,7 +492,7 @@ export default function NoticePage() {
         </div>
       )}
 
-      {/* Pagination */}
+
       {totalPages > 1 && (
         <Pagination className="mt-6">
           <PaginationContent>
@@ -538,7 +537,7 @@ export default function NoticePage() {
         </Pagination>
       )}
 
-      {/* Image Preview Modal */}
+
       <Dialog
         open={!!selectedImage}
         onOpenChange={() => setSelectedImage(null)}
@@ -583,7 +582,7 @@ export default function NoticePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+
       <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

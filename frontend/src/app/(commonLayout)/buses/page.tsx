@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import BusMap from "@/components/BusMap";
@@ -198,7 +197,7 @@ export default function BusesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Live Bus Tracking</h1>
         
-        {/* Show location status indicator */}
+
         {locationStatus === "skipped" && (
           <Button 
             variant="outline" 
@@ -216,7 +215,7 @@ export default function BusesPage() {
         )}
       </div>
 
-      {/* Show warning banner if location skipped */}
+
       {locationStatus === "skipped" && (
         <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-800 dark:text-amber-200">
           <span className="font-medium">Location disabled:</span> Some features like nearby bus detection may not work accurately.{" "}

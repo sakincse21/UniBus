@@ -13,9 +13,7 @@ export interface RoutineSlot {
   note: string;
 }
 
-/**
- * Send a routine image to Ollama and get structured class times.
- */
+// Analyze a routine image with Ollama and return parsed slots.
 export async function analyzeRoutineImageWithOllama(
   imagePath: string,
 ): Promise<RoutineSlot[]> {

@@ -161,7 +161,6 @@ export default function CalendarView() {
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4">
-      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Calendar</h1>
@@ -307,7 +306,6 @@ export default function CalendarView() {
         </div>
       </div>
 
-      {/* Events List */}
       {sortedDates.length === 0 ? (
         <Card className="p-12 text-center">
           <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />

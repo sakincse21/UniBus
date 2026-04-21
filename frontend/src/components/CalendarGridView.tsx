@@ -220,7 +220,6 @@ export default function CalendarGridView() {
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4">
-      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Calendar</h1>
@@ -350,7 +349,6 @@ export default function CalendarGridView() {
         </Dialog>
       </div>
 
-      {/* Date Details Dialog */}
       <Dialog open={showDateDetailsDialog} onOpenChange={setShowDateDetailsDialog}>
         <DialogContent className="sm:max-w-md max-h-96 overflow-y-auto">
           <DialogHeader>
@@ -462,7 +460,6 @@ export default function CalendarGridView() {
         </DialogContent>
       </Dialog>
 
-      {/* Month Navigation */}
       <div className="flex justify-between items-center mb-4">
         <Button
           variant="outline"
@@ -491,9 +488,7 @@ export default function CalendarGridView() {
         </Button>
       </div>
 
-      {/* Calendar Grid */}
       <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
-        {/* Day Headers */}
         <div className="grid grid-cols-7 gap-0 border-b bg-gray-50">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
             <div
@@ -505,7 +500,6 @@ export default function CalendarGridView() {
           ))}
         </div>
 
-        {/* Calendar Days */}
         {weeks.map((week, weekIdx) => (
           <div key={weekIdx} className="grid grid-cols-7 gap-0 border-b">
             {week.days.map((day, dayIdx) => {
@@ -564,7 +558,6 @@ export default function CalendarGridView() {
         ))}
       </div>
 
-      {/* Legend */}
       <div className="flex gap-6 mt-6 justify-center flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-blue-500 rounded" />
