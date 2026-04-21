@@ -115,7 +115,6 @@ export default function RegisterScreen() {
             gap: 16,
           }}
         >
-          {/* Header */}
           <VStack style={{ alignItems: "center", marginBottom: 12, gap: 8 }}>
             <Heading
               style={{
@@ -138,9 +137,7 @@ export default function RegisterScreen() {
             </Text>
           </VStack>
 
-          {/* Form Fields */}
           <VStack style={{ gap: 12 }}>
-            {/* Name */}
             <FormControl isInvalid={!!errors.name}>
               <FormControl.Label>
                 <Text
@@ -175,7 +172,6 @@ export default function RegisterScreen() {
               )}
             </FormControl>
 
-            {/* Email */}
             <FormControl isInvalid={!!errors.email}>
               <FormControl.Label>
                 <Text
@@ -212,7 +208,6 @@ export default function RegisterScreen() {
               )}
             </FormControl>
 
-            {/* Password */}
             <FormControl isInvalid={!!errors.password}>
               <FormControl.Label>
                 <Text
@@ -248,7 +243,6 @@ export default function RegisterScreen() {
               )}
             </FormControl>
 
-            {/* Confirm Password */}
             <FormControl isInvalid={!!errors.confirmPassword}>
               <FormControl.Label>
                 <Text
@@ -285,7 +279,6 @@ export default function RegisterScreen() {
             </FormControl>
           </VStack>
 
-          {/* Register Button */}
           <Button
             onPress={handleRegister}
             isDisabled={isLoading}
@@ -309,7 +302,6 @@ export default function RegisterScreen() {
             )}
           </Button>
 
-          {/* Sign In Link */}
           <VStack style={{ alignItems: "center", gap: 4 }}>
             <Text style={{ fontSize: 14, color: COLORS.onSurfaceMuted }}>
               Already have an account?

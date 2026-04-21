@@ -221,27 +221,7 @@ export default function LoginScreen() {
             resizeMode="contain"
             accessibilityLabel="TrackU logo"
           />
-          {/* <VStack style={{ alignItems: "center", marginBottom: 16, gap: 12 }}>
-            <Heading
-              style={{
-                textAlign: "center",
-                fontSize: 32,
-                fontWeight: "700",
-                color: COLORS.onSurface,
-              }}
-            >
-              TrackU
-            </Heading>
-            <Text
-              style={{
-                textAlign: "center",
-                fontSize: 14,
-                color: COLORS.onSurfaceMuted,
-              }}
-            >
-              University Bus Tracking & Companion System
-            </Text>
-          </VStack> */}
+
 
           <VStack style={{ gap: 12 }}>
             <FormControl isInvalid={!!errors.email}>
@@ -362,23 +342,7 @@ export default function LoginScreen() {
               </Button.Text>
             )}
           </Button>
-{/* 
-          <VStack style={{ alignItems: "center", gap: 4 }}>
-            <Text style={{ fontSize: 14, color: COLORS.onSurfaceMuted }}>
-              Don't have an account?
-            </Text>
-            <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: COLORS.primary,
-                }}
-              >
-                Sign Up Here
-              </Text>
-            </TouchableOpacity>
-          </VStack> */}
+
         </VStack>
       </ScrollView>
 
