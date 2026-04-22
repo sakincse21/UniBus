@@ -168,11 +168,17 @@ const checkAndSendReminders = async () => {
 };
 
 export const startCronJobs = () => {
-  const job = cron.schedule("* * * * *", () => {
-    checkAndSendReminders().catch(err => console.error(err));
-  }, {
-    timezone: BANGLADESH_TZ
-  });
+  const job = cron.schedule(
+    "* * * * *",
+    async () => {
+      await checkAndSendReminders();
+    },
+    {
+      timezone: BANGLADESH_TZ,
+      noOverlap: true,
+      name: "push-reminder-cron",
+    }
+  );
   
   job.start();
   console.log("Cron jobs started successfully.");
