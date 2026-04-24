@@ -54,6 +54,8 @@ const TRACKING_FOCUS_PADDING_FACTOR = 1.35;
 const TRACKING_FOCUS_MIN_DELTA = 0.006;
 const TRACKING_FOCUS_MAX_DELTA = 0.06;
 const TRACKING_FOCUS_SINGLE_POINT_DELTA = 0.012;
+const SHARING_ESTIMATED_POINT_MAX_DISTANCE_METERS = 500;
+const EARTH_RADIUS_METERS = 6371000;
 
 const COLORS = APP_THEME_COLORS;
 const MAP_MARKER_COLORS = {
@@ -90,6 +92,26 @@ function pointTime(startTime: string | null, minuteOffset: number): string {
 function toFiniteNumber(value: unknown): number | null {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+function distanceMeters(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const dLat = toRadians(b.lat - a.lat);
+  const dLng = toRadians(b.lng - a.lng);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+
+  const h =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
 function normalizeRoutePoints(points: unknown): IRoutePoint[] {
@@ -525,6 +547,55 @@ export default function BusTrackingTab() {
     ],
   );
 
+  const getEstimatedPointForBus = useCallback(
+    async (busId: number): Promise<{ lat: number; lng: number } | null> => {
+      const live = busLocations[busId];
+      const liveLat = toFiniteNumber(live?.lat);
+      const liveLng = toFiniteNumber(live?.lng);
+
+      if (liveLat !== null && liveLng !== null) {
+        return { lat: liveLat, lng: liveLng };
+      }
+
+      try {
+        const response = await busAPI.requestTracking(busId);
+        const data = response.data as IBusTrackingResponse;
+        const estimateLat = toFiniteNumber(data.estimate?.lat);
+        const estimateLng = toFiniteNumber(data.estimate?.lng);
+
+        if (estimateLat === null || estimateLng === null) {
+          return null;
+        }
+
+        return { lat: estimateLat, lng: estimateLng };
+      } catch {
+        return null;
+      }
+    },
+    [busLocations],
+  );
+
+  const ensureShareEligibilityByEstimatedPoint = useCallback(
+    async (busId: number, currentLocation: { lat: number; lng: number }) => {
+      const estimatedPoint = await getEstimatedPointForBus(busId);
+      if (!estimatedPoint) {
+        showToast("Unable to verify bus estimated location. Try again.");
+        return false;
+      }
+
+      const distance = distanceMeters(currentLocation, estimatedPoint);
+      if (distance > SHARING_ESTIMATED_POINT_MAX_DISTANCE_METERS) {
+        showToast(
+          `You are ${Math.round(distance)}m away from bus estimate. Sharing is allowed within 500m only.`,
+        );
+        return false;
+      }
+
+      return true;
+    },
+    [getEstimatedPointForBus, showToast],
+  );
+
   const waitForSocketReady = useCallback(async (timeoutMs = 10000) => {
     const socket = socketRef.current;
     if (!socket) return false;
@@ -608,6 +679,15 @@ export default function BusTrackingTab() {
         });
         const initialLat = initialPosition.coords.latitude;
         const initialLng = initialPosition.coords.longitude;
+
+        const canShare = await ensureShareEligibilityByEstimatedPoint(busId, {
+          lat: initialLat,
+          lng: initialLng,
+        });
+
+        if (!canShare) {
+          return false;
+        }
 
         const ack = await new Promise<{ ok: boolean; message?: string }>(
           (resolve) => {
@@ -714,7 +794,13 @@ export default function BusTrackingTab() {
         return false;
       }
     },
-    [setSharingState, showToast, syncSharedBusRoute, waitForSocketReady],
+    [
+      ensureShareEligibilityByEstimatedPoint,
+      setSharingState,
+      showToast,
+      syncSharedBusRoute,
+      waitForSocketReady,
+    ],
   );
 
   const volunteerShareTracking = useCallback(
@@ -758,6 +844,15 @@ export default function BusTrackingTab() {
         });
         const initialLat = initialPosition.coords.latitude;
         const initialLng = initialPosition.coords.longitude;
+
+        const canShare = await ensureShareEligibilityByEstimatedPoint(busId, {
+          lat: initialLat,
+          lng: initialLng,
+        });
+
+        if (!canShare) {
+          return;
+        }
 
         const ack = await new Promise<{ ok: boolean; message?: string }>(
           (resolve) => {
@@ -851,7 +946,14 @@ export default function BusTrackingTab() {
         setVolunteerShareBusId(null);
       }
     },
-    [setSharingState, showToast, stopSharingGps, syncSharedBusRoute, waitForSocketReady],
+    [
+      ensureShareEligibilityByEstimatedPoint,
+      setSharingState,
+      showToast,
+      stopSharingGps,
+      syncSharedBusRoute,
+      waitForSocketReady,
+    ],
   );
 
   useEffect(() => {
