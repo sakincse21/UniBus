@@ -7,7 +7,7 @@ import { parseLocalDate, parseLocalDateTime } from "../../utils/dateUtils";
 
 export interface CalendarEvent {
   id: string;
-  type: "notice" | "routine" | "personal";
+  type: "notice" | "routine" | "personal" | "public";
   title: string;
   description?: string;
   startDateTime: Date;
@@ -31,12 +31,14 @@ export interface CalendarEvent {
     createdBy?: string;
     canDelete?: boolean;
   };
+  reminder?: {
+    enabled: boolean;
+    minutesBefore: number;
+    notificationTime: string;
+  };
 }
 
-/**
- * Get calendar events for next N days based on user role and batch
- * Aggregates: notices with eventDate + expanded routines + personal fixtures
- */
+// Get calendar events for the next N days based on role and visibility.
 export async function getCalendarEvents(
   userId: string,
   days: number = 30,
@@ -60,25 +62,28 @@ export async function getCalendarEvents(
   }
 
   const now = new Date();
-  // Truncate to date only for comparison with eventDate column (which is stored as date, not datetime)
-  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Start from the beginning of the current month so the calendar UI shows past events for the month
+  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
   const endDate = new Date(now);
   endDate.setDate(endDate.getDate() + days);
   // Set to end of day for proper range inclusion
   endDate.setHours(23, 59, 59, 999);
 
+  const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`;
+  const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
   const events: CalendarEvent[] = [];
 
   // 1. Fetch approved notices with eventDate (role-filtered)
-  const noticeEvents = await getNoticeEvents(user, startDate, endDate);
+  const noticeEvents = await getNoticeEvents(user, startDateStr, endDateStr);
   events.push(...noticeEvents);
 
   // 2. Fetch and expand routines to daily entries (role-filtered)
-  const routineEvents = await getRoutineEvents(user, now, endDate);
+  const routineEvents = await getRoutineEvents(user, startDate, endDate);
   events.push(...routineEvents);
 
-  // 3. Fetch personal fixtures
-  const fixtureEvents = await getPersonalFixtureEvents(user, now, endDate);
+  // 3. Fetch fixtures (owner personal fixtures + all public fixtures)
+  const fixtureEvents = await getFixtureEvents(user, startDate, endDate);
   events.push(...fixtureEvents);
 
   // Sort by start date
@@ -89,13 +94,11 @@ export async function getCalendarEvents(
   );
 }
 
-/**
- * Get notice events filtered by role and batch
- */
+// Get notice events filtered by role and batch.
 async function getNoticeEvents(
   user: User,
-  startDate: Date,
-  endDate: Date,
+  startDate: string,
+  endDate: string,
 ): Promise<CalendarEvent[]> {
   const noticeRepo = AppDataSource.getRepository(Notice);
 
@@ -149,13 +152,16 @@ async function getNoticeEvents(
   return notices.map((notice) => {
     const normalizedStartTime = normalizeNoticeTime(notice.startTime);
     const normalizedEndTime = normalizeNoticeTime(notice.endTime);
-    const hasTimeRange = Boolean(normalizedStartTime && normalizedEndTime);
+    const hasTimeRange = Boolean(normalizedStartTime);
     const startDateTime = hasTimeRange
       ? parseLocalDateTime(`${notice.eventDate!}T${normalizedStartTime!}`)
       : parseLocalDate(notice.eventDate!);
-    const endDateTime = hasTimeRange
+    const endDateTime = normalizedEndTime
       ? parseLocalDateTime(`${notice.eventDate!}T${normalizedEndTime!}`)
-      : parseLocalDate(notice.eventDate!);
+      : startDateTime; // default to start time if no end time
+
+    const minutesBefore = 10;
+    const notificationTime = new Date(startDateTime.getTime() - minutesBefore * 60000);
 
     return {
       id: `notice-${notice.id}`,
@@ -168,6 +174,11 @@ async function getNoticeEvents(
       endTime: normalizedEndTime?.slice(0, 5),
       isAllDay: !hasTimeRange,
       source: { noticeId: notice.id },
+      reminder: {
+        enabled: hasTimeRange, // only if start time was provided
+        minutesBefore,
+        notificationTime: notificationTime.toISOString(),
+      },
       metadata: {
         forAll: notice.forAll,
         forTeachers: notice.forTeachers,
@@ -181,10 +192,7 @@ async function getNoticeEvents(
   });
 }
 
-/**
- * Expand user routines into daily calendar entries for next N days
- * Only shows user's own routines + teacher routines visible to student/cr in their batch
- */
+// Expand visible routines into daily calendar events.
 async function getRoutineEvents(
   user: User,
   startDate: Date,
@@ -269,9 +277,7 @@ async function getRoutineEvents(
   return events;
 }
 
-/**
- * Helper: expand weekly routines into daily calendar entries
- */
+// Expand weekly routine rows into dated calendar events.
 function expandRoutinesToCalendarEvents(
   routines: Routine[],
   startDate: Date,
@@ -314,6 +320,9 @@ function expandRoutinesToCalendarEvents(
           endDateTime.setHours(firstHour + 1, firstMin, 0, 0);
         }
 
+        const minutesBefore = 15;
+        const notificationTime = new Date(startDateTime.getTime() - minutesBefore * 60000);
+
         events.push({
           id: `routine-${routine.id}-${current.toISOString().split("T")[0]}`,
           type: "routine",
@@ -323,6 +332,11 @@ function expandRoutinesToCalendarEvents(
           endDateTime,
           isAllDay: false,
           source: { routineId: routine.id },
+          reminder: {
+            enabled: routine.remindersEnabled !== false, // Use routine's preference if defined, default true
+            minutesBefore,
+            notificationTime: notificationTime.toISOString(),
+          },
           metadata: {
             confidence: routine.confidence,
             note: routine.note || undefined,
@@ -337,46 +351,56 @@ function expandRoutinesToCalendarEvents(
   return events;
 }
 
-/**
- * Get personal fixture events for user
- */
-async function getPersonalFixtureEvents(
+// Get fixture events visible to the current user.
+async function getFixtureEvents(
   user: User,
   startDate: Date,
   endDate: Date,
 ): Promise<CalendarEvent[]> {
   const fixtureRepo = AppDataSource.getRepository(UserFixture);
 
-  const fixtures = await fixtureRepo.find({
-    where: {
-      user: { user_id: user.user_id },
-    },
-  });
+  const fixtures = await fixtureRepo
+    .createQueryBuilder("fixture")
+    .leftJoinAndSelect("fixture.user", "user")
+    .where("(user.user_id = :userId OR fixture.isPublic = :isPublic)", {
+      userId: user.user_id,
+      isPublic: true,
+    })
+    .andWhere("fixture.startDateTime >= :startDate", { startDate })
+    .andWhere("fixture.startDateTime <= :endDate", { endDate })
+    .orderBy("fixture.startDateTime", "ASC")
+    .getMany();
 
-  return fixtures
-    .filter(
-      (f) =>
-        new Date(f.startDateTime) >= startDate &&
-        new Date(f.startDateTime) <= endDate,
-    )
-    .map((fixture) => ({
-      id: `fixture-${fixture.id}`,
-      type: "personal",
-      title: fixture.title,
-      description: fixture.description,
-      startDateTime: new Date(fixture.startDateTime),
-      endDateTime: new Date(fixture.endDateTime),
-      isAllDay: fixture.isAllDay,
-      source: { fixtureId: fixture.id },
-    }));
+  return fixtures.map((fixture) => {
+      const isOwner = fixture.user?.user_id === user.user_id;
+      const isPublicFixture = !!fixture.isPublic;
+      const minutesBefore = 15;
+      const startDateTime = new Date(fixture.startDateTime);
+      const notificationTime = new Date(startDateTime.getTime() - minutesBefore * 60000);
+      
+      return {
+        id: `fixture-${fixture.id}`,
+        type: isPublicFixture ? "public" : "personal",
+        title: fixture.title,
+        description: fixture.description,
+        startDateTime,
+        endDateTime: new Date(fixture.endDateTime),
+        isAllDay: fixture.isAllDay,
+        source: { fixtureId: fixture.id },
+        metadata: {
+          canDelete: isOwner,
+          createdBy: isPublicFixture ? fixture.user?.name : undefined,
+        },
+        reminder: {
+          enabled: !fixture.isAllDay,
+          minutesBefore,
+          notificationTime: notificationTime.toISOString(),
+        }
+      };
+    });
 }
 
-/**
- * Determine if a user can delete a notice based on role and notice properties
- * - CR can delete: forAll notices, batchwise notices for their batch
- * - Teacher can delete: forTeachers notices, any notice they created
- * - Admin can delete: all notices they can see
- */
+// Determine whether the current user can delete a given notice.
 export function canDeleteNotice(notice: Notice, user: User): boolean {
   // If no user or notice, cannot delete
   if (!user || !notice || !user.role) {

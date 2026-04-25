@@ -1,9 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchNotices, getAttachmentDownloadUrl, deleteNotice } from "@/lib/action/notice";
-import { getSocket } from "@/lib/socket";
+import {
+  deleteNotice,
+  fetchNoticeTags,
+  fetchNotices,
+  getAttachmentDownloadUrl,
+} from "@/lib/action/notice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -24,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Download, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
+import { Download, Image as ImageIcon, FileText, Trash2, Users, Calendar, Clock } from "lucide-react";
 import { useRole } from "@/components/RoleProvider";
 import { toast } from "sonner";
 import {
@@ -35,20 +38,55 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Image from "next/image";
-import { formatBangladesh } from "@/lib/dateTime";
+import { formatBangladesh, formatBangladeshDate } from "@/lib/dateTime";
+import type {
+  INotice,
+  INoticeTagOption,
+  NoticeSortBy,
+  NoticeSortOrder,
+  NoticeTag,
+} from "@/lib/interfaces";
 
 const ITEMS_PER_PAGE = 10;
+
+const DEFAULT_TAG_OPTIONS: INoticeTagOption[] = [
+  { value: "general", label: "General" },
+  { value: "academic", label: "Academic" },
+  { value: "exam", label: "Exam" },
+  { value: "event", label: "Event" },
+  { value: "transport", label: "Transport" },
+  { value: "urgent", label: "Urgent" },
+];
+
+function getDefaultSortOrder(sortBy: NoticeSortBy): NoticeSortOrder {
+  return sortBy === "timePosted" ? "desc" : "asc";
+}
 
 export default function NoticePage() {
   const router = useRouter();
   const role = useRole();
-  const [notices, setNotices] = useState<any[]>([]);
+  const [notices, setNotices] = useState<INotice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<{
     url: string;
     title: string;
   } | null>(null);
+  const [sortBy, setSortBy] = useState<NoticeSortBy>("timePosted");
+  const [sortOrder, setSortOrder] = useState<NoticeSortOrder>(
+    getDefaultSortOrder("timePosted"),
+  );
+  const [tagFilter, setTagFilter] = useState<NoticeTag | "all">("all");
+  const [tagOptions, setTagOptions] = useState<INoticeTagOption[]>(
+    DEFAULT_TAG_OPTIONS,
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -56,7 +94,11 @@ export default function NoticePage() {
 
   useEffect(() => {
     let isMounted = true;
-    fetchNotices(currentPage, ITEMS_PER_PAGE)
+    fetchNotices(currentPage, ITEMS_PER_PAGE, {
+      sortBy,
+      sortOrder,
+      tag: tagFilter,
+    })
       .then((res) => {
         if (isMounted) {
           setNotices(res.data);
@@ -76,32 +118,67 @@ export default function NoticePage() {
     return () => {
       isMounted = false;
     };
-  }, [currentPage]);
+  }, [currentPage, sortBy, sortOrder, tagFilter]);
 
   useEffect(() => {
-    let socket: any;
+    let isMounted = true;
 
-    (async () => {
-      socket = await getSocket();
-
-      socket.on("notice_published", (notice: any) => {
-        if (currentPage === 1) {
-          setNotices((prev) => [notice, ...prev]);
+    fetchNoticeTags()
+      .then((res) => {
+        if (!isMounted || !res.success || !Array.isArray(res.data) || res.data.length === 0) {
+          return;
         }
+        setTagOptions(res.data);
+      })
+      .catch(() => {
+        // Keep default tag options if the endpoint is unavailable.
       });
-
-      socket.on("notice_deleted", (data: any) => {
-        setNotices((prev) => prev.filter((n) => n.id !== data.id));
-      });
-    })();
 
     return () => {
-      if (socket) {
-        socket.off("notice_published");
-        socket.off("notice_deleted");
-      }
+      isMounted = false;
     };
-  }, [currentPage]);
+  }, []);
+
+  useEffect(() => {
+    const onPublished = (event: Event) => {
+      if (currentPage !== 1 || sortBy !== "timePosted" || sortOrder !== "desc") {
+        return;
+      }
+
+      const notice = (event as CustomEvent<INotice>).detail;
+      if (!notice?.id) return;
+
+      if (tagFilter !== "all" && notice.tag !== tagFilter) {
+        return;
+      }
+
+      setNotices((prev) => {
+        if (prev.some((n) => n.id === notice.id)) {
+          return prev;
+        }
+        return [notice, ...prev];
+      });
+    };
+
+    const onDeleted = (event: Event) => {
+      const data = (event as CustomEvent<{ id: number }>).detail;
+      if (!data?.id) return;
+
+      setNotices((prev) => prev.filter((n) => n.id !== data.id));
+    };
+
+    window.addEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+    window.addEventListener("NOTICE_DELETED", onDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+      window.removeEventListener("NOTICE_DELETED", onDeleted as EventListener);
+    };
+  }, [currentPage, sortBy, sortOrder, tagFilter]);
+
+  const getTagLabel = (value: NoticeTag): string => {
+    return tagOptions.find((option) => option.value === value)?.label || value;
+  };
 
   const isImage = (fileType: string): boolean => {
     return fileType.startsWith("image/");
@@ -147,6 +224,76 @@ export default function NoticePage() {
         </Link>
       </div>
 
+      <Card>
+        <CardContent className="pt-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Sort By</p>
+              <Select
+                value={sortBy}
+                onValueChange={(value) => {
+                  const nextSortBy = value as NoticeSortBy;
+                  setSortBy(nextSortBy);
+                  setSortOrder(getDefaultSortOrder(nextSortBy));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select sort field" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="timePosted">Time Posted</SelectItem>
+                  <SelectItem value="upcomingEvent">Upcoming Event</SelectItem>
+                  <SelectItem value="tag">Tags</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Order</p>
+              <Select
+                value={sortOrder}
+                onValueChange={(value) => {
+                  setSortOrder(value as NoticeSortOrder);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">Ascending</SelectItem>
+                  <SelectItem value="desc">Descending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Tag Filter</p>
+              <Select
+                value={tagFilter}
+                onValueChange={(value) => {
+                  setTagFilter(value as NoticeTag | "all");
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="All tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tags</SelectItem>
+                  {tagOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
@@ -186,8 +333,39 @@ export default function NoticePage() {
                         )}
                       </p>
                     )}
+                    
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                        <Users className="w-3 h-3" />
+                        {n.forAll 
+                          ? "Visible: All" 
+                          : n.forTeachers 
+                            ? "Visible: Teachers" 
+                            : n.targetBatch?.name
+                              ? `Visible: Batch ${n.targetBatch.name}`
+                              : "Specific Audience"}
+                      </span>
+
+                      {n.eventDate && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 ring-1 ring-inset ring-gray-600/10">
+                          <Calendar className="w-3 h-3" />
+                          {formatBangladeshDate(n.eventDate)}
+                          {(n.startTime || n.endTime) && (
+                            <>
+                              <Clock className="w-3 h-3 ml-1" />
+                              {n.startTime ? n.startTime.slice(0, 5) : ""}
+                              {n.endTime ? ` - ${n.endTime.slice(0, 5)}` : ""}
+                            </>
+                          )}
+                        </span>
+                      )}
+
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-700/10 capitalize">
+                        {getTagLabel(n.tag)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 border-l pl-4 ml-2">
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {formatBangladesh(n.createdAt, {
                         month: "short",
@@ -216,10 +394,10 @@ export default function NoticePage() {
               <CardContent className="space-y-4">
                 <p className="text-sm leading-relaxed">{n.content}</p>
 
-                {/* Image Attachments Preview */}
+
                 {n.attachments && n.attachments.length > 0 && (
                   <div className="space-y-3 pt-2 border-t">
-                    {/* Images Grid */}
+
                     {n.attachments.filter((a: any) => isImage(a.fileType))
                       .length > 0 && (
                       <div className="grid grid-cols-2 gap-3">
@@ -272,7 +450,7 @@ export default function NoticePage() {
                       </div>
                     )}
 
-                    {/* File List (non-images) */}
+
                     {n.attachments.filter((a: any) => !isImage(a.fileType))
                       .length > 0 && (
                       <div className="space-y-2">
@@ -314,7 +492,7 @@ export default function NoticePage() {
         </div>
       )}
 
-      {/* Pagination */}
+
       {totalPages > 1 && (
         <Pagination className="mt-6">
           <PaginationContent>
@@ -359,7 +537,7 @@ export default function NoticePage() {
         </Pagination>
       )}
 
-      {/* Image Preview Modal */}
+
       <Dialog
         open={!!selectedImage}
         onOpenChange={() => setSelectedImage(null)}
@@ -404,7 +582,7 @@ export default function NoticePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+
       <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

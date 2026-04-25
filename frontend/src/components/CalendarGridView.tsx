@@ -46,6 +46,7 @@ export default function CalendarGridView() {
     startDateTime: "",
     endDateTime: "",
     isAllDay: false,
+    isPublic: false,
   });
 
   const loadEvents = useCallback(async () => {
@@ -122,6 +123,7 @@ export default function CalendarGridView() {
         startDateTime: fixtureData.startDateTime,
         endDateTime: fixtureData.endDateTime,
         isAllDay: fixtureData.isAllDay,
+        isPublic: fixtureData.isPublic,
       };
 
       await createPersonalFixture(payload);
@@ -133,6 +135,7 @@ export default function CalendarGridView() {
         startDateTime: "",
         endDateTime: "",
         isAllDay: false,
+        isPublic: false,
       });
       loadEvents();
     } catch (error) {
@@ -190,6 +193,8 @@ export default function CalendarGridView() {
         return "bg-purple-100 text-purple-800 border-l-2 border-l-purple-500";
       case "personal":
         return "bg-green-100 text-green-800 border-l-2 border-l-green-500";
+      case "public":
+        return "bg-amber-100 text-amber-800 border-l-2 border-l-amber-500";
       default:
         return "bg-gray-100 text-gray-800 border-l-2 border-l-gray-500";
     }
@@ -215,7 +220,6 @@ export default function CalendarGridView() {
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4">
-      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Calendar</h1>
@@ -231,7 +235,7 @@ export default function CalendarGridView() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Create Personal Event</DialogTitle>
+              <DialogTitle>Create Event</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
@@ -311,6 +315,23 @@ export default function CalendarGridView() {
                 </Label>
               </div>
 
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isPublic"
+                  checked={fixtureData.isPublic}
+                  onChange={(e) =>
+                    setFixtureData({
+                      ...fixtureData,
+                      isPublic: e.target.checked,
+                    })
+                  }
+                />
+                <Label htmlFor="isPublic" className="cursor-pointer">
+                  Public event (visible to all roles)
+                </Label>
+              </div>
+
               <div className="flex gap-2 pt-4">
                 <Button
                   variant="outline"
@@ -328,7 +349,6 @@ export default function CalendarGridView() {
         </Dialog>
       </div>
 
-      {/* Date Details Dialog */}
       <Dialog open={showDateDetailsDialog} onOpenChange={setShowDateDetailsDialog}>
         <DialogContent className="sm:max-w-md max-h-96 overflow-y-auto">
           <DialogHeader>
@@ -410,7 +430,8 @@ export default function CalendarGridView() {
                               </div>
                             )}
                           </div>
-                          {((event.type === "personal") ||
+                          {((event.source.fixtureId &&
+                            (event.metadata?.canDelete ?? event.type === "personal")) ||
                             (event.type === "notice" && event.metadata?.canDelete)) && (
                             <Button
                               variant="ghost"
@@ -439,7 +460,6 @@ export default function CalendarGridView() {
         </DialogContent>
       </Dialog>
 
-      {/* Month Navigation */}
       <div className="flex justify-between items-center mb-4">
         <Button
           variant="outline"
@@ -468,9 +488,7 @@ export default function CalendarGridView() {
         </Button>
       </div>
 
-      {/* Calendar Grid */}
       <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
-        {/* Day Headers */}
         <div className="grid grid-cols-7 gap-0 border-b bg-gray-50">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
             <div
@@ -482,7 +500,6 @@ export default function CalendarGridView() {
           ))}
         </div>
 
-        {/* Calendar Days */}
         {weeks.map((week, weekIdx) => (
           <div key={weekIdx} className="grid grid-cols-7 gap-0 border-b">
             {week.days.map((day, dayIdx) => {
@@ -541,8 +558,7 @@ export default function CalendarGridView() {
         ))}
       </div>
 
-      {/* Legend */}
-      <div className="flex gap-6 mt-6 justify-center">
+      <div className="flex gap-6 mt-6 justify-center flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-blue-500 rounded" />
           <span className="text-sm text-gray-600">Notices</span>
@@ -554,6 +570,10 @@ export default function CalendarGridView() {
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-green-500 rounded" />
           <span className="text-sm text-gray-600">Personal Events</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-amber-500 rounded" />
+          <span className="text-sm text-gray-600">Public Events</span>
         </div>
       </div>
     </div>

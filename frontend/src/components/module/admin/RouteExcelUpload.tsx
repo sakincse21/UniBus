@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState } from "react";
@@ -132,7 +131,7 @@ export const RouteExcelUpload = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Excel Format Instructions */}
+
         <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex gap-3">
             <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -157,7 +156,7 @@ export const RouteExcelUpload = ({
           </div>
         </div>
 
-        {/* Success Message */}
+
         {uploadSuccess && (
           <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 flex gap-3">
             <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
@@ -167,7 +166,7 @@ export const RouteExcelUpload = ({
           </div>
         )}
 
-        {/* Drag and Drop Area */}
+
         <div
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -192,7 +191,7 @@ export const RouteExcelUpload = ({
           </div>
         </div>
 
-        {/* File Input */}
+
         <Input
           type="file"
           accept=".xlsx,.xls"
@@ -200,7 +199,7 @@ export const RouteExcelUpload = ({
           className="cursor-pointer"
         />
 
-        {/* File Info */}
+
         {file && (
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <p>
@@ -212,7 +211,7 @@ export const RouteExcelUpload = ({
           </div>
         )}
 
-        {/* Action Buttons */}
+
         <div className="flex gap-3">
           <Button
             onClick={handleUpload}
@@ -245,7 +244,7 @@ export const RouteExcelUpload = ({
           )}
         </div>
 
-        {/* Help Text */}
+
         <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
           <p>• This will replace all existing route points for this route</p>
           <p>• File is automatically deleted after processing</p>

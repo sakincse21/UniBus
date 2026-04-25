@@ -9,6 +9,7 @@ const router = Router();
 // Profile routes (must be before /:id to avoid conflicts)
 router.get("/me", authValidate, UserController.getMyProfile);
 router.patch("/me", authValidate, UserController.updateMyProfile);
+router.put("/me/push-token", authValidate, UserController.updateMyPushToken);
 
 // Bulk upload
 router.post("/bulk-upload", authValidate, roleValidate(['admin']), uploadXlsx, UserController.bulkUploadUsers);

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -26,6 +25,44 @@ export default function PendingNoticePage() {
       setNotices(res.data || []);
       setLoading(false);
     });
+  }, []);
+
+  useEffect(() => {
+    const onPending = (event: Event) => {
+      const notice = (event as CustomEvent<any>).detail;
+      if (!notice?.id) return;
+
+      setNotices((prev) => {
+        if (prev.some((n) => n.id === notice.id)) {
+          return prev;
+        }
+        return [notice, ...prev];
+      });
+    };
+
+    const onPublished = (event: Event) => {
+      const notice = (event as CustomEvent<any>).detail;
+      if (!notice?.id) return;
+
+      setNotices((prev) => prev.filter((n) => n.id !== notice.id));
+    };
+
+    const onDeleted = (event: Event) => {
+      const data = (event as CustomEvent<{ id: number }>).detail;
+      if (!data?.id) return;
+
+      setNotices((prev) => prev.filter((n) => n.id !== data.id));
+    };
+
+    window.addEventListener("NOTICE_PENDING", onPending as EventListener);
+    window.addEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+    window.addEventListener("NOTICE_DELETED", onDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener("NOTICE_PENDING", onPending as EventListener);
+      window.removeEventListener("NOTICE_PUBLISHED", onPublished as EventListener);
+      window.removeEventListener("NOTICE_DELETED", onDeleted as EventListener);
+    };
   }, []);
 
   const approve = async (id: number) => {
@@ -92,6 +129,11 @@ export default function PendingNoticePage() {
                   <p className="text-xs text-muted-foreground">
                     By {n.createdBy.name || "Unknown"}
                   </p>
+                )}
+                {n.tag && (
+                  <span className="inline-flex w-fit mt-2 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-700/10 capitalize">
+                    {n.tag}
+                  </span>
                 )}
               </CardHeader>
               <CardContent>

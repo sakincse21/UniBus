@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UniBus",
+  title: "TrackU",
   description: "University Bus Tracking and Management System",
 };
 

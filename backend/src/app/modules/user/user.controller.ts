@@ -87,13 +87,45 @@ const updateMyProfile = tryCatch(async (req: Request, res: Response, next: NextF
   });
 });
 
+const updateMyPushToken = tryCatch(async (req: Request, res: Response) => {
+  const userId = req.user.userId;
+  const { pushToken } = req.body as { pushToken?: string | null };
+
+  if (pushToken !== undefined && pushToken !== null && typeof pushToken !== "string") {
+    return res.status(400).json({
+      success: false,
+      message: "pushToken must be a string or null",
+    });
+  }
+
+  const data = await UserService.updateMyPushToken(
+    userId,
+    typeof pushToken === "string" ? pushToken : null,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Push token updated successfully",
+    data,
+  });
+});
+
 const getAllUsers = tryCatch(async (req: Request, res: Response, next: NextFunction) => {
-  const users = await UserService.getAllUsers();
+  const options = {
+    page: Number(req.query.page) || 1,
+    limit: Number(req.query.limit) || 10,
+    sort: (req.query.sort as string) || "createdAt",
+    order: (req.query.order as string) || "desc",
+    search: (req.query.search as string) || "",
+  };
+
+  const data = await UserService.getAllUsers(options);
 
   res.status(200).json({
     success: true,
     message: "Users fetched successfully",
-    data: users,
+    data: data.users,
+    meta: data.meta,
   });
 });
 
@@ -105,5 +137,6 @@ export const UserController = {
   fetchUserbyId,
   getMyProfile,
   updateMyProfile,
+  updateMyPushToken,
   getAllUsers,
 };

@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import BusMap from "@/components/BusMap";
 import { Button } from "@/components/ui/button";
 import { fetchBuses } from "@/lib/action/bus";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type LocationState = "idle" | "requesting" | "granted" | "denied" | "error" | "skipped";
@@ -18,6 +17,16 @@ export default function BusesPage() {
   const [locationStatus, setLocationStatus] = useState<LocationState>("idle");
   const [locationError, setLocationError] = useState<string>("");
   const [isLocationSkipped, setIsLocationSkipped] = useState(false);
+  const busNumberById = useMemo(() => {
+    const mapping: Record<number, string> = {};
+    buses.forEach((bus) => {
+      if (typeof bus?.id !== "number") return;
+      const number = typeof bus?.busNumber === "string" ? bus.busNumber.trim() : "";
+      if (!number) return;
+      mapping[bus.id] = number;
+    });
+    return mapping;
+  }, [buses]);
 
   useEffect(() => {
     if (isLocationSkipped) return; 
@@ -188,7 +197,7 @@ export default function BusesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Live Bus Tracking</h1>
         
-        {/* Show location status indicator */}
+
         {locationStatus === "skipped" && (
           <Button 
             variant="outline" 
@@ -206,7 +215,7 @@ export default function BusesPage() {
         )}
       </div>
 
-      {/* Show warning banner if location skipped */}
+
       {locationStatus === "skipped" && (
         <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-800 dark:text-amber-200">
           <span className="font-medium">Location disabled:</span> Some features like nearby bus detection may not work accurately.{" "}
@@ -242,6 +251,7 @@ export default function BusesPage() {
           startTime={scheduleStartTime}
           routeId={routeId}
           activeBusId={activeBusId}
+          busNumberById={busNumberById}
         />
       </div>
     </div>
@@ -262,16 +272,21 @@ export default function BusesPage() {
 
       const data = await res.json();
       setActiveBusId(busId);
+      const resolvedBusNumber =
+        typeof data?.busNumber === "string" && data.busNumber.trim().length > 0
+          ? data.busNumber.trim()
+          : busNumberById[busId] || "";
+      const busLabel = `Bus ${resolvedBusNumber || busId}`;
 
       // Show feedback based on estimate mode
       if (data.estimate?.mode === "not_started") {
-        toast.info(`Bus hasn't started yet. Scheduled: ${data.estimate.startTime} – ${data.estimate.endTime}`);
+        toast.info(`${busLabel} hasn't started yet. Scheduled: ${data.estimate.startTime} – ${data.estimate.endTime}`);
       } else if (data.estimate?.mode === "ended") {
-        toast.info(`Bus route has ended for today (${data.estimate.startTime} – ${data.estimate.endTime}).`);
+        toast.info(`${busLabel} route has ended for today (${data.estimate.startTime} – ${data.estimate.endTime}).`);
       } else if (data.isLive) {
-        toast.success("Live tracking active — showing real-time location.");
+        toast.success(`Live tracking active for ${busLabel} — showing real-time location.`);
       } else if (data.estimate?.mode === "estimated") {
-        toast.success(`Estimated bus location shown. Notified ${data.notifiedUsers} nearby user(s).`);
+        toast.success(`Estimated location shown for ${busLabel}. Notified ${data.notifiedUsers} nearby user(s).`);
       }
 
       // Show bus marker on map for ALL cases with lat/lng (live OR estimated)
@@ -280,6 +295,7 @@ export default function BusesPage() {
           new CustomEvent("BUS_ESTIMATE_UPDATE", {
             detail: {
               busId,
+              busNumber: resolvedBusNumber || null,
               lat: data.estimate.lat,
               lng: data.estimate.lng,
               confidence: data.estimate.confidence || 0.5,

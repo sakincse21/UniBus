@@ -37,6 +37,13 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        try {
+          const { userAPI } = await import("@/lib/api");
+          await userAPI.updatePushToken(null);
+        } catch {
+          // Ignore network/logout races; local logout should always proceed.
+        }
+
         await storage.clear();
         set({
           user: null,

@@ -26,13 +26,7 @@ function hav(lat1: number, lon1: number, lat2: number, lon2: number): number {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * Minimum distance (metres) from point (lat, lng) to the nearest point
- * on any segment of the given polyline.
- *
- * Uses a flat-earth approximation for the projection parameter `t`
- * (accurate to < 0.01% error for segments < 50 km long).
- */
+// Return the minimum distance in meters from a point to a polyline.
 export function pointToPolylineDistance(
   lat: number,
   lng: number,

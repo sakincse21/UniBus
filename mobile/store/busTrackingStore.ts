@@ -1,30 +1,19 @@
 import { create } from "zustand";
-
-export interface PendingBusTrackingRequest {
-  busId: number;
-  routeId?: number | null;
-  estimate?: {
-    lat?: number;
-    lng?: number;
-    confidence?: number;
-  };
-}
+import { ITrackingRequestItem } from "@/interfaces";
 
 interface BusTrackingStoreState {
-  pendingRequest: PendingBusTrackingRequest | null;
+  requestToStartSharing: ITrackingRequestItem | null;
   isSharingGps: boolean;
   sharingForBusId: number | null;
-  setPendingRequest: (request: PendingBusTrackingRequest | null) => void;
-  clearPendingRequest: () => void;
+  setRequestToStartSharing: (request: ITrackingRequestItem | null) => void;
   setSharingState: (isSharingGps: boolean, sharingForBusId: number | null) => void;
 }
 
 export const useBusTrackingStore = create<BusTrackingStoreState>((set) => ({
-  pendingRequest: null,
+  requestToStartSharing: null,
   isSharingGps: false,
   sharingForBusId: null,
-  setPendingRequest: (pendingRequest) => set({ pendingRequest }),
-  clearPendingRequest: () => set({ pendingRequest: null }),
+  setRequestToStartSharing: (requestToStartSharing) => set({ requestToStartSharing }),
   setSharingState: (isSharingGps, sharingForBusId) =>
     set({ isSharingGps, sharingForBusId }),
 }));

@@ -29,27 +29,27 @@ export class Routine {
   @Column({ type: "enum", enum: DayOfWeek })
   day!: DayOfWeek;
 
-  /** HH:mm format, e.g. "08:30" */
+  // HH:mm format, e.g. 08:30.
   @Column({ type: "varchar", length: 5 })
   firstHalfStart!: string;
 
-  /** HH:mm format, e.g. "13:00" */
+  // HH:mm format, e.g. 13:00.
   @Column({ type: "varchar", length: 5 })
   secondHalfStart!: string;
 
-  /** AI confidence score 0-1 */
+  // AI confidence score from 0 to 1.
   @Column({ type: "float", default: 1 })
   confidence!: number;
 
-  /** Optional label, e.g. "Physics Lab" */
+  // Optional label, e.g. Physics Lab.
   @Column({ type: "varchar", length: 255, nullable: true })
   note?: string;
 
-  /** Whether user has confirmed / edited this entry */
+  // True when user has confirmed or edited this entry.
   @Column({ type: "boolean", default: false })
   confirmed!: boolean;
 
-  /** Whether reminders are active for this entry */
+  // True when reminders are enabled for this entry.
   @Column({ type: "boolean", default: true })
   remindersEnabled!: boolean;
 

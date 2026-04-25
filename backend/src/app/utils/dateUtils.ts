@@ -1,10 +1,4 @@
-/**
- * Bangladesh timezone utilities.
- *
- * We keep the API contract simple:
- * - date-only values use YYYY-MM-DD
- * - date-time values use YYYY-MM-DDTHH:mm[:ss] and represent Asia/Dhaka local time
- */
+// Bangladesh timezone utilities for local date and datetime parsing.
 
 export const BANGLADESH_TIME_ZONE = "Asia/Dhaka";
 export const BANGLADESH_OFFSET_MINUTES = 6 * 60;

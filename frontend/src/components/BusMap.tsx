@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -14,6 +13,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket";
 import type { IRoutePoint } from "@/lib/interfaces";
+import { BusFront } from "lucide-react";
 
 // Auto-centers the map on the user's current GPS location when the map first loads.
 function AutoLocate() {
@@ -38,8 +38,160 @@ function AutoLocate() {
   return null;
 }
 
+const MAP_MARKER_COLORS = {
+  routePoint: "#2563EB",
+  start: "#22C55E",
+  end: "#EF4444",
+  liveBus: "#16A34A",
+  estimatedBus: "#F97316",
+};
+
+const TRACK_ROUTE_PADDING = 84;
+
+function getRouteBounds(route: [number, number][]) {
+  if (route.length === 0) return null;
+
+  let minLng = route[0][0];
+  let minLat = route[0][1];
+  let maxLng = route[0][0];
+  let maxLat = route[0][1];
+
+  route.forEach(([pointLng, pointLat]) => {
+    minLng = Math.min(minLng, pointLng);
+    minLat = Math.min(minLat, pointLat);
+    maxLng = Math.max(maxLng, pointLng);
+    maxLat = Math.max(maxLat, pointLat);
+  });
+
+  return { minLng, minLat, maxLng, maxLat };
+}
+
+function getAdaptiveTrackZoom(span: number) {
+  if (span <= 0.0015) return 16.2;
+  if (span <= 0.003) return 15.8;
+  if (span <= 0.006) return 15.2;
+  if (span <= 0.012) return 14.6;
+  if (span <= 0.025) return 14.0;
+  if (span <= 0.05) return 13.4;
+  return 12.8;
+}
+
+function TrackBusViewport({
+  activeBusId,
+  locations,
+  route,
+}: {
+  activeBusId: number | null;
+  locations: Record<number, BusLocation>;
+  route: [number, number][];
+}) {
+  const { map, isLoaded } = useMap();
+  const lastActiveBusRef = useRef<number | null>(null);
+  const centeredRouteForRef = useRef<number | null>(null);
+  const centeredLocationForRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (lastActiveBusRef.current === activeBusId) return;
+    lastActiveBusRef.current = activeBusId;
+    centeredRouteForRef.current = null;
+    centeredLocationForRef.current = null;
+  }, [activeBusId]);
+
+  useEffect(() => {
+    if (!isLoaded || !map || activeBusId === null) return;
+
+    const location = locations[activeBusId];
+    const lat = Number(location?.estimate?.lat);
+    const lng = Number(location?.estimate?.lng);
+    const routeBounds = getRouteBounds(route);
+
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      if (centeredLocationForRef.current === activeBusId) return;
+
+      if (routeBounds) {
+        const minLng = Math.min(routeBounds.minLng, lng);
+        const minLat = Math.min(routeBounds.minLat, lat);
+        const maxLng = Math.max(routeBounds.maxLng, lng);
+        const maxLat = Math.max(routeBounds.maxLat, lat);
+        const span = Math.max(maxLng - minLng, maxLat - minLat);
+
+        if (span < 0.0002) {
+          map.flyTo({
+            center: [lng, lat],
+            zoom: 16,
+            duration: 900,
+            essential: true,
+          });
+        } else {
+          map.fitBounds(
+            [
+              [minLng, minLat],
+              [maxLng, maxLat],
+            ],
+            {
+              padding: TRACK_ROUTE_PADDING,
+              duration: 900,
+              maxZoom: getAdaptiveTrackZoom(span),
+              essential: true,
+            },
+          );
+        }
+      } else {
+        map.flyTo({
+          center: [lng, lat],
+          zoom: 15.6,
+          duration: 900,
+          essential: true,
+        });
+      }
+
+      centeredLocationForRef.current = activeBusId;
+      return;
+    }
+
+    if (centeredRouteForRef.current === activeBusId || route.length < 2 || !routeBounds) {
+      return;
+    }
+
+    const routeSpan = Math.max(
+      routeBounds.maxLng - routeBounds.minLng,
+      routeBounds.maxLat - routeBounds.minLat,
+    );
+
+    if (routeSpan < 0.0002) {
+      map.flyTo({
+        center: [routeBounds.minLng, routeBounds.minLat],
+        zoom: 15,
+        duration: 900,
+        essential: true,
+      });
+
+      centeredRouteForRef.current = activeBusId;
+      return;
+    }
+
+    map.fitBounds(
+      [
+        [routeBounds.minLng, routeBounds.minLat],
+        [routeBounds.maxLng, routeBounds.maxLat],
+      ],
+      {
+        padding: TRACK_ROUTE_PADDING,
+        duration: 900,
+        maxZoom: getAdaptiveTrackZoom(routeSpan),
+        essential: true,
+      }
+    );
+
+    centeredRouteForRef.current = activeBusId;
+  }, [activeBusId, isLoaded, locations, map, route]);
+
+  return null;
+}
+
 type BusLocation = {
   busId: number;
+  busNumber?: string | null;
   points: any[];
   isLive: boolean;
   estimate: {
@@ -135,17 +287,79 @@ function normalizeRoutePoints(pts: any[]): any[] {
   return pts;
 }
 
+function StopMarker({
+  type,
+  time,
+  sequence,
+}: {
+  type: "start" | "end" | "mid";
+  time: string;
+  sequence: number;
+}) {
+  const markerColor =
+    type === "start"
+      ? MAP_MARKER_COLORS.start
+      : type === "end"
+        ? MAP_MARKER_COLORS.end
+        : MAP_MARKER_COLORS.routePoint;
+
+  const borderColor =
+    type === "start" ? "#86EFAC" : type === "end" ? "#FCA5A5" : "#93C5FD";
+
+  const markerLabel = type === "start" ? "S" : type === "end" ? "E" : String(sequence);
+  const markerSize = type === "mid" ? 20 : 24;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="mb-1 min-w-[52px] rounded border border-border bg-background px-1.5 py-0.5 text-center text-[10px] font-semibold text-foreground shadow-sm">
+        {time}
+      </div>
+      <div
+        className="flex items-center justify-center rounded-full border-2 text-white shadow"
+        style={{
+          width: markerSize,
+          height: markerSize,
+          backgroundColor: markerColor,
+          borderColor,
+          fontSize: type === "mid" ? 10 : 11,
+          fontWeight: 700,
+          lineHeight: 1,
+        }}
+      >
+        {markerLabel}
+      </div>
+    </div>
+  );
+}
+
+function BusMarkerDot({ isLive }: { isLive: boolean }) {
+  const markerColor = isLive
+    ? MAP_MARKER_COLORS.liveBus
+    : MAP_MARKER_COLORS.estimatedBus;
+
+  return (
+    <div
+      className="flex h-8 w-8 items-center justify-center rounded-full border border-white/80 shadow"
+      style={{ backgroundColor: markerColor }}
+    >
+      <BusFront className="h-4 w-4 text-white" />
+    </div>
+  );
+}
+
 
 export default function BusMap({
   points,
   startTime,
   routeId,
   activeBusId,
+  busNumberById,
 }: {
   points: any[];
   startTime?: string | null;
   routeId?: number | null;
   activeBusId?: number | null;
+  busNumberById?: Record<number, string>;
 }) {
   const [locations, setLocations] = useState<Record<number, BusLocation>>({});
   const normalizedPoints = useMemo(
@@ -168,6 +382,10 @@ export default function BusMap({
         ...prev,
         [data.busId]: {
           busId: data.busId,
+          busNumber:
+            typeof data.busNumber === "string" && data.busNumber.trim().length > 0
+              ? data.busNumber.trim()
+              : prev[data.busId]?.busNumber || busNumberById?.[data.busId] || null,
           points: [],
           isLive: false,
           estimate: {
@@ -181,7 +399,7 @@ export default function BusMap({
 
     window.addEventListener("BUS_ESTIMATE_UPDATE", handler);
     return () => window.removeEventListener("BUS_ESTIMATE_UPDATE", handler);
-  }, []);
+  }, [busNumberById]);
 
   // Listen for live location updates via socket
   useEffect(() => {
@@ -196,6 +414,10 @@ export default function BusMap({
             ...prev,
             [data.busId]: {
               busId: data.busId,
+              busNumber:
+                typeof data.busNumber === "string" && data.busNumber.trim().length > 0
+                  ? data.busNumber.trim()
+                  : prev[data.busId]?.busNumber || busNumberById?.[data.busId] || null,
               points: data.points || [],
               isLive: true,
               estimate: {
@@ -220,7 +442,7 @@ export default function BusMap({
         socket.off("bus_location_update");
       }
     };
-  }, []);
+  }, [busNumberById]);
   
   
   useEffect(() => {
@@ -290,6 +512,7 @@ export default function BusMap({
         ...prev,
         [activeBusId]: {
           busId: activeBusId,
+          busNumber: prev[activeBusId]?.busNumber || busNumberById?.[activeBusId] || null,
           points: [],
           isLive: false,
           estimate: {
@@ -305,7 +528,7 @@ export default function BusMap({
     const interval = window.setInterval(updateEstimate, 1000);
 
     return () => window.clearInterval(interval);
-  }, [activeBusId, activeLocationIsLive, normalizedPoints, startTime]);
+  }, [activeBusId, activeLocationIsLive, busNumberById, normalizedPoints, startTime]);
 
   // Listen for tracking ended — fallback to estimated bus location
   useEffect(() => {
@@ -322,6 +545,7 @@ export default function BusMap({
             ...prev,
             [data.busId]: {
               busId: data.busId,
+              busNumber: prev[data.busId]?.busNumber || busNumberById?.[data.busId] || null,
               points: [],
               isLive: false,
               estimate: {
@@ -344,62 +568,69 @@ export default function BusMap({
 
     window.addEventListener("BUS_TRACKING_ENDED", handler);
     return () => window.removeEventListener("BUS_TRACKING_ENDED", handler);
-  }, [activeBusId, normalizedPoints, startTime]);
+  }, [activeBusId, busNumberById, normalizedPoints, startTime]);
 
   return (
-    <div className="w-full h-[600px] rounded border ">
-      <Map center={[89.5, 22.9]} zoom={12}>
+    <div className="h-[620px] w-full overflow-hidden rounded-md border border-border bg-background">
+      <Map center={[89.5, 22.9]} zoom={12.5}>
         <AutoLocate />
+        <TrackBusViewport
+          activeBusId={activeBusId ?? null}
+          locations={locations}
+          route={route}
+        />
         <MapControls showZoom showLocate position="bottom-right" />
-        <MapRoute coordinates={route} color="#3b82f6" width={4} opacity={0.8} />
-        {Object.values(locations).map((bus) => (
+        <MapRoute coordinates={route} color={MAP_MARKER_COLORS.routePoint} width={4} opacity={1} />
+        {Object.values(locations).map((bus) => {
+          if (
+            !bus?.estimate ||
+            typeof bus.estimate.lat !== "number" ||
+            typeof bus.estimate.lng !== "number"
+          ) {
+            return null;
+          }
+          
+          return (
           <MapMarker
             key={bus?.busId}
             latitude={bus?.estimate.lat}
             longitude={bus?.estimate.lng}
           >
             <MarkerContent>
-              <div
-                className={`size-4 rounded-full ${
-                  bus.isLive
-                    ? "bg-green-500"
-                    : bus.estimate.confidence > 0.7
-                      ? "bg-yellow-500"
-                      : "bg-orange-500"
-                } shadow-lg`}
-              />
+              <BusMarkerDot isLive={bus.isLive} />
             </MarkerContent>
+            {(() => {
+              const resolvedBusNumber =
+                bus.busNumber && bus.busNumber.trim().length > 0
+                  ? bus.busNumber.trim()
+                  : busNumberById?.[bus.busId] || "";
+              const busLabel = `Bus ${resolvedBusNumber || bus.busId}`;
+
+              return (
+                <>
             <MarkerTooltip>
-              Bus {bus.busId} {bus.isLive ? "(Live)" : "(Estimated)"}
+                  {busLabel} {bus.isLive ? "(Live)" : "(Estimated)"}
             </MarkerTooltip>
             <MarkerPopup>
               <div className="space-y-1">
                 <p className="font-medium text-foreground">
-                  Bus {bus.busId} — {bus.isLive ? "Live" : "Estimated"}
+                      {busLabel} — {bus.isLive ? "Live" : "Estimated"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {bus?.estimate.lat.toFixed(4)}, {bus?.estimate.lng.toFixed(4)}
+                  {bus.estimate.lat.toFixed(4)}, {bus.estimate.lng.toFixed(4)}
                 </p>
-                {!bus.isLive && (
-                  <p className="text-xs text-muted-foreground">
-                    Confidence: {(bus.estimate.confidence * 100).toFixed(0)}%
-                  </p>
-                )}
               </div>
             </MarkerPopup>
+                </>
+              );
+            })()}
           </MapMarker>
-        ))}
+        )})}
         {normalizedPoints?.map((point, idx) => {
           const isFirst = idx === 0;
-          const isLast = idx === points.length - 1;
+          const isLast = idx === normalizedPoints.length - 1;
+          const markerType = isFirst ? "start" : isLast ? "end" : "mid";
           const time = pointTime(startTime ?? null, point.minuteOffset);
-
-          // Color: green for start, red for end, blue for intermediate
-          const bgColor = isFirst
-            ? "bg-green-600"
-            : isLast
-              ? "bg-red-600"
-              : "bg-blue-500";
 
           const label = isFirst
             ? "Start"
@@ -414,18 +645,11 @@ export default function BusMap({
               longitude={point.lng}
             >
               <MarkerContent>
-                <div className="flex flex-col items-center gap-0.5 ">
-                  <span
-                    className={`text-[10px] font-semibold text-foreground bg-background/80 px-1 rounded shadow`}
-                  >
-                    {time}
-                  </span>
-                  <div
-                    className={`${isFirst || isLast ? "size-5" : "size-4"} rounded-full ${bgColor} shadow-lg flex items-center justify-center text-white text-[9px] font-bold border-2 ${isFirst ? "border-green-300" : isLast ? "border-red-300" : "border-transparent"}`}
-                  >
-                    {isFirst ? "S" : isLast ? "E" : point.sequence}
-                  </div>
-                </div>
+                <StopMarker
+                  type={markerType}
+                  time={time}
+                  sequence={point.sequence}
+                />
               </MarkerContent>
               <MarkerTooltip>
                 {label} — {time}
@@ -434,9 +658,9 @@ export default function BusMap({
                 <div className="space-y-1">
                   <p className="font-medium text-foreground">
                     {isFirst
-                      ? "🟢 Starting Point"
+                      ? "Starting Point"
                       : isLast
-                        ? "🔴 Ending Point"
+                        ? "Ending Point"
                         : `Route Point ${point.sequence}`}
                   </p>
                   <p className="text-xs text-muted-foreground">Time: {time}</p>

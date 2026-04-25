@@ -1,11 +1,158 @@
 import { Request, Response } from "express";
 import tryCatch from "../../utils/tryCatch";
 import { AppDataSource } from "../../db/data-source";
-import { Notice, NoticeStatus } from "./notice.entity";
+import { Notice, NoticeStatus, NoticeTag } from "./notice.entity";
 import { User, UserRole } from "../user/user.entity";
+import { sendPushToUsers } from "../notification/push.service";
+
+type NoticeSortBy = "timePosted" | "upcomingEvent" | "tag";
+type NoticeSortOrder = "asc" | "desc";
+
+const NOTICE_TAG_LABELS: Record<NoticeTag, string> = {
+  [NoticeTag.GENERAL]: "General",
+  [NoticeTag.ACADEMIC]: "Academic",
+  [NoticeTag.EXAM]: "Exam",
+  [NoticeTag.EVENT]: "Event",
+  [NoticeTag.TRANSPORT]: "Transport",
+  [NoticeTag.URGENT]: "Urgent",
+};
+
+function isNoticeTag(value: unknown): value is NoticeTag {
+  return typeof value === "string" && Object.values(NoticeTag).includes(value as NoticeTag);
+}
+
+function parseNoticeSortBy(value: unknown): NoticeSortBy {
+  if (value === "upcomingEvent" || value === "tag") {
+    return value;
+  }
+  return "timePosted";
+}
+
+function parseNoticeSortOrder(value: unknown): NoticeSortOrder | null {
+  if (value === "asc" || value === "desc") {
+    return value;
+  }
+  return null;
+}
+
+function getNoticeTagPayload() {
+  return Object.values(NoticeTag).map((value) => ({
+    value,
+    label: NOTICE_TAG_LABELS[value],
+  }));
+}
+
+type SocketServerLike = {
+  emit: (event: string, payload: unknown) => void;
+  to: (room: string) => { emit: (event: string, payload: unknown) => void };
+};
+
+function getSocketServer(req: Request): SocketServerLike | null {
+  const io = req.app.get("io") as Partial<SocketServerLike> | undefined;
+
+  if (!io || typeof io.emit !== "function" || typeof io.to !== "function") {
+    return null;
+  }
+
+  return io as SocketServerLike;
+}
+
+function emitPublishedNotice(io: SocketServerLike | null, notice: Notice) {
+  if (!io) return;
+
+  if (notice.forAll) {
+    io.emit("notice_published", notice);
+    return;
+  }
+
+  if (notice.forTeachers) {
+    io.to("role:teacher").emit("notice_published", notice);
+    return;
+  }
+
+  if (notice.targetBatch) {
+    io.to(`batch:${notice.targetBatch.id}`).emit("notice_published", notice);
+  }
+}
+
+function emitPendingNotice(io: SocketServerLike | null, notice: Notice) {
+  if (!io) return;
+
+  io.to("role:admin").emit("notice_pending", notice);
+  io.to("role:teacher").emit("notice_pending", notice);
+  io.to("role:cr").emit("notice_pending", notice);
+}
+
+function summarizeNoticeContent(content: string): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= 140) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 137)}...`;
+}
+
+async function getNoticePushRecipients(
+  notice: Notice,
+  excludeUserId?: string,
+): Promise<User[]> {
+  const userRepo = AppDataSource.getRepository(User);
+  const qb = userRepo
+    .createQueryBuilder("user")
+    .leftJoin("user.batch", "batch")
+    .select(["user.user_id", "user.pushToken", "user.role"]);
+
+  if (notice.forAll) {
+    // forAll notices go to every user.
+  } else if (notice.forTeachers) {
+    qb.where("user.role = :role", { role: UserRole.TEACHER });
+  } else if (notice.targetBatch?.id) {
+    qb.where("batch.id = :batchId", { batchId: notice.targetBatch.id });
+  } else {
+    return [];
+  }
+
+  if (excludeUserId) {
+    qb.andWhere("user.user_id != :excludeUserId", { excludeUserId });
+  }
+
+  return qb.getMany();
+}
+
+async function pushPublishedNotice(
+  notice: Notice,
+  excludeUserId?: string,
+): Promise<number> {
+  const recipients = await getNoticePushRecipients(notice, excludeUserId);
+
+  if (!recipients.length) {
+    return 0;
+  }
+
+  return sendPushToUsers(recipients, {
+    title: `New Notice: ${notice.title}`,
+    body: summarizeNoticeContent(notice.content),
+    data: {
+      type: "notice",
+      noticeId: notice.id,
+    },
+    channelId: "default",
+  });
+}
 
 const createNotice = tryCatch(async (req: Request, res: Response) => {
-  const { title, content, forAll, forTeachers, targetBatchId, eventDate, startTime, endTime } = req.body;
+  const {
+    title,
+    content,
+    forAll,
+    forTeachers,
+    targetBatchId,
+    eventDate,
+    startTime,
+    endTime,
+    tag,
+  } = req.body;
 
   const user = await AppDataSource.getRepository("User").findOne({
     where: { user_id: req.user.userId },
@@ -84,6 +231,17 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     });
   }
 
+  const normalizedTag =
+    typeof tag === "string" && tag.trim().length > 0
+      ? tag.trim().toLowerCase()
+      : NoticeTag.GENERAL;
+
+  if (!isNoticeTag(normalizedTag)) {
+    return res.status(400).json({
+      message: `Invalid notice tag. Allowed tags: ${Object.values(NoticeTag).join(", ")}`,
+    });
+  }
+
   // Auto-approve for admin, teacher, CR. Pending for students.
   const notice = repo.create({
     title,
@@ -95,6 +253,7 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
     eventDate: eventDate || undefined,
     startTime: startTime || undefined,
     endTime: endTime || undefined,
+    tag: normalizedTag,
     status:
       user.role === UserRole.STUDENT
         ? NoticeStatus.PENDING
@@ -103,19 +262,18 @@ const createNotice = tryCatch(async (req: Request, res: Response) => {
 
   await repo.save(notice);
 
-  const io = req.app.get("io");
+  const io = getSocketServer(req);
+  let pushNotifiedUsers = 0;
+
   // If auto-approved, broadcast immediately
   if (notice.status === NoticeStatus.APPROVED) {
-    if (notice.forAll) {
-      io.emit("notice_published", notice);
-    } else if (notice.forTeachers) {
-      io.to("role:teacher").emit("notice_published", notice);
-    } else if (notice.targetBatch) {
-      io.to(`batch:${notice.targetBatch.id}`).emit("notice_published", notice);
-    }
+    emitPublishedNotice(io, notice);
+    pushNotifiedUsers = await pushPublishedNotice(notice, user.user_id);
+  } else if (notice.status === NoticeStatus.PENDING) {
+    emitPendingNotice(io, notice);
   }
 
-  res.json({ success: true, data: notice });
+  res.json({ success: true, data: notice, pushNotifiedUsers });
 });
 
 const approveNotice = tryCatch(async (req: Request, res: Response) => {
@@ -128,7 +286,7 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
   const repo = AppDataSource.getRepository(Notice);
   const notice = await repo.findOne({
     where: { id: Number(id) },
-    relations: ["targetBatch"],
+    relations: ["targetBatch", "createdBy"],
   });
 
   if (!notice) {
@@ -138,21 +296,44 @@ const approveNotice = tryCatch(async (req: Request, res: Response) => {
   notice.status = NoticeStatus.APPROVED;
   await repo.save(notice);
 
-  const io = req.app.get("io");
-  if (notice.forAll) {
-    io.emit("notice_published", notice);
-  } else if (notice.forTeachers) {
-    io.to("role:teacher").emit("notice_published", notice);
-  } else if (notice.targetBatch) {
-    io.to(`batch:${notice.targetBatch.id}`).emit("notice_published", notice);
+  const io = getSocketServer(req);
+  emitPublishedNotice(io, notice);
+  
+  let pushNotifiedUsers = await pushPublishedNotice(notice);
+
+  // Notify the creator that their notice was accepted
+  if (notice.createdBy && notice.createdBy.pushToken && notice.createdBy.user_id !== req.user.userId) {
+    await sendPushToUsers([notice.createdBy], {
+      title: "Notice Approved ✅",
+      body: `Your pending notice "${notice.title}" has been approved!`,
+      data: {
+        type: "notice",
+        noticeId: notice.id,
+      },
+      channelId: "default",
+    });
+    pushNotifiedUsers += 1;
   }
 
-  res.json({ success: true });
+  res.json({ success: true, pushNotifiedUsers });
 });
 
 const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
   const user = req.user;
   const userRole = user.role as UserRole;
+  const sortBy = parseNoticeSortBy(req.query.sortBy);
+  const requestedSortOrder = parseNoticeSortOrder(req.query.sortOrder);
+  const rawTag = typeof req.query.tag === "string" ? req.query.tag.trim().toLowerCase() : "";
+
+  if (rawTag && rawTag !== "all" && !isNoticeTag(rawTag)) {
+    return res.status(400).json({
+      message: `Invalid notice tag filter. Allowed tags: ${Object.values(NoticeTag).join(", ")}`,
+    });
+  }
+
+  const defaultSortOrder: NoticeSortOrder = sortBy === "timePosted" ? "desc" : "asc";
+  const sortOrder = requestedSortOrder ?? defaultSortOrder;
+  const sqlSortOrder = sortOrder === "asc" ? "ASC" : "DESC";
 
   const ifUser = await AppDataSource.getRepository("User").findOne({
     where: { user_id: user.userId },
@@ -187,9 +368,44 @@ const getVisibleNotices = tryCatch(async (req: Request, res: Response) => {
     }
   }
 
-  const notices = await qb.orderBy("notice.createdAt", "DESC").getMany();
+  if (rawTag && rawTag !== "all") {
+    qb.andWhere("notice.tag = :tag", { tag: rawTag });
+  }
+
+  if (sortBy === "upcomingEvent") {
+    const today = new Date().toISOString().slice(0, 10);
+
+    qb.addSelect(
+      `CASE
+         WHEN notice.eventDate IS NULL OR notice.eventDate = '' THEN 2
+         WHEN notice.eventDate < :today THEN 1
+         ELSE 0
+       END`,
+      "event_bucket",
+    );
+    qb.setParameter("today", today);
+    qb.orderBy("event_bucket", "ASC")
+      .addOrderBy("notice.eventDate", sqlSortOrder)
+      .addOrderBy("notice.startTime", sqlSortOrder)
+      .addOrderBy("notice.createdAt", "DESC");
+  } else if (sortBy === "tag") {
+    qb.orderBy("notice.tag", sqlSortOrder)
+      .addOrderBy("notice.eventDate", "ASC")
+      .addOrderBy("notice.createdAt", "DESC");
+  } else {
+    qb.orderBy("notice.createdAt", sqlSortOrder);
+  }
+
+  const notices = await qb.getMany();
 
   res.json({ success: true, data: notices });
+});
+
+const getNoticeTags = tryCatch(async (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    data: getNoticeTagPayload(),
+  });
 });
 
 const getPendingNotices = tryCatch(async (req: Request, res: Response) => {
@@ -236,8 +452,8 @@ const deleteNotice = tryCatch(async (req: Request, res: Response) => {
   const repo = AppDataSource.getRepository(Notice);
   await repo.delete(Number(id));
 
-  const io = req.app.get("io");
-  io.emit("notice_deleted", { id: Number(id) });
+  const io = getSocketServer(req);
+  io?.emit("notice_deleted", { id: Number(id) });
 
   res.json({ success: true });
 });
@@ -292,6 +508,7 @@ const getNoticeById = tryCatch(async (req: Request, res: Response) => {
 export const NoticeController = {
   createNotice,
   getVisibleNotices,
+  getNoticeTags,
   approveNotice,
   getPendingNotices,
   rejectNotice,

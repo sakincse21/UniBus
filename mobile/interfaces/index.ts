@@ -9,6 +9,22 @@ export interface IUser {
   };
 }
 
+export type NoticeTag =
+  | "general"
+  | "academic"
+  | "exam"
+  | "event"
+  | "transport"
+  | "urgent";
+
+export type NoticeSortBy = "timePosted" | "upcomingEvent" | "tag";
+export type NoticeSortOrder = "asc" | "desc";
+
+export interface INoticeTagOption {
+  value: NoticeTag;
+  label: string;
+}
+
 export interface INotice {
   id: number;
   title: string;
@@ -17,6 +33,7 @@ export interface INotice {
   status: "pending" | "approved" | "rejected";
   forAll: boolean;
   forTeachers: boolean;
+  tag: NoticeTag;
   eventDate?: string; // ISO date string for calendar integration
   startTime?: string; // HH:mm format
   endTime?: string; // HH:mm format
@@ -27,6 +44,36 @@ export interface INotice {
   createdBy?: {
     user_id: string;
     name: string;
+  };
+}
+
+export interface IForumPost {
+  id: number;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  commentCount?: number;
+  batch: {
+    id: number;
+    name: string;
+  };
+  author: {
+    user_id: string;
+    name: string;
+    role: "admin" | "teacher" | "student" | "cr";
+  };
+}
+
+export interface IForumComment {
+  id: number;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    user_id: string;
+    name: string;
+    role: "admin" | "teacher" | "student" | "cr";
   };
 }
 
@@ -67,8 +114,24 @@ export interface IBusTrackingResponse {
   points: IRoutePoint[];
   routeId?: number | null;
   startTime: string | null;
+  busNumber?: string | null;
   notifiedUsers: number;
+  requestIds?: number[];
   estimate: IBusEstimate | null;
+}
+
+export interface ITrackingRequestItem {
+  id: number;
+  busId: number;
+  busNumber?: string | null;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
+  expiresAt?: string | null;
+  requester: {
+    userId: string;
+    name: string;
+    email: string;
+  };
 }
 
 export interface IBusLiveLocation {
@@ -118,7 +181,7 @@ export interface ICalendarEventSource {
 
 export interface ICalendarEvent {
   id: string;
-  type: "notice" | "routine" | "personal";
+  type: "notice" | "routine" | "personal" | "public";
   title: string;
   description?: string;
   startDateTime: string; // ISO date string
@@ -128,6 +191,11 @@ export interface ICalendarEvent {
   isAllDay?: boolean;
   source: ICalendarEventSource;
   metadata?: ICalendarEventMetadata;
+  reminder?: {
+    enabled: boolean;
+    minutesBefore: number;
+    notificationTime: string; // ISO date string
+  };
 }
 
 export interface IUserFixture {
@@ -135,6 +203,7 @@ export interface IUserFixture {
   title: string;
   description?: string;
   isAllDay: boolean;
+  isPublic: boolean;
   startDateTime: string; // ISO date string
   endDateTime: string; // ISO date string
   user_id?: string;
@@ -144,6 +213,7 @@ export interface ICreateFixturePayload {
   title: string;
   description?: string;
   isAllDay: boolean;
+  isPublic: boolean;
   startDateTime: string; // ISO date string
   endDateTime: string; // ISO date string
 }
@@ -152,6 +222,7 @@ export interface IUpdateFixturePayload {
   title?: string;
   description?: string;
   isAllDay?: boolean;
+  isPublic?: boolean;
   startDateTime?: string; // ISO date string
   endDateTime?: string; // ISO date string
 }

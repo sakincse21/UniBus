@@ -3,28 +3,19 @@ import config from "./config";
 import storage from "./storage";
 
 let socket: Socket | null = null;
+let socketToken: string | null = null;
 
-export const getSocket = async (): Promise<Socket> => {
-  if (socket?.connected) {
-    return socket;
-  }
+function normalizeToken(token: string | null | undefined): string | null {
+  const trimmed = typeof token === "string" ? token.trim() : "";
+  return trimmed.length > 0 ? trimmed : null;
+}
 
-  const token = await storage.getToken();
-
-  socket = io(config.SOCKET_URL, {
-    auth: { token },
-    transports: ["websocket"],
-    reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
+function attachSocketLifecycleLogs(instance: Socket) {
+  instance.on("connect", () => {
+    console.log("Socket connected:", instance.id);
   });
 
-  socket.on("connect", () => {
-    console.log("Socket connected:", socket?.id);
-  });
-
-  socket.on("connect_error", (error: any) => {
+  instance.on("connect_error", (error: any) => {
     // Silently handle connection errors in development
     // Backend may not be running during development
     if (process.env.NODE_ENV === "development") {
@@ -34,17 +25,52 @@ export const getSocket = async (): Promise<Socket> => {
     }
   });
 
-  socket.on("disconnect", () => {
+  instance.on("disconnect", () => {
     console.log("Socket disconnected");
   });
+}
+
+export const getSocket = async (): Promise<Socket> => {
+  const token = normalizeToken(await storage.getToken());
+
+  if (socket) {
+    const tokenChanged = socketToken !== token;
+
+    if (tokenChanged) {
+      socket.removeAllListeners();
+      socket.disconnect();
+      socket = null;
+      socketToken = null;
+    } else {
+      if (socket.disconnected) {
+        socket.connect();
+      }
+      return socket;
+    }
+  }
+
+  socket = io(config.SOCKET_URL, {
+    auth: token ? { token } : {},
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 8000,
+    timeout: 10000,
+  });
+  socketToken = token;
+
+  attachSocketLifecycleLogs(socket);
 
   return socket;
 };
 
 export const disconnectSocket = () => {
   if (socket) {
+    socket.removeAllListeners();
     socket.disconnect();
     socket = null;
+    socketToken = null;
   }
 };
 

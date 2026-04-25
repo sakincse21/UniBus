@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -181,7 +180,7 @@ export default function RoutesManagementPage() {
                 </TableBody>
               </Table>
 
-              {/* Pagination */}
+
               {totalPages > 1 && (
                 <Pagination className="mt-6">
                   <PaginationContent>

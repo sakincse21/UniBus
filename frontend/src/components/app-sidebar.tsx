@@ -26,8 +26,21 @@ function getNavSections(role: UserRole | null) {
 
   if (!role) return sections;
 
-  // ── Student / Teacher ──
-  if (role === "student" || role === "teacher") {
+  // ── Student ──
+  if (role === "student") {
+    sections.push({
+      title: "Navigation",
+      items: [
+        { title: "Buses", url: "/buses" },
+        { title: "Notices", url: "/notice" },
+        { title: "Forum", url: "/forum" },
+        { title: "Calendar", url: "/calendar" },
+      ],
+    });
+  }
+
+  // ── Teacher ──
+  if (role === "teacher") {
     sections.push({
       title: "Navigation",
       items: [
@@ -45,6 +58,7 @@ function getNavSections(role: UserRole | null) {
       items: [
         { title: "Buses", url: "/buses" },
         { title: "Notices", url: "/notice" },
+        { title: "Forum", url: "/forum" },
         { title: "Create Notice", url: "/notice/create" },
         { title: "Calendar", url: "/calendar" },
       ],
@@ -81,6 +95,7 @@ function getNavSections(role: UserRole | null) {
         { title: "Manage Buses", url: "/dashboard/buses" },
         { title: "Manage Routes", url: "/dashboard/routes" },
         { title: "Manage Schedules", url: "/dashboard/schedules" },
+        { title: "Manage Batches", url: "/dashboard/batches" },
         { title: "Add User", url: "/dashboard/add-user" },
         { title: "Bulk Upload Users", url: "/dashboard/add-user/bulk" },
         { title: "Manage Users", url: "/dashboard/manage-users" },
@@ -118,7 +133,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar {...props}>
       <SidebarHeader>
         <div className="px-2 py-4">
-          <h1 className="text-sm font-semibold tracking-tight">UniBus</h1>
+          <h1 className="text-sm font-semibold tracking-tight">TrackU</h1>
           {role && (
             <span className="text-xs text-muted-foreground capitalize">
               {role}

@@ -4,6 +4,7 @@ import path from "path";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = env.OPENROUTER_MODEL;
+const OPENROUTER_TIMEOUT_MS = 60_000;
 // const MODEL = "google/gemma-3-27b-it:free";
 
 export interface RoutineSlot {
@@ -14,9 +15,7 @@ export interface RoutineSlot {
   note: string;
 }
 
-/**
- * Send a routine image to OpenRouter (Gemma 3 27B) and get structured class times.
- */
+// Analyze a routine image with OpenRouter and return parsed slots.
 export async function analyzeRoutineImage(
   imagePath: string,
 ): Promise<RoutineSlot[]> {
@@ -25,56 +24,112 @@ export async function analyzeRoutineImage(
   const ext = path.extname(imagePath).slice(1).toLowerCase();
   const mimeType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
 
-  const prompt = `You are analyzing a university weekly class/lab routine image.
+  const prompt = `You are analyzing a university weekly class/lab routine image containing a table with days (Sunday–Thursday) and time slots.
 
-Extract the schedule and return ONLY a valid JSON array. Each element must have:
-- "day": one of "saturday","sunday","monday","tuesday","wednesday","thursday","friday" (lowercase)
-- "firstHalfStart": the time (HH:mm, 24-hour) when the FIRST class/lab of the day starts
-- "secondHalfStart": the time (HH:mm, 24-hour) when the FIRST class/lab AFTER the lunch/mid-day break starts
-- "confidence": a number 0 to 1 indicating how confident you are about the extracted times
-- "note": a short description like "First half start at 8:30 AM, second half start at 2:30 PM"
+Your task is to extract, for each day that has at least one class, the start times of:
+1. The FIRST class/lab in the morning session (first half)
+2. The FIRST class/lab in the afternoon session (second half)
 
-Rules:
-- If a day has no classes, skip it entirely.
-- If you cannot determine the second half, set secondHalfStart to "" and confidence below 0.5.
-- provide times 10minutes earlier than the actual start time to allow for preparation.
-- Second half starts at 2:30 PM and its crucial to remember.
-- We have classes from Sunday to Thursday, keep that in mind.
-- Return ONLY the raw JSON array, no markdown, no explanation, no code fences.
+Return ONLY a valid JSON array. No explanation, no markdown.
 
-Example output:
-[{"day":"sunday","firstHalfStart":"08:30","secondHalfStart":"13:00","confidence":0.95,"note":"Regular day"},{"day":"monday","firstHalfStart":"09:00","secondHalfStart":"14:00","confidence":0.85,"note":"Lab in afternoon"}]`;
+Each object must follow this exact schema:
+{
+  "day": "sunday" | "monday" | "tuesday" | "wednesday" | "thursday",
+  "firstHalfStart": "HH:mm",
+  "secondHalfStart": "HH:mm" | "",
+  "confidence": number (0 to 1),
+  "note": string
+}
 
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": "https://unibus.app",
-      "X-Title": "UniBus",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${mimeType};base64,${base64Image}`,
+Strict rules:
+
+1. Time format:
+   - Use 24-hour format HH:mm
+   - Always subtract the detected class start time
+
+2. Session definitions:
+   - First half = morning session (before break)
+   - Second half = starts from 14:30 (2:30 PM onward)
+   - Only detect secondHalfStart if there is a class at or after 14:30
+
+3. Detection logic:
+   - Ignore empty cells
+   - Find the FIRST non-empty cell in each half
+   - If a class spans multiple slots, use its earliest start time
+   - If all cells in a half are empty → that half has no class
+
+4. Missing data:
+   - If no second-half class exists → set "secondHalfStart": ""
+   - In that case, set confidence ≤ 0.5
+
+5. Days:
+   - Only include Sunday to Thursday
+   - Skip days with no classes at all
+
+6. Confidence scoring:
+   - 0.9–1.0 → clear, unambiguous table
+   - 0.7–0.89 → minor ambiguity (merged cells, unclear labels)
+   - 0.5–0.69 → partially unclear
+   - <0.5 → missing or highly uncertain
+
+7. Note field:
+   - Keep it short and structured
+   - Example: "morning 08:00, afternoon 14:30" or "only morning classes"
+
+Output example:
+[
+  {
+    "day": "sunday",
+    "firstHalfStart": "10:40",
+    "secondHalfStart": "14:30",
+    "confidence": 0.95,
+    "note": "morning 10:40, afternoon 14:30"
+  }
+]`;
+  console.log(prompt);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
+
+  let response: Response;
+
+  try {
+    response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "TrackU",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
+                },
               },
-            },
-          ],
-        },
-      ],
-      max_tokens: 2048,
-      temperature: 0.2,
-    }),
-  });
-
-  console.log(response)
+            ],
+          },
+        ],
+        max_tokens: 2048,
+        temperature: 0.2,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      throw new Error("Routine analysis request timed out");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errBody = await response.text();

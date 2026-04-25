@@ -6,6 +6,9 @@ import { Batch } from "../batch/batch.entity";
 import userRepo from "./user.repository";
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
+import { ILike } from "typeorm";
+
+const EXPO_PUSH_TOKEN_REGEX = /^(Expo|Exponent)PushToken\[[^\]]+\]$/;
 
 const createUser = async (payload: Partial<User>) => {
   const { name, email, password, role, batchNumber } = payload as any;
@@ -15,8 +18,8 @@ const createUser = async (payload: Partial<User>) => {
     throw new AppError("Name, email, and password are required", 400);
   }
   
-  if (!role || !["student", "teacher", "cr"].includes(role)) {
-    throw new AppError("Role must be 'student', 'teacher', or 'cr'", 400);
+  if (!role || !["admin", "student", "teacher", "cr"].includes(role)) {
+    throw new AppError("Role must be 'admin', 'student', 'teacher', or 'cr'", 400);
   }
   
   // Check if user already exists
@@ -25,11 +28,11 @@ const createUser = async (payload: Partial<User>) => {
     throw new AppError("User already exists", 409);
   }
   
-  // For students, batchNumber is required
+  // For students and CRs, batchNumber is required
   let batchEntity = null;
-  if (role === "student") {
+  if (role === "student" || role === "cr") {
     if (!batchNumber) {
-      throw new AppError("Batch number is required for students", 400);
+      throw new AppError(`Batch number is required for ${role}s`, 400);
     }
     // Convert batchNumber to string and look up batch
     const batchName = String(batchNumber);
@@ -151,16 +154,17 @@ const updateUser = async (userId: string, payload: Partial<User>) => {
   
   // Handle role update
   if (role) {
-    if (!["student", "teacher", "cr"].includes(role)) {
-      throw new AppError("Role must be 'student', 'teacher', or 'cr'", 400);
+    if (!["admin", "student", "teacher", "cr"].includes(role)) {
+      throw new AppError("Role must be 'admin', 'student', 'teacher', or 'cr'", 400);
     }
     user.role = role as UserRole;
   }
   
-  // Handle batch update for students
-  if (role === "student" || (role === undefined && user.role === "student")) {
+  // Handle batch update for students and CRs
+  const newRole = role || user.role;
+  if (newRole === "student" || newRole === "cr") {
     if (!batchNumber) {
-      throw new AppError("Batch number is required for students", 400);
+      throw new AppError(`Batch number is required for ${newRole}s`, 400);
     }
     const batchName = String(batchNumber);
     const batchEntity = await AppDataSource.getRepository("Batch").findOne({ 
@@ -170,7 +174,7 @@ const updateUser = async (userId: string, payload: Partial<User>) => {
       throw new AppError(`Batch "${batchNumber}" does not exist`, 404);
     }
     user.batch = batchEntity as Batch;
-  } else if ((role === "teacher" || role === "cr") && user.batch) {
+  } else if ((newRole === "teacher" || newRole === "admin") && user.batch) {
     // Remove batch for non-student roles
     user.batch = undefined;
   }
@@ -233,13 +237,67 @@ const updateMyProfile = async (userId: string, name?: string, email?: string, pa
   return user;
 };
 
-const getAllUsers = async () => {
-  const users = await userRepo.find({
-    where: {
-      role: UserRole.STUDENT,
+const updateMyPushToken = async (
+  userId: string,
+  pushToken: string | null,
+) => {
+  const user = await userRepo.findOne({ where: { user_id: userId } });
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  if (typeof pushToken === "string") {
+    const normalized = pushToken.trim();
+
+    if (!normalized) {
+      user.pushToken = null;
+    } else {
+      if (!EXPO_PUSH_TOKEN_REGEX.test(normalized)) {
+        throw new AppError("Invalid Expo push token format", 400);
+      }
+      user.pushToken = normalized;
     }
+  } else {
+    user.pushToken = null;
+  }
+
+  await userRepo.save(user);
+  return { pushToken: user.pushToken };
+};
+
+const getAllUsers = async (options: { page: number, limit: number, sort: string, order: string, search: string }) => {
+  const { page, limit, sort, order, search } = options;
+
+  let where: any = {};
+  if (search) {
+    where = [
+      { name: ILike(`%${search}%`) },
+      { email: ILike(`%${search}%`) },
+    ];
+  }
+
+  const validSortCols = ["name", "email", "role", "createdAt"];
+  const sortCol = validSortCols.includes(sort) ? sort : "createdAt";
+
+  const [users, total] = await userRepo.findAndCount({
+    where,
+    order: {
+      [sortCol]: order.toUpperCase() === "ASC" ? "ASC" : "DESC"
+    },
+    skip: (page - 1) * limit,
+    take: limit,
+    relations: ["batch"]
   });
-  return users;
+
+  return {
+    users,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit)
+    }
+  };
 };
 
 export const UserService = {
@@ -250,5 +308,6 @@ export const UserService = {
   getUserById,
   getMyProfile,
   updateMyProfile,
+  updateMyPushToken,
   getAllUsers,
 };

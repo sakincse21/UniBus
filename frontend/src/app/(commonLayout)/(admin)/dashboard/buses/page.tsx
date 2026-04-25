@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -202,7 +201,7 @@ export default function BusManagementPage() {
               </TableBody>
             </Table>
 
-              {/* Pagination */}
+
               {totalPages > 1 && (
                 <Pagination className="mt-6">
                   <PaginationContent>
@@ -239,7 +238,7 @@ export default function BusManagementPage() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
+
       <Dialog open={!!editBus} onOpenChange={(open) => !open && setEditBus(null)}>
         <DialogContent>
           <DialogTitle>Edit Bus</DialogTitle>

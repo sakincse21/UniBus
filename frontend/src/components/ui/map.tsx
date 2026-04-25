@@ -101,10 +101,7 @@ type Theme = "light" | "dark";
 
 type MapProps = {
   children?: ReactNode;
-  /**
-   * Theme for the map. If not provided, automatically detects system preference.
-   * Pass your theme value here.
-   */
+  // Map theme (light/dark, auto-detects system preference if not provided)
   theme?: Theme;
   /** Custom map styles for light and dark themes. Overrides the default Carto styles. */
   styles?: {
@@ -230,7 +227,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     <MapContext.Provider value={contextValue}>
       <div ref={containerRef} className="relative w-full h-full">
         {!isLoaded && <DefaultLoader />}
-        {/* SSR-safe: children render only when map is loaded on client */}
+
         {mapInstance && children}
       </div>
     </MapContext.Provider>

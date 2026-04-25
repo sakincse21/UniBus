@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -308,7 +307,7 @@ export default function ScheduleManagementPage() {
                 </TableBody>
               </Table>
 
-              {/* Pagination Controls */}
+
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
                   Page {currentPage} of {totalPages} ({allSchedules.length} total)
@@ -339,7 +338,7 @@ export default function ScheduleManagementPage() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
+
       <Dialog
         open={!!editSchedule}
         onOpenChange={(open) => !open && setEditSchedule(null)}

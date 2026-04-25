@@ -4,6 +4,7 @@ import { ensureDataSourceInitialized } from "./app/db/data-source";
 import { attachServer, gracefulShutdown } from "./app/utils/globalErrorHandler";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { startCronJobs } from "./app/modules/notification/push.cron";
 import { registerTrackingSockets } from "./app/modules/tracking/tracking.socket";
 import { socketAuth } from "./app/middlewares/socketAuth";
 
@@ -26,7 +27,8 @@ async function start() {
   io.use(socketAuth);
 
   app.set("io", io);
-  registerTrackingSockets(io);
+  const stopTrackingCleanup = registerTrackingSockets(io);
+  const stopCronJobs = startCronJobs();
 
   httpServer.listen(env.PORT, () =>
     console.log(`Server running on port ${env.PORT}`),
@@ -35,11 +37,18 @@ async function start() {
   // attachServer(server);
   attachServer(httpServer);
 
-  process.on("SIGTERM", () => gracefulShutdown(0, "SIGTERM"));
-  process.on("SIGINT", () => gracefulShutdown(0, "SIGINT"));
+  const shutdown = (exitCode: number, reason: string) => {
+    stopTrackingCleanup();
+    stopCronJobs();
+    io.close();
+    void gracefulShutdown(exitCode, reason);
+  };
+
+  process.on("SIGTERM", () => shutdown(0, "SIGTERM"));
+  process.on("SIGINT", () => shutdown(0, "SIGINT"));
   process.on("uncaughtException", (err) => {
     console.error(err);
-    gracefulShutdown(1, "uncaughtException");
+    shutdown(1, "uncaughtException");
   });
 }
 

@@ -19,6 +19,9 @@ import {
   Button,
 } from "@gluestack-ui/themed";
 import type { ViewProps } from "react-native";
+import { APP_THEME_COLORS } from "@/lib/theme";
+
+const COLORS = APP_THEME_COLORS;
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -95,7 +98,7 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: COLORS.background }}
     >
       <ScrollView
         ref={scrollViewRef}
@@ -112,32 +115,37 @@ export default function RegisterScreen() {
             gap: 16,
           }}
         >
-          {/* Header */}
           <VStack style={{ alignItems: "center", marginBottom: 12, gap: 8 }}>
             <Heading
               style={{
                 textAlign: "center",
                 fontSize: 32,
                 fontWeight: "700",
-                color: "#000",
+                color: COLORS.onSurface,
               }}
             >
               Create Account
             </Heading>
             <Text
-              style={{ textAlign: "center", fontSize: 14, color: "#4b5563" }}
+              style={{
+                textAlign: "center",
+                fontSize: 14,
+                color: COLORS.onSurfaceMuted,
+              }}
             >
-              Join UniBus Tracking
+              Join TrackU Tracking
             </Text>
           </VStack>
 
-          {/* Form Fields */}
           <VStack style={{ gap: 12 }}>
-            {/* Name */}
             <FormControl isInvalid={!!errors.name}>
               <FormControl.Label>
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#000" }}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: COLORS.onSurface,
+                  }}
                 >
                   Full Name
                 </Text>
@@ -152,7 +160,7 @@ export default function RegisterScreen() {
                   }}
                   autoCapitalize="words"
                   editable={!isLoading}
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={COLORS.onSurfaceMuted}
                 />
               </Input>
               {errors.name && (
@@ -164,11 +172,14 @@ export default function RegisterScreen() {
               )}
             </FormControl>
 
-            {/* Email */}
             <FormControl isInvalid={!!errors.email}>
               <FormControl.Label>
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#000" }}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: COLORS.onSurface,
+                  }}
                 >
                   Email
                 </Text>
@@ -185,7 +196,7 @@ export default function RegisterScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   editable={!isLoading}
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={COLORS.onSurfaceMuted}
                 />
               </Input>
               {errors.email && (
@@ -197,11 +208,14 @@ export default function RegisterScreen() {
               )}
             </FormControl>
 
-            {/* Password */}
             <FormControl isInvalid={!!errors.password}>
               <FormControl.Label>
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#000" }}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: COLORS.onSurface,
+                  }}
                 >
                   Password
                 </Text>
@@ -217,7 +231,7 @@ export default function RegisterScreen() {
                   }}
                   secureTextEntry
                   editable={!isLoading}
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={COLORS.onSurfaceMuted}
                 />
               </Input>
               {errors.password && (
@@ -229,11 +243,14 @@ export default function RegisterScreen() {
               )}
             </FormControl>
 
-            {/* Confirm Password */}
             <FormControl isInvalid={!!errors.confirmPassword}>
               <FormControl.Label>
                 <Text
-                  style={{ fontSize: 14, fontWeight: "600", color: "#000" }}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: COLORS.onSurface,
+                  }}
                 >
                   Confirm Password
                 </Text>
@@ -249,7 +266,7 @@ export default function RegisterScreen() {
                   }}
                   secureTextEntry
                   editable={!isLoading}
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={COLORS.onSurfaceMuted}
                 />
               </Input>
               {errors.confirmPassword && (
@@ -262,14 +279,15 @@ export default function RegisterScreen() {
             </FormControl>
           </VStack>
 
-          {/* Register Button */}
           <Button
             onPress={handleRegister}
             isDisabled={isLoading}
             style={{
               marginTop: 8,
               width: "100%",
-              backgroundColor: isLoading ? "#d1d5db" : "#0ea5e9",
+              backgroundColor: isLoading
+                ? COLORS.surfaceHigh
+                : COLORS.primary,
               paddingVertical: 12,
               paddingHorizontal: 16,
               borderRadius: 6,
@@ -284,14 +302,13 @@ export default function RegisterScreen() {
             )}
           </Button>
 
-          {/* Sign In Link */}
           <VStack style={{ alignItems: "center", gap: 4 }}>
-            <Text style={{ fontSize: 14, color: "#4b5563" }}>
+            <Text style={{ fontSize: 14, color: COLORS.onSurfaceMuted }}>
               Already have an account?
             </Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
               <Text
-                style={{ fontSize: 14, fontWeight: "600", color: "#0ea5e9" }}
+                style={{ fontSize: 14, fontWeight: "600", color: COLORS.primary }}
               >
                 Sign In Here
               </Text>

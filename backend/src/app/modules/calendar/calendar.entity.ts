@@ -31,6 +31,9 @@ export class UserFixture {
   @Column({ type: "boolean", default: false })
   isAllDay!: boolean;
 
+  @Column({ type: "boolean", default: false })
+  isPublic!: boolean;
+
   @CreateDateColumn()
   createdAt!: Date;
 

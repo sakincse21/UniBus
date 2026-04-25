@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -254,7 +253,7 @@ export default function RoutePointsEditorPage() {
         </div>
       </div>
 
-      {/* Map for adding points by clicking */}
+
       <Card>
         <CardHeader>
           <CardTitle>Route Points Map</CardTitle>
@@ -273,7 +272,7 @@ export default function RoutePointsEditorPage() {
               <AutoLocate />
               <MapControls showZoom showLocate position="bottom-right" />
 
-              {/* Route polyline */}
+
               {routePolyline.length > 1 && (
                 <MapRoute
                   coordinates={routePolyline}
@@ -329,7 +328,7 @@ export default function RoutePointsEditorPage() {
         </CardContent>
       </Card>
 
-      {/* Excel Upload */}
+
       <RouteExcelUpload routeId={routeId} onSuccess={(data) => {
         setPoints(data.points.map((p: any) => ({
           id: p.id,
@@ -340,7 +339,7 @@ export default function RoutePointsEditorPage() {
         })));
       }} />
 
-      {/* Points Table */}
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

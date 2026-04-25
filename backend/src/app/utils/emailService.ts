@@ -19,7 +19,7 @@ export const sendForgotPasswordEmail = async (
   const mailOptions = {
     from: env.SMTP_FROM,
     to: email,
-    subject: "UniBus - Password Reset",
+    subject: "TrackU - Password Reset",
     html: `
       <h2>Password Reset Request</h2>
       <p>Hello ${userName},</p>
@@ -35,7 +35,7 @@ export const sendForgotPasswordEmail = async (
       </ul>
       <p>If you did not request this password reset, please ignore this email or contact support.</p>
       <br>
-      <p>Best regards,<br>UniBus Team</p>
+      <p>Best regards,<br>TrackU Team</p>
     `,
   };
 

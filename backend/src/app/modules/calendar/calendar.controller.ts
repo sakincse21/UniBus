@@ -28,7 +28,7 @@ const getCalendarEventsHandler = tryCatch(async (req: Request, res: Response) =>
 
 const createPersonalFixture = tryCatch(async (req: Request, res: Response) => {
   const userId = req.user.userId;
-  const { title, description, startDateTime, endDateTime, isAllDay } = req.body;
+  const { title, description, startDateTime, endDateTime, isAllDay, isPublic } = req.body;
 
   // Validation
   if (!title || !startDateTime || !endDateTime) {
@@ -64,6 +64,7 @@ const createPersonalFixture = tryCatch(async (req: Request, res: Response) => {
     startDateTime: start,
     endDateTime: end,
     isAllDay: !!isAllDay,
+    isPublic: !!isPublic,
   });
 
   await fixtureRepo.save(fixture);
@@ -92,7 +93,7 @@ const getPersonalFixtures = tryCatch(async (req: Request, res: Response) => {
 const updatePersonalFixture = tryCatch(async (req: Request, res: Response) => {
   const userId = req.user.userId;
   const fixtureId = Number(req.params.id);
-  const { title, description, startDateTime, endDateTime, isAllDay } = req.body;
+  const { title, description, startDateTime, endDateTime, isAllDay, isPublic } = req.body;
 
   const fixtureRepo = AppDataSource.getRepository(UserFixture);
   const fixture = await fixtureRepo.findOne({
@@ -132,6 +133,7 @@ const updatePersonalFixture = tryCatch(async (req: Request, res: Response) => {
   if (title !== undefined) fixture.title = title;
   if (description !== undefined) fixture.description = description;
   if (isAllDay !== undefined) fixture.isAllDay = isAllDay;
+  if (isPublic !== undefined) fixture.isPublic = !!isPublic;
 
   await fixtureRepo.save(fixture);
 

@@ -37,6 +37,7 @@ export default function CalendarView() {
     startDateTime: "",
     endDateTime: "",
     isAllDay: false,
+    isPublic: false,
   });
 
   const loadEvents = useCallback(async () => {
@@ -86,6 +87,7 @@ export default function CalendarView() {
         startDateTime: fixtureData.startDateTime,
         endDateTime: fixtureData.endDateTime,
         isAllDay: fixtureData.isAllDay,
+        isPublic: fixtureData.isPublic,
       };
 
       await createPersonalFixture(payload);
@@ -97,6 +99,7 @@ export default function CalendarView() {
         startDateTime: "",
         endDateTime: "",
         isAllDay: false,
+        isPublic: false,
       });
       loadEvents();
     } catch (error) {
@@ -130,6 +133,8 @@ export default function CalendarView() {
         return "border-l-4 border-l-purple-500 bg-purple-50";
       case "personal":
         return "border-l-4 border-l-green-500 bg-green-50";
+      case "public":
+        return "border-l-4 border-l-amber-500 bg-amber-50";
       default:
         return "border-l-4 border-l-gray-500 bg-gray-50";
     }
@@ -156,7 +161,6 @@ export default function CalendarView() {
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4">
-      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Calendar</h1>
@@ -168,11 +172,11 @@ export default function CalendarView() {
         <div className="flex gap-2">
           <Dialog open={showFixtureDialog} onOpenChange={setShowFixtureDialog}>
             <DialogTrigger asChild>
-              <Button>+ Add Personal Event</Button>
+              <Button>+ Add Event</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Create Personal Event</DialogTitle>
+                <DialogTitle>Create Event</DialogTitle>
               </DialogHeader>
 
               <div className="space-y-4">
@@ -252,6 +256,23 @@ export default function CalendarView() {
                   </Label>
                 </div>
 
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="isPublic"
+                    checked={fixtureData.isPublic}
+                    onChange={(e) =>
+                      setFixtureData({
+                        ...fixtureData,
+                        isPublic: e.target.checked,
+                      })
+                    }
+                  />
+                  <Label htmlFor="isPublic" className="cursor-pointer">
+                    Public event (visible to all roles)
+                  </Label>
+                </div>
+
                 <div className="flex gap-2 pt-4">
                   <Button
                     variant="outline"
@@ -285,7 +306,6 @@ export default function CalendarView() {
         </div>
       </div>
 
-      {/* Events List */}
       {sortedDates.length === 0 ? (
         <Card className="p-12 text-center">
           <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -379,7 +399,8 @@ export default function CalendarView() {
                           </div>
                         </div>
 
-                        {event.type === "personal" && (
+                        {(event.source.fixtureId &&
+                          (event.metadata?.canDelete ?? event.type === "personal")) && (
                           <Button
                             variant="ghost"
                             size="sm"

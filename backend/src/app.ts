@@ -7,6 +7,18 @@ import cookieParser from "cookie-parser";
 import { ensureDataSourceInitialized } from "./app/db/data-source";
 
 const app = express();
+
+const noopSocketServer = {
+  emit: (_event: string, _payload: unknown) => {},
+  to: (_room: string) => ({
+    emit: (_event: string, _payload: unknown) => {},
+  }),
+};
+
+// In serverless entrypoints `server.ts` (which attaches real io) may not run.
+// Keep a no-op socket handle available so controllers can emit safely.
+app.set("io", noopSocketServer);
+
 app.use(
   cors({
     origin: "*",
