@@ -94,14 +94,15 @@ Each object must follow this exact schema:
 
 Strict rules:
 
-1. Time format:
-   - Use 24-hour format "HH:mm".
-   - Always return the detected class cell's actual start time from the column headers.
+1. Time format (CRITICAL):
+   - You MUST use 24-hour format "HH:mm" for the output.
+   - The image headers use 12-hour formatting without AM/PM labels. You must convert afternoon times correctly. 
+   - Example: "01:10" becomes "13:10", "02:30" becomes "14:30", "03:20" becomes "15:20", and "04:10" becomes "16:10".
+   - NEVER output early morning times like "02:30" or "04:10" for the second half.
 
 2. Session definitions:
-   - First half = morning sessions, starting anywhere between 08:00 and 13:10. Watch closely, as some days the first class might not start until 10:40.
-   - Second half = afternoon sessions, starting at or after 14:30 (02:30 PM).
-   - Only detect 'secondHalfStart' if there is a non-empty class cell at or after 14:30.
+   - First half = strictly between 08:00 and 13:10. Find the FIRST non-empty cell in this range.
+   - Second half = strictly between 14:30 and 17:00 (02:30 PM to 05:00 PM). Find the FIRST non-empty cell in this range.
 
 3. Detection logic:
    - Ignore empty cells completely.
@@ -116,7 +117,7 @@ Strict rules:
 
 5. Days:
    - You MUST strictly check and return an object for every single day from Sunday to Thursday in order.
-   - Do not skip any day between Sunday and Thursday unless the entire row is completely blank/missing from the image.
+   - Do not skip any day between Sunday and Thursday.
 
 6. Confidence scoring:
    - 0.9–1.0 → clear, unambiguous table.
@@ -163,12 +164,13 @@ Output example:
                 type: "image_url",
                 image_url: {
                   url: `data:${mimeType};base64,${base64Image}`,
+                  detail: "high"
                 },
               },
             ],
           },
         ],
-        temperature: 0.2,
+        temperature: 0.0,
         max_tokens: 2048,
       }),
       signal: controller.signal,

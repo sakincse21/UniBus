@@ -89,7 +89,7 @@ const checkAndSendReminders = async () => {
         if (targetUsers.length > 0) {
           pushPayloads.push(
             sendPushToUsers(targetUsers, {
-              title: "Upcoming Notice! 📢",
+              title: "Notice Event Reminder! 📢",
               body: `"${notice.title}" starts in 10 minutes (${targetTimeStr}).`,
               channelId: "notice-updates"
             })
@@ -123,7 +123,7 @@ const checkAndSendReminders = async () => {
 
         pushPayloads.push(
           sendPushToUsers([routine.user], {
-            title: "Upcoming Routine Reminder! ⏰",
+            title: "Routine Reminder! ⏰",
             body: `Your ${routineType}${noteStr} starts in 10 minutes (${targetTimeStr}).`,
             channelId: "routine-reminders"
           })
@@ -152,7 +152,7 @@ const checkAndSendReminders = async () => {
 
         pushPayloads.push(
           sendPushToUsers([event.user], {
-            title: "Upcoming Event! 📅",
+            title: "Event Reminder! 📅",
             body: `"${event.title}" is starting in 10 minutes.`,
             channelId: "calendar-reminders"
           })
