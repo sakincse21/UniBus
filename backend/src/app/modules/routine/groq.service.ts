@@ -73,57 +73,63 @@ export async function analyzeRoutineImageWithGroq(
 
   // Keep a strict prompt so output stays in predictable JSON format.
 
-  const prompt = `You are analyzing a university weekly class/lab routine image containing a table with days (Sunday–Thursday) and time slots.
+  const prompt = `You are an advanced AI vision model analyzing a university weekly class/lab schedule image. The schedule consists of a table with days (Sunday to Thursday) and time slots.
 
-Your task is to extract, for each day that has at least one class, the start times of:
+Your task is to extract, for EACH day from Sunday to Thursday exactly, the start times of:
 1. The FIRST class/lab in the morning session (first half)
 2. The FIRST class/lab in the afternoon session (second half)
 
-Return ONLY a valid JSON array. No explanation, no markdown.
+Return ONLY a valid JSON array. No explanation, no markdown formatting outside the JSON block, and no conversational text.
 
 Each object must follow this exact schema:
-{
-  "day": "sunday" | "monday" | "tuesday" | "wednesday" | "thursday",
-  "firstHalfStart": "HH:mm",
-  "secondHalfStart": "HH:mm" | "",
-  "confidence": number (0 to 1),
-  "note": string
-}
+[
+  {
+    "day": "sunday" | "monday" | "tuesday" | "wednesday" | "thursday",
+    "firstHalfStart": "HH:mm" | "",
+    "secondHalfStart": "HH:mm" | "",
+    "confidence": number (0 to 1),
+    "note": string
+  }
+]
 
 Strict rules:
 
-1. Time format:
-   - Use 24-hour format HH:mm
-   - Always return the detected class cell's start time
+1. Time format (CRITICAL):
+   - You MUST use 24-hour format "HH:mm" for the output.
+   - The image headers use 12-hour formatting without AM/PM labels. You must convert afternoon times correctly. 
+   - Example: "01:10" becomes "13:10", "02:30" becomes "14:30", "03:20" becomes "15:20", and "04:10" becomes "16:10".
+   - NEVER output early morning times like "02:30" or "04:10" for the second half.
 
 2. Session definitions:
-   - First half = morning sessions usually start anytime from 8:00 to 12:20
-   - Second half = starts from 14:30 (2:30 PM onward)
-   - Only detect secondHalfStart if there is a class at or after 14:30
+   - First half = strictly between 08:00 and 13:10. Find the FIRST non-empty cell in this range.
+   - Second half = strictly between 14:30 and 17:00 (02:30 PM to 05:00 PM). Find the FIRST non-empty cell in this range.
 
 3. Detection logic:
-   - Ignore empty cells
-   - Find the FIRST non-empty cell in each half
-   - If a class spans multiple slots, use its earliest start time
-   - If all cells in a half are empty → that half has no class
+   - Ignore empty cells completely.
+   - Find the FIRST non-empty cell in the first half and the FIRST non-empty cell in the second half.
+   - If a class spans multiple time slots, use its earliest start time.
+   - If all cells in a half are empty, that half has no class.
 
 4. Missing data:
-   - If no second-half class exists → set "secondHalfStart": ""
-   - In that case, set confidence ≤ 0.5
+   - If no first-half class exists, set "firstHalfStart": "".
+   - If no second-half class exists, set "secondHalfStart": "".
+   - If a half is missing, adjust confidence accordingly (e.g., ≤ 0.8).
 
 5. Days:
-   - Only include Sunday to Thursday
-   - Skip days with no classes at all
+   - You MUST strictly check and return an object for every single day from Sunday to Thursday in order.
+   - Do not skip any day between Sunday and Thursday.
 
 6. Confidence scoring:
-   - 0.9–1.0 → clear, unambiguous table
-   - 0.7–0.89 → minor ambiguity (merged cells, unclear labels)
-   - 0.5–0.69 → partially unclear
-   - <0.5 → missing or highly uncertain
+   - 0.9–1.0 → clear, unambiguous table.
+   - 0.7–0.89 → minor ambiguity (merged cells, unclear labels).
+   - 0.5–0.69 → partially unclear or missing a session.
+   - <0.5 → highly uncertain.
 
-7. Note field:
-   - Keep it short and structured
-   - Example: "morning 08:00, afternoon 14:30" or "only morning classes"
+7. Note field (CRITICAL):
+   - The note MUST include the start times, the COURSE CODE (e.g., CSE 3219, HUM 3247c), the teacher initials (e.g., "WIS", "KFI" found in parentheses), and the exact Room Number for those specific first classes.
+   - To find the room number, carefully read the footer of the image to map the course code (e.g., CSE 3218, CSE 3210) or type (Theory/Lab) to the correct room number (e.g., 306, 402*, CSE-201, CSE-202).
+   - Format example: "Morning: 10:40, Course: CSE 3219, Teacher: EK, Room: 306 | Afternoon: 14:30, Course: CSE 3210, Teacher: MHO+WIS, Room: CSE-202"
+   - If there is no class in a particular half, explicitly state it (e.g., "Morning: 08:00, Course: CSE 3217, Teacher: KFI, Room: 306 | No afternoon class").
 
 Output example:
 [
@@ -132,7 +138,7 @@ Output example:
     "firstHalfStart": "10:40",
     "secondHalfStart": "14:30",
     "confidence": 0.95,
-    "note": "morning 10:40, afternoon 14:30"
+    "note": "Morning: 10:40, Course: CSE 3219, Teacher: EK, Room: 306 | Afternoon: 14:30, Course: CSE 3210, Teacher: MHO+WIS, Room: CSE-202"
   }
 ]`;
   const controller = new AbortController();
@@ -158,12 +164,13 @@ Output example:
                 type: "image_url",
                 image_url: {
                   url: `data:${mimeType};base64,${base64Image}`,
+                  detail: "high"
                 },
               },
             ],
           },
         ],
-        temperature: 0.2,
+        temperature: 0.0,
         max_tokens: 2048,
       }),
       signal: controller.signal,
